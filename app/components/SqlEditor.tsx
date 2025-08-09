@@ -116,7 +116,7 @@ export default function SqlEditor() {
       view.destroy();
       editorRef.current = null;
     };
-  }, [runQuery]);
+  }, [runQuery, query]);
 
   return (
     <div className="flex flex-col h-screen bg-[#0f172a] text-white">

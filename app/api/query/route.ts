@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { Pool } from "pg";
+import { Pool, FieldDef } from "pg";
 
 const pool = new Pool({
   host: process.env.DB_HOST,
@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       rows: res.rows,
       rowCount: res.rowCount,
-      fields: res.fields.map((f: any) => f.name),
+      fields: res.fields.map((f: FieldDef) => f.name),
     });
   } catch (error) {
     return NextResponse.json(
