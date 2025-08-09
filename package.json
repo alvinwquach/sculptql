@@ -2,9 +2,14 @@
   "name": "sculptql",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
+  "bin": {
+    "sculptql": "./dist/index.js"
+  },
   "scripts": {
     "dev": "next dev --turbopack",
     "build": "next build",
+    "build:cli": "tsc -p tsconfig.cli.json",
     "start": "next start",
     "lint": "next lint",
     "test": "jest",
@@ -18,14 +23,21 @@
     "@codemirror/lang-javascript": "^6.2.4",
     "@codemirror/lang-sql": "^6.9.1",
     "@codemirror/theme-one-dark": "^6.1.3",
+    "@radix-ui/react-dialog": "^1.1.14",
+    "@radix-ui/react-slot": "^1.2.3",
     "chalk": "^5.5.0",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
     "codemirror": "^6.0.2",
     "commander": "^14.0.0",
+    "dotenv": "^17.2.1",
     "inquirer": "^12.9.0",
+    "lucide-react": "^0.539.0",
     "next": "15.4.5",
     "pg": "^8.16.3",
     "react": "19.1.0",
-    "react-dom": "19.1.0"
+    "react-dom": "19.1.0",
+    "tailwind-merge": "^3.3.1"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
@@ -46,6 +58,7 @@
     "tailwindcss": "^4",
     "ts-node": "^10.9.2",
     "tsx": "^4.20.3",
+    "tw-animate-css": "^1.3.6",
     "typescript": "^5"
   }
 }
