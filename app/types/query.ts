@@ -1,25 +1,7 @@
-export interface ExplainPlanNode {
-  "Node Type": string;
-  "Relation Name"?: string;
-  "Total Cost"?: number;
-  "Rows Removed by Filter"?: number;
-  "Workers Planned"?: number;
-  "Workers Launched"?: number;
-  "Temp Files"?: number;
-  "Temp File Size"?: number;
-  "Shared Hit Blocks"?: number;
-  "Shared Read Blocks"?: number;
-  Plans?: ExplainPlanNode[];
-}
-
-export interface ExplainAnalyzeJSON {
-  Plan: ExplainPlanNode;
-  PlanningTime?: number;
-  ExecutionTime?: number;
-}
+import { LucideIcon } from "lucide-react";
 
 export interface QueryResult {
-  rows: Record<string, string | number | boolean | null>[];
+  rows: Record<string, unknown>[];
   rowCount?: number;
   fields: string[];
   payloadSize?: number;
@@ -28,13 +10,13 @@ export interface QueryResult {
   responseTime?: number;
   totalTime?: number;
   indexUsed?: boolean;
-  averageRowSize?: number;
-  rowsMatched?: number;
   rowsFiltered?: number;
+  rowsMatched?: number;
   cacheHit?: boolean;
   queryPlan?: string;
   warningsCount?: number;
   errorsCount?: number;
+  averageRowSize?: number;
   rowProcessingTime?: number;
   queryType?: string;
   estimatedCost?: number;
@@ -48,16 +30,47 @@ export interface QueryResult {
   };
 }
 
-export type ViewMode = "table" | "json" | "stats";
+export interface ExplainPlanNode {
+  "Node Type": string;
+  "Relation Name"?: string;
+  Plans?: ExplainPlanNode[];
+  "Total Cost"?: number;
+  "Rows Removed by Filter"?: number;
+  "Workers Planned"?: number;
+  "Workers Launched"?: number;
+  "Temp File Size"?: number;
+  "Shared Hit Blocks"?: number;
+  "Shared Read Blocks"?: number;
+}
+
+export interface ExplainAnalyzeJSON {
+  Plan: ExplainPlanNode;
+  PlanningTime?: number;
+  ExecutionTime?: number;
+}
 
 export interface ChartDataItem {
   name: string;
   value: number;
-  unit?: string;
+  unit: string;
 }
+
+export type ViewMode = "table" | "json" | "stats" | "schema";
 
 export interface Stat {
   label: string;
   value: string | number;
-  icon?: React.ElementType;
+  icon?: LucideIcon;
+}
+
+export interface ColumnSchema {
+  column_name: string;
+  data_type: string;
+  is_nullable: string;
+  column_default: string | null;
+}
+
+export interface TableSchema {
+  table_name: string;
+  columns: ColumnSchema[];
 }
