@@ -175,6 +175,26 @@ export default function SqlEditor() {
     URL.revokeObjectURL(url);
   }, [result]);
 
+  const exportToJson = useCallback(() => {
+    if (!result || !result.rows) return;
+
+    const jsonContent = JSON.stringify(result.rows, null, 2);
+    const blob = new Blob([jsonContent], {
+      type: "application/json;charset=utf-8;",
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute(
+      "download",
+      `query_results_${new Date().toISOString()}.json`
+    );
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }, [result]);
+
   useEffect(() => {
     loadHistory();
     fetchTables();
@@ -372,7 +392,7 @@ export default function SqlEditor() {
                 )}
               {result && viewMode === "table" && (
                 <>
-                  <div className="flex justify-end mb-2">
+                  <div className="flex justify-end mb-2 space-x-2">
                     <Button
                       variant="outline"
                       size="sm"
@@ -381,6 +401,15 @@ export default function SqlEditor() {
                     >
                       <Download className="w-4 h-4 mr-2" />
                       Export to CSV
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={exportToJson}
+                      className="px-4 py-2 text-green-300 border-slate-700 bg-slate-800 hover:bg-green-500 hover:text-white transition-all duration-300"
+                    >
+                      <Download className="w-4 h-4 mr-2" />
+                      Export to JSON
                     </Button>
                   </div>
                   <div className="overflow-x-auto border border-slate-700 rounded">
