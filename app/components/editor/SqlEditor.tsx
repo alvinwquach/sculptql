@@ -122,7 +122,7 @@ export default function SqlEditor() {
             setSelectedTable(tableName);
           }
         }
-        setViewMode("table"); // Default to table view
+        setViewMode("table");
       }
     } catch (e: unknown) {
       setError((e as Error).message || "Network error");
@@ -160,10 +160,7 @@ export default function SqlEditor() {
         })
         .join(",")
     );
-    // Combine headers and rows
     const csvContent = [headers, ...rows].join("\n");
-
-    // Create a Blob and trigger download
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
