@@ -12,7 +12,7 @@ import { EditorState } from "@codemirror/state";
 import { sql } from "@codemirror/lang-sql";
 import { autocompletion, startCompletion } from "@codemirror/autocomplete";
 import { indentWithTab, defaultKeymap } from "@codemirror/commands";
-import { Database, Loader2, History } from "lucide-react";
+import { Database, Loader2, History, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import ViewToggle from "../view/ViewToggle";
 import StatsPanel from "../panel/StatsPanel";
@@ -122,7 +122,7 @@ export default function SqlEditor() {
             setSelectedTable(tableName);
           }
         }
-        setViewMode("table"); // Default to table view
+        setViewMode("table");
       }
     } catch (e: unknown) {
       setError((e as Error).message || "Network error");
@@ -144,6 +144,36 @@ export default function SqlEditor() {
       setError((e as Error).message || "Network error");
     }
   }, []);
+
+  const exportToCsv = useCallback(() => {
+    if (!result || !result.rows || !result.fields) return;
+
+    const headers = result.fields.join(",");
+    const rows = result.rows.map((row) =>
+      result.fields
+        .map((field) => {
+          const value = row[field] !== null ? String(row[field]) : "";
+          if (value.includes(",") || value.includes('"')) {
+            return `"${value.replace(/"/g, '""')}"`;
+          }
+          return value;
+        })
+        .join(",")
+    );
+    const csvContent = [headers, ...rows].join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute(
+      "download",
+      `query_results_${new Date().toISOString()}.csv`
+    );
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }, [result]);
 
   useEffect(() => {
     loadHistory();
@@ -281,7 +311,7 @@ export default function SqlEditor() {
                 <ViewToggle
                   viewMode={viewMode}
                   onViewModeChange={handleViewModeChange}
-                  schemaLabel="Show Table"
+                  schemaLabel="Table Schema"
                 />
               )}
               {viewMode === "schema" && tables.length > 0 && selectedTable && (
@@ -342,6 +372,17 @@ export default function SqlEditor() {
                 )}
               {result && viewMode === "table" && (
                 <>
+                  <div className="flex justify-end mb-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={exportToCsv}
+                      className="px-4 py-2 text-green-300 border-slate-700 bg-slate-800 hover:bg-green-500 hover:text-white transition-all duration-300"
+                    >
+                      <Download className="w-4 h-4 mr-2" />
+                      Export to CSV
+                    </Button>
+                  </div>
                   <div className="overflow-x-auto border border-slate-700 rounded">
                     <table className="w-full text-left text-sm">
                       <thead className="bg-[#111827] sticky top-0 text-green-500">
