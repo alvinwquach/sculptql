@@ -139,7 +139,7 @@ export async function POST(request: NextRequest) {
       const queryType = query.trim().split(/\s+/)[0].toUpperCase();
 
       return NextResponse.json({
-        rows: response.rows,
+        rows: response.rows as Record<string, unknown>[], // Ensure type compatibility
         rowCount: response.rowCount ?? undefined,
         fields: response.fields.map((field: FieldDef) => field.name),
         payloadSize: Number(payloadSize.toFixed(4)),
