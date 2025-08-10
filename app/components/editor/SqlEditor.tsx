@@ -12,11 +12,22 @@ import { EditorState } from "@codemirror/state";
 import { sql } from "@codemirror/lang-sql";
 import { autocompletion, startCompletion } from "@codemirror/autocomplete";
 import { indentWithTab, defaultKeymap } from "@codemirror/commands";
-import { Database, Loader2 } from "lucide-react";
+import { Database, Loader2, History } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import ViewToggle from "../view/ViewToggle";
+import StatsPanel from "../panel/StatsPanel";
+import QueryHistory from "../history/QueryHistory";
+import { QueryResult, ViewMode, ChartDataItem } from "../../types/query";
+import {
+  getLocalStorageItem,
+  setLocalStorageItem,
+  removeLocalStorageItem,
+} from "../../utils/localStorageUtils";
 
-import ViewToggle from "./ViewToggle";
-import StatsPanel from "./StatsPanel";
-import { QueryResult, ViewMode, ChartDataItem } from "../types/query";
+interface QueryHistoryItem {
+  query: string;
+  timestamp: string;
+}
 
 export default function SqlEditor() {
   const [query, setQuery] = useState("SELECT * FROM users;");
@@ -24,13 +35,55 @@ export default function SqlEditor() {
   const [error, setError] = useState<string | undefined>(undefined);
   const [result, setResult] = useState<QueryResult | undefined>(undefined);
   const [viewMode, setViewMode] = useState<ViewMode>("table");
+  const [history, setHistory] = useState<QueryHistoryItem[]>([]);
+  const [showHistory, setShowHistory] = useState(false);
 
   const editorRef = useRef<EditorView | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
-  const handleViewModeChange = (mode: ViewMode) => {
-    setViewMode(mode);
-  };
+  const handleViewModeChange = (mode: ViewMode) => setViewMode(mode);
+
+  const loadHistory = useCallback(() => {
+    const stored = getLocalStorageItem<QueryHistoryItem[]>(
+      "sculptql_history",
+      []
+    );
+    setHistory(stored);
+  }, []);
+
+  const saveQueryToHistory = useCallback(
+    (q: string) => {
+      const newItem = { query: q, timestamp: new Date().toISOString() };
+      const updated = [newItem, ...history].slice(0, 200);
+      setHistory(updated);
+      setLocalStorageItem("sculptql_history", updated);
+    },
+    [history]
+  );
+
+  const clearHistory = useCallback(() => {
+    setHistory([]);
+    removeLocalStorageItem("sculptql_history");
+  }, []);
+
+  const loadQueryFromHistory = useCallback((q: string) => {
+    setQuery(q);
+    if (editorRef.current) {
+      const transaction = editorRef.current.state.update({
+        changes: { from: 0, to: editorRef.current.state.doc.length, insert: q },
+      });
+      editorRef.current.dispatch(transaction);
+    }
+  }, []);
+
+  const runQueryFromHistory = useCallback(
+    (q: string) => {
+      loadQueryFromHistory(q);
+      setShowHistory(false);
+      runQuery();
+    },
+    [loadQueryFromHistory]
+  );
 
   const runQuery = useCallback(async () => {
     setLoading(true);
@@ -49,39 +102,34 @@ export default function SqlEditor() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ query }),
       });
-
       const data = await res.json();
 
       if (!res.ok) setError(data.error || "Unknown error");
-      else setResult(data as QueryResult);
+      else {
+        setResult(data as QueryResult);
+        saveQueryToHistory(query);
+      }
     } catch (e: unknown) {
       setError((e as Error).message || "Network error");
     } finally {
       setLoading(false);
     }
-  }, [query]);
+  }, [query, saveQueryToHistory]);
+
+  useEffect(loadHistory, [loadHistory]);
 
   useEffect(() => {
     if (!containerRef.current) return;
 
     const customTheme = EditorView.theme(
       {
-        "&": {
-          backgroundColor: "#1e293b",
-          color: "white",
-          fontSize: "14px",
-        },
-        ".cm-content": {
-          caretColor: "#ffffff",
-        },
+        "&": { backgroundColor: "#1e293b", color: "white", fontSize: "14px" },
+        ".cm-content": { caretColor: "#ffffff" },
         ".cm-keyword": { color: "#a78bfa" },
         ".cm-operator": { color: "#60a5fa" },
         ".cm-variableName": { color: "#f87171" },
         ".cm-string": { color: "#34d399" },
-        ".cm-comment": {
-          color: "#9ca3af",
-          fontStyle: "italic",
-        },
+        ".cm-comment": { color: "#9ca3af", fontStyle: "italic" },
       },
       { dark: true }
     );
@@ -107,28 +155,21 @@ export default function SqlEditor() {
         drawSelection(),
         highlightActiveLine(),
         customTheme,
-        EditorView.updateListener.of((u) => {
-          if (u.docChanged) {
-            setQuery(u.state.doc.toString());
-          }
-        }),
+        EditorView.updateListener.of(
+          (u) => u.docChanged && setQuery(u.state.doc.toString())
+        ),
       ],
     });
 
-    const view = new EditorView({
-      state,
-      parent: containerRef.current,
-    });
-
+    const view = new EditorView({ state, parent: containerRef.current });
     editorRef.current = view;
-
     return () => {
       view.destroy();
       editorRef.current = null;
     };
   }, [runQuery]);
 
-  const chartData: Array<ChartDataItem> = result
+  const chartData: ChartDataItem[] = result
     ? [
         { name: "Parsing", value: result.parsingTime ?? 0, unit: "ms" },
         { name: "Execution", value: result.executionTime ?? 0, unit: "ms" },
@@ -139,30 +180,59 @@ export default function SqlEditor() {
 
   return (
     <div className="flex flex-col h-screen bg-[#0f172a] text-white">
-      <div className="flex justify-between items-center p-4 border-b border-slate-700">
-        <div className="flex items-center space-x-3">
+      <div className="flex flex-wrap justify-between items-start gap-4 px-6 py-12 border-b border-slate-700 bg-[#0f172a] relative">
+        <div className="flex items-center space-x-3 min-w-[150px]">
           <Database className="w-6 h-6 text-green-400" />
-          <h1 className="text-2xl font-mono font-bold tracking-wide text-green-300">
+          <h1 className="text-2xl sm:text-3xl font-mono font-bold tracking-wide text-green-300 whitespace-nowrap">
             SculptQL
           </h1>
         </div>
-        <div className="relative group flex items-center">
-          <div className="absolute right-full mr-2 hidden group-hover:block bg-gray-700 text-white text-xs rounded px-3 py-1.5 shadow-lg z-10 whitespace-nowrap">
-            {navigator.platform.includes("Mac") ? "⌘+Enter" : "Ctrl+Enter"}
+        <div className="flex items-center space-x-3">
+          <div className="relative group">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() =>
+                setShowHistory((prevShowHistory) => !prevShowHistory)
+              }
+              className={`px-3 py-1.5 rounded-md transition ${
+                showHistory
+                  ? "bg-green-600 text-white border-green-600"
+                  : "bg-slate-800 text-green-300 border-slate-700 hover:bg-green-500 hover:text-white"
+              }`}
+            >
+              <History className="w-4 h-4 mr-1" />
+              {showHistory ? "Hide History" : "Show History"}
+            </Button>
           </div>
-          <button
-            onClick={() => editorRef.current && runQuery()}
-            className="px-4 py-2 bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-400 font-bold rounded-xl transition duration-200"
-          >
-            ▶ Run Query
-          </button>
+          <div className="relative group flex flex-col items-center">
+            <Button
+              onClick={() => editorRef.current && runQuery()}
+              className="px-4 py-2 bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-400 font-bold rounded-xl transition duration-200"
+            >
+              ▶ Run Query
+            </Button>
+            <div className="absolute -top-10 left-1/2 -translate-x-1/2 z-20 hidden group-hover:block bg-gray-700 text-white text-xs rounded px-2 py-1 shadow transition-opacity duration-150 whitespace-nowrap">
+              {navigator.platform.includes("Mac") ? "⌘+Enter" : "Ctrl+Enter"}
+              <div className="absolute bottom-[-5px] left-1/2 -translate-x-1/2 w-2 h-2 bg-gray-700 rotate-45" />
+            </div>
+          </div>
         </div>
       </div>
       <div className="flex flex-1 flex-col lg:flex-row overflow-hidden">
-        <div className="w-full lg:w-1/2 border-b lg:border-b-0 lg:border-r border-slate-700 h-1/2 lg:h-full">
-          <div ref={containerRef} className="h-full" />
+        <div className="flex flex-1 min-w-0">
+          <QueryHistory
+            showHistory={showHistory}
+            history={history}
+            clearHistory={clearHistory}
+            loadQueryFromHistory={loadQueryFromHistory}
+            runQueryFromHistory={runQueryFromHistory}
+          />
+          <div className="flex-1 lg:w-1/2 border-b lg:border-b-0 lg:border-r border-slate-700 h-full">
+            <div ref={containerRef} className="h-full" />
+          </div>
         </div>
-        <div className="w-full lg:w-1/2 p-4 overflow-auto h-1/2 lg:h-full space-y-4">
+        <div className="flex-1 lg:w-1/2 p-4 overflow-auto h-1/2 lg:h-full space-y-4">
           {error && (
             <div className="text-red-500 bg-red-100/10 border border-red-400/50 p-3 rounded-md">
               {error}
@@ -171,7 +241,7 @@ export default function SqlEditor() {
           {loading && !result && (
             <div className="flex flex-col items-center justify-center h-full text-gray-400">
               <Loader2 className="w-16 h-16 mb-4 animate-spin" />
-              <p>Loading query results...</p>
+              <p>Loading query results…</p>
             </div>
           )}
           {!result && !loading && !error && (
@@ -191,30 +261,28 @@ export default function SqlEditor() {
                   <table className="w-full text-left text-sm">
                     <thead className="bg-[#111827] sticky top-0 text-green-500">
                       <tr>
-                        {result.fields.map((field) => (
+                        {result.fields.map((f) => (
                           <th
-                            key={field}
+                            key={f}
                             className="px-2 py-2 border-b border-slate-700"
                           >
-                            {field}
+                            {f}
                           </th>
                         ))}
                       </tr>
                     </thead>
                     <tbody>
-                      {result.rows.map((row, index) => (
+                      {result.rows.map((row, i) => (
                         <tr
-                          key={index}
+                          key={i}
                           className="border-b border-slate-700 bg-[#1e293b]"
                         >
-                          {result.fields.map((field) => (
+                          {result.fields.map((f) => (
                             <td
-                              key={field}
+                              key={f}
                               className="px-2 py-2 text-green-300 break-words"
                             >
-                              {row[field] !== null
-                                ? String(row[field])
-                                : "null"}
+                              {row[f] !== null ? String(row[f]) : "null"}
                             </td>
                           ))}
                         </tr>

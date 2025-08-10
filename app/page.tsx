@@ -1,4 +1,4 @@
-import SqlEditor from "./components/SqlEditor";
+import SqlEditor from "./components/editor/SqlEditor";
 
 export default function Home() {
   return (

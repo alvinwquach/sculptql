@@ -1,11 +1,11 @@
-import { sumPlanStat } from "@/app/utils/formatTime";
 import { NextRequest, NextResponse } from "next/server";
-import { Pool, FieldDef, Client } from "pg";
+import { Pool, FieldDef } from "pg";
 import {
   QueryResult,
   ExplainPlanNode,
   ExplainAnalyzeJSON,
 } from "../../types/query";
+import { sumPlanStat } from "@/app/utils/helpers";
 
 const pool = new Pool({
   host: process.env.DB_HOST,
