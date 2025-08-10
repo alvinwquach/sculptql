@@ -12,30 +12,30 @@ import { EditorState } from "@codemirror/state";
 import { sql } from "@codemirror/lang-sql";
 import { autocompletion, startCompletion } from "@codemirror/autocomplete";
 import { indentWithTab, defaultKeymap } from "@codemirror/commands";
-import { Database } from "lucide-react";
+import { Database, Loader2 } from "lucide-react";
+
 import ViewToggle from "./ViewToggle";
-
-interface QueryResult {
-  rows: Record<string, string | number | boolean | null>[];
-  rowCount?: number;
-  fields: string[];
-}
-
-type ViewMode = "table" | "json";
+import StatsPanel from "./StatsPanel";
+import { QueryResult, ViewMode, ChartDataItem } from "../types/query";
 
 export default function SqlEditor() {
   const [query, setQuery] = useState("SELECT * FROM users;");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<QueryResult | null>(null);
+  const [error, setError] = useState<string | undefined>(undefined);
+  const [result, setResult] = useState<QueryResult | undefined>(undefined);
   const [viewMode, setViewMode] = useState<ViewMode>("table");
+
   const editorRef = useRef<EditorView | null>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+
+  const handleViewModeChange = (mode: ViewMode) => {
+    setViewMode(mode);
+  };
 
   const runQuery = useCallback(async () => {
     setLoading(true);
-    setError(null);
-    setResult(null);
+    setError(undefined);
+    setResult(undefined);
 
     if (!query.trim()) {
       setError("Query cannot be empty.");
@@ -49,9 +49,11 @@ export default function SqlEditor() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ query }),
       });
+
       const data = await res.json();
+
       if (!res.ok) setError(data.error || "Unknown error");
-      else setResult(data);
+      else setResult(data as QueryResult);
     } catch (e: unknown) {
       setError((e as Error).message || "Network error");
     } finally {
@@ -69,7 +71,9 @@ export default function SqlEditor() {
           color: "white",
           fontSize: "14px",
         },
-        ".cm-content": { caretColor: "#ffffff" },
+        ".cm-content": {
+          caretColor: "#ffffff",
+        },
         ".cm-keyword": { color: "#a78bfa" },
         ".cm-operator": { color: "#60a5fa" },
         ".cm-variableName": { color: "#f87171" },
@@ -104,31 +108,51 @@ export default function SqlEditor() {
         highlightActiveLine(),
         customTheme,
         EditorView.updateListener.of((u) => {
-          if (u.docChanged) setQuery(u.state.doc.toString());
+          if (u.docChanged) {
+            setQuery(u.state.doc.toString());
+          }
         }),
       ],
     });
 
-    const view = new EditorView({ state, parent: containerRef.current });
+    const view = new EditorView({
+      state,
+      parent: containerRef.current,
+    });
+
     editorRef.current = view;
 
     return () => {
       view.destroy();
       editorRef.current = null;
     };
-  }, [runQuery, query]);
+  }, [runQuery]);
+
+  const chartData: Array<ChartDataItem> = result
+    ? [
+        { name: "Parsing", value: result.parsingTime ?? 0, unit: "ms" },
+        { name: "Execution", value: result.executionTime ?? 0, unit: "ms" },
+        { name: "Response", value: result.responseTime ?? 0, unit: "ms" },
+        { name: "Locks Wait", value: result.locksWaitTime ?? 0, unit: "ms" },
+      ]
+    : [];
 
   return (
     <div className="flex flex-col h-screen bg-[#0f172a] text-white">
-      <div className="flex justify-between items-center px-4 pt-10 pb-4 border-b border-slate-700">
-        <h1 className="text-lg font-bold">SculptQL</h1>
-        <div className="relative group inline-block">
-          <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block bg-gray-700 text-white text-xs rounded px-3 py-1.5 whitespace-nowrap shadow-lg z-10">
+      <div className="flex justify-between items-center p-4 border-b border-slate-700">
+        <div className="flex items-center space-x-3">
+          <Database className="w-6 h-6 text-green-400" />
+          <h1 className="text-2xl font-mono font-bold tracking-wide text-green-300">
+            SculptQL
+          </h1>
+        </div>
+        <div className="relative group flex items-center">
+          <div className="absolute right-full mr-2 hidden group-hover:block bg-gray-700 text-white text-xs rounded px-3 py-1.5 shadow-lg z-10 whitespace-nowrap">
             {navigator.platform.includes("Mac") ? "⌘+Enter" : "Ctrl+Enter"}
           </div>
           <button
             onClick={() => editorRef.current && runQuery()}
-            className="px-4 py-2 bg-green-600 hover:bg-green-700 font-bold rounded-xl transition"
+            className="px-4 py-2 bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-400 font-bold rounded-xl transition duration-200"
           >
             ▶ Run Query
           </button>
@@ -138,15 +162,16 @@ export default function SqlEditor() {
         <div className="w-full lg:w-1/2 border-b lg:border-b-0 lg:border-r border-slate-700 h-1/2 lg:h-full">
           <div ref={containerRef} className="h-full" />
         </div>
-        <div className="w-full lg:w-1/2 p-4 overflow-auto h-1/2 lg:h-full">
+        <div className="w-full lg:w-1/2 p-4 overflow-auto h-1/2 lg:h-full space-y-4">
           {error && (
-            <div className="text-red-500 bg-red-100 p-2 rounded mb-4">
+            <div className="text-red-500 bg-red-100/10 border border-red-400/50 p-3 rounded-md">
               {error}
             </div>
           )}
-          {loading && (
-            <div className="text-yellow-400 font-semibold mb-4">
-              Running query...
+          {loading && !result && (
+            <div className="flex flex-col items-center justify-center h-full text-gray-400">
+              <Loader2 className="w-16 h-16 mb-4 animate-spin" />
+              <p>Loading query results...</p>
             </div>
           )}
           {!result && !loading && !error && (
@@ -155,18 +180,21 @@ export default function SqlEditor() {
               <p>The results of your query will appear here.</p>
             </div>
           )}
-          {result && (
+          {result && !loading && (
             <>
-              <ViewToggle viewMode={viewMode} onViewModeChange={setViewMode} />
+              <ViewToggle
+                viewMode={viewMode}
+                onViewModeChange={handleViewModeChange}
+              />
               {viewMode === "table" && (
-                <div className="overflow-x-auto overflow-y-auto border border-slate-700 rounded">
-                  <table className="w-full text-left text-sm border-collapse">
+                <div className="overflow-x-auto border border-slate-700 rounded">
+                  <table className="w-full text-left text-sm">
                     <thead className="bg-[#111827] sticky top-0 text-green-500">
                       <tr>
                         {result.fields.map((field) => (
                           <th
                             key={field}
-                            className="px-2 py-2 border-b border-slate-700 whitespace-nowrap"
+                            className="px-2 py-2 border-b border-slate-700"
                           >
                             {field}
                           </th>
@@ -182,7 +210,7 @@ export default function SqlEditor() {
                           {result.fields.map((field) => (
                             <td
                               key={field}
-                              className="px-2 py-2 whitespace-normal break-words text-green-300"
+                              className="px-2 py-2 text-green-300 break-words"
                             >
                               {row[field] !== null
                                 ? String(row[field])
@@ -196,9 +224,12 @@ export default function SqlEditor() {
                 </div>
               )}
               {viewMode === "json" && (
-                <pre className="bg-[#1e293b] text-green-500 p-4 rounded-md overflow-y-auto overflow-x-hidden whitespace-pre-wrap break-words">
+                <pre className="bg-[#1e293b] text-green-500 p-4 rounded-md whitespace-pre-wrap break-words">
                   {JSON.stringify(result.rows, null, 2)}
                 </pre>
+              )}
+              {viewMode === "stats" && (
+                <StatsPanel result={result} chartData={chartData} />
               )}
             </>
           )}
