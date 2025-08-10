@@ -1,5 +1,5 @@
 import { Braces, Table as TableIcon, BarChart2 } from "lucide-react";
-import { ViewMode } from "../types/query";
+import { ViewMode } from "../../types/query";
 
 interface ViewToggleProps {
   viewMode: ViewMode;

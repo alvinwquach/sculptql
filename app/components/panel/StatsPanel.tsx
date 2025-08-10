@@ -25,8 +25,8 @@ import {
   Cpu,
   HardDrive,
 } from "lucide-react";
-import { ChartDataItem, QueryResult, Stat } from "../types/query";
-import { formatSize, formatTime } from "../utils/formatTime";
+import { ChartDataItem, QueryResult, Stat } from "../../types/query";
+import { formatSize, formatTime } from "../../utils/helpers";
 
 interface StatsPanelProps {
   result: QueryResult;
