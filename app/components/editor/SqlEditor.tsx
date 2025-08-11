@@ -57,14 +57,14 @@ export default function SqlEditor() {
   const [selectedTable, setSelectedTable] = useState<string>("");
   const [tableDescription, setTableDescription] =
     useState<TableDescription | null>(null);
-  const [fullScreen, setFullScreen] = useState(false);
+  const [fullScreenEditor, setFullScreenEditor] = useState(false);
   const editorRef = useRef<EditorView | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
   const handleViewModeChange = (mode: ViewMode) => setViewMode(mode);
 
   const toggleFullscreen = useCallback(() => {
-    setFullScreen((prev) => !prev);
+    setFullScreenEditor((prev) => !prev);
   }, []);
 
   const loadHistory = useCallback(() => {
@@ -250,7 +250,8 @@ export default function SqlEditor() {
     const customTheme = EditorView.theme(
       {
         "&": { backgroundColor: "#1e293b", color: "white", fontSize: "14px" },
-        ".cm-content": { caretColor: "#ffffff" },
+        ".cm-content": { caretColor: "#ffffff", paddingRight: "30px" },
+        ".cm-line": { backgroundColor: "transparent" },
         ".cm-keyword": { color: "#a78bfa" },
         ".cm-operator": { color: "#60a5fa" },
         ".cm-variableName": { color: "#f87171" },
@@ -307,26 +308,26 @@ export default function SqlEditor() {
   return (
     <div
       className={`flex flex-col bg-[#0f172a] text-white ${
-        fullScreen ? "fixed inset-0 z-50" : "h-screen"
+        fullScreenEditor ? "fixed inset-0 z-50" : "h-screen"
       }`}
     >
-      <div className="flex flex-wrap justify-between items-center gap-4 px-4 py-8 border-b border-slate-700 bg-[#0f172a] relative">
+      <div className="flex flex-wrap justify-between items-center gap-4 px-4 pt-12 pb-6 border-b border-slate-700 bg-[#0f172a] shadow-sm">
         <div className="flex items-center space-x-3 min-w-[150px]">
           <Database className="w-6 h-6 text-green-400" />
           <h1 className="text-xl font-mono font-bold tracking-wide text-green-300 whitespace-nowrap">
             SculptQL
           </h1>
         </div>
-        <div className="flex items-center space-x-2">
+        <div className="flex items-center space-x-3">
           <div className="relative group">
             <Button
               variant="outline"
               size="sm"
               onClick={() => setShowHistory((prev) => !prev)}
-              className={`px-4 py-2 rounded-lg transition-all duration-300 ease-in-out border-2 
+              className={`px-4 py-2 rounded-lg transition-all duration-300 ease-in-out border-2 shadow-sm
               ${
                 showHistory
-                  ? "bg-gradient-to-r from-green-600 to-green-700 text-white border-green-700 shadow-lg"
+                  ? "bg-gradient-to-r from-green-600 to-green-700 text-white border-green-700 shadow-md"
                   : "text-white bg-slate-800 text-green-300 border-slate-700 hover:bg-green-500 hover:text-white"
               }`}
             >
@@ -334,25 +335,10 @@ export default function SqlEditor() {
               {showHistory ? "Hide History" : "Show History"}
             </Button>
           </div>
-          <div className="relative group">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={toggleFullscreen}
-              className="px-4 py-2 text-green-300 border-slate-700 bg-slate-800 hover:bg-green-500 hover:text-white transition-all duration-300"
-            >
-              {fullScreen ? (
-                <Minimize2 className="w-4 h-4 mr-2" />
-              ) : (
-                <Maximize2 className="w-4 h-4 mr-2" />
-              )}
-              {fullScreen ? "Exit Fullscreen" : "Fullscreen"}
-            </Button>
-          </div>
           <div className="relative group flex flex-col items-center">
             <Button
               onClick={() => editorRef.current && runQuery()}
-              className="px-3 py-1 bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-400 font-bold rounded-md transition duration-200 min-w-[90px]"
+              className="px-3 py-1 bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-400 font-bold rounded-lg transition duration-200 shadow-sm min-w-[100px]"
             >
               ▶ Run
             </Button>
@@ -365,7 +351,7 @@ export default function SqlEditor() {
       </div>
       <div
         className={`flex flex-1 flex-col lg:flex-row overflow-hidden ${
-          fullScreen ? "h-full" : ""
+          fullScreenEditor ? "h-full" : ""
         }`}
       >
         <div className="flex flex-1 min-w-0">
@@ -377,16 +363,40 @@ export default function SqlEditor() {
             runQueryFromHistory={runQueryFromHistory}
           />
           <div
-            className={`flex-1 lg:w-1/2 border-b lg:border-b-0 lg:border-r border-slate-700 ${
-              fullScreen ? "h-full" : "h-full"
+            className={`flex-1 lg:w-1/2 border-b lg:border-b-0 lg:border-r border-slate-700 relative ${
+              fullScreenEditor ? "h-full" : "h-full"
             }`}
           >
+            <div className="relative group">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={toggleFullscreen}
+                className="absolute -top-1 -right-2
+                text-green-300 hover:bg-transparent hover:text-green-400 transition-all duration-300 z-50"
+                aria-label={
+                  fullScreenEditor
+                    ? "Exit editor fullscreen"
+                    : "Enter editor fullscreen"
+                }
+              >
+                {fullScreenEditor ? (
+                  <Minimize2 className="w-5 h-5" />
+                ) : (
+                  <Maximize2 className="w-5 h-5" />
+                )}
+              </Button>
+              <div className="absolute -top-1 right-6 z-30 hidden group-hover:block bg-gray-700 text-white text-xs rounded px-3 py-2 shadow-lg transition-opacity duration-150 whitespace-nowrap">
+                {fullScreenEditor ? "Exit fullscreen" : "Enter fullscreen"}
+                <div className="absolute top-1/2 -right-1 w-2 h-2 bg-gray-700 rotate-45 -translate-y-1/2" />
+              </div>
+            </div>
             <div ref={containerRef} className="h-full" />
           </div>
         </div>
         <div
           className={`flex-1 lg:w-1/2 p-6 overflow-auto ${
-            fullScreen ? "hidden" : "h-1/2 lg:h-full"
+            fullScreenEditor ? "hidden" : "h-1/2 lg:h-full"
           } space-y-6`}
         >
           {error && (
