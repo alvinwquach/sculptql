@@ -55,7 +55,7 @@ export interface ChartDataItem {
   unit: string;
 }
 
-export type ViewMode = "table" | "json" | "stats" | "schema";
+export type ViewMode = "table" | "json" | "stats" | "show" | "describe";
 
 export interface Stat {
   label: string;
@@ -72,5 +72,15 @@ export interface ColumnSchema {
 
 export interface TableSchema {
   table_name: string;
+  table_catalog: string;
+  table_schema: string;
+  table_type: string;
+  comment: string | null;
+}
+
+export interface TableDescription {
+  table_name: string;
   columns: ColumnSchema[];
 }
+
+

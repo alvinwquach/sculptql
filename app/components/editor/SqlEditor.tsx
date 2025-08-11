@@ -13,12 +13,15 @@ import { sql } from "@codemirror/lang-sql";
 import { autocompletion, startCompletion } from "@codemirror/autocomplete";
 import { indentWithTab, defaultKeymap } from "@codemirror/commands";
 import {
+  Braces,
   Database,
   Loader2,
   History,
   Download,
   Maximize2,
   Minimize2,
+  ListTree,
+  Table,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import ViewToggle from "../view/ViewToggle";
@@ -29,6 +32,7 @@ import {
   ViewMode,
   ChartDataItem,
   TableSchema,
+  TableDescription,
 } from "../../types/query";
 import {
   getLocalStorageItem,
@@ -49,8 +53,10 @@ export default function SqlEditor() {
   const [viewMode, setViewMode] = useState<ViewMode>("table");
   const [history, setHistory] = useState<QueryHistoryItem[]>([]);
   const [showHistory, setShowHistory] = useState(false);
-  const [tables, setTables] = useState<TableSchema[]>([]);
+  const [table, setTable] = useState<TableSchema[]>([]);
   const [selectedTable, setSelectedTable] = useState<string>("");
+  const [tableDescription, setTableDescription] =
+    useState<TableDescription | null>(null);
   const [fullScreen, setFullScreen] = useState(false);
   const editorRef = useRef<EditorView | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -103,10 +109,49 @@ export default function SqlEditor() {
     [loadQueryFromHistory]
   );
 
+  const fetchTableDescription = useCallback(async (tableName: string) => {
+    try {
+      const res = await fetch(`/api/describe-table?table=${tableName}`);
+      const data = await res.json();
+      if (res.ok) {
+        setTableDescription(data);
+        return data as TableDescription;
+      } else {
+        setError(data.error || "Failed to fetch table description");
+        setTableDescription(null);
+        return null;
+      }
+    } catch (e: unknown) {
+      setError((e as Error).message || "Network error");
+      setTableDescription(null);
+      return null;
+    }
+  }, []);
+
+  const fetchTables = useCallback(async (tableName: string) => {
+    if (!tableName) return;
+    try {
+      const res = await fetch(`/api/show-table?table=${tableName}`);
+      const data = await res.json();
+      if (res.ok) {
+        setTable(data.tables);
+      } else {
+        setError(data.error || "Failed to fetch table metadata");
+        setTable([]);
+      }
+    } catch (e: unknown) {
+      setError((e as Error).message || "Network error");
+      setTable([]);
+    }
+  }, []);
+
   const runQuery = useCallback(async () => {
     setLoading(true);
     setError(undefined);
     setResult(undefined);
+    setTableDescription(null);
+    setTable([]);
+    setSelectedTable("");
 
     if (!query.trim()) {
       setError("Query cannot be empty.");
@@ -130,9 +175,11 @@ export default function SqlEditor() {
         const match = query.match(/FROM\s+([a-zA-Z_][a-zA-Z0-9_]*)/i);
         if (match && match[1]) {
           const tableName = match[1].toLowerCase();
-          if (tables.some((table) => table.table_name === tableName)) {
-            setSelectedTable(tableName);
-          }
+          setSelectedTable(tableName);
+          await Promise.all([
+            fetchTables(tableName),
+            fetchTableDescription(tableName),
+          ]);
         }
         setViewMode("table");
       }
@@ -141,21 +188,7 @@ export default function SqlEditor() {
     } finally {
       setLoading(false);
     }
-  }, [query, saveQueryToHistory, tables]);
-
-  const fetchTables = useCallback(async () => {
-    try {
-      const res = await fetch("/api/show-table");
-      const data = await res.json();
-      if (res.ok) {
-        setTables(data.tables);
-      } else {
-        setError(data.error || "Failed to fetch table schemas");
-      }
-    } catch (e: unknown) {
-      setError((e as Error).message || "Network error");
-    }
-  }, []);
+  }, [query, saveQueryToHistory, fetchTables, fetchTableDescription]);
 
   const exportToCsv = useCallback(() => {
     if (!result || !result.rows || !result.fields) return;
@@ -209,8 +242,7 @@ export default function SqlEditor() {
 
   useEffect(() => {
     loadHistory();
-    fetchTables();
-  }, [loadHistory, fetchTables]);
+  }, [loadHistory]);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -278,7 +310,7 @@ export default function SqlEditor() {
         fullScreen ? "fixed inset-0 z-50" : "h-screen"
       }`}
     >
-      <div className="flex flex-wrap justify-between items-center gap-4 px-4 py-12 border-b border-slate-700 bg-[#0f172a] relative">
+      <div className="flex flex-wrap justify-between items-center gap-4 px-4 py-8 border-b border-slate-700 bg-[#0f172a] relative">
         <div className="flex items-center space-x-3 min-w-[150px]">
           <Database className="w-6 h-6 text-green-400" />
           <h1 className="text-xl font-mono font-bold tracking-wide text-green-300 whitespace-nowrap">
@@ -353,94 +385,173 @@ export default function SqlEditor() {
           </div>
         </div>
         <div
-          className={`flex-1 lg:w-1/2 p-4 overflow-auto ${
+          className={`flex-1 lg:w-1/2 p-6 overflow-auto ${
             fullScreen ? "hidden" : "h-1/2 lg:h-full"
-          } space-y-4`}
+          } space-y-6`}
         >
           {error && (
-            <div className="text-red-500 bg-red-100/10 border border-red-400/50 p-3 rounded-md">
+            <div className="bg-red-900/30 border border-red-500/50 text-red-300 p-4 rounded-lg shadow-md">
               {error}
             </div>
           )}
           {loading && (
-            <div className="flex flex-col items-center justify-center h-full text-gray-400">
-              <Loader2 className="w-16 h-16 mb-4 animate-spin" />
-              <p>Loading query results…</p>
+            <div className="flex flex-col items-center justify-center h-full text-gray-400 animate-pulse">
+              <Loader2 className="w-12 h-12 mb-4 animate-spin text-green-400" />
+              <p className="text-lg">Loading query results…</p>
             </div>
           )}
           {!loading && (
             <>
-              {result && (
+              {(result || viewMode === "show" || viewMode === "describe") && (
                 <ViewToggle
                   viewMode={viewMode}
                   onViewModeChange={handleViewModeChange}
-                  schemaLabel="Table Schema"
                 />
               )}
-              {viewMode === "schema" && tables.length > 0 && selectedTable && (
-                <div className="overflow-x-auto border border-slate-700 rounded">
-                  <table className="w-full text-left text-sm">
-                    <thead className="bg-[#111827] sticky top-0 text-green-500">
-                      <tr>
-                        <th className="px-2 py-2 border-b border-slate-700">
-                          Column
-                        </th>
-                        <th className="px-2 py-2 border-b border-slate-700">
-                          Type
-                        </th>
-                        <th className="px-2 py-2 border-b border-slate-700">
-                          Nullable
-                        </th>
-                        <th className="px-2 py-2 border-b border-slate-700">
-                          Default
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {tables
-                        .find((table) => table.table_name === selectedTable)
-                        ?.columns.map((col, i) => (
+              {viewMode === "show" && selectedTable && table.length > 0 && (
+                <div className="bg-[#1e293b] p-6 rounded-lg shadow-md border border-slate-600">
+                  <div className="flex items-center mb-4">
+                    <Database className="w-5 h-5 text-green-400 mr-2" />
+                    <h2 className="text-xl font-semibold text-green-300">
+                      Show Table
+                    </h2>
+                  </div>
+                  <p className="text-gray-400 mb-4">
+                    Displays metadata for the queried table, including its name,
+                    database, schema, and type.
+                  </p>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-sm">
+                      <thead className="bg-[#111827] text-green-400 sticky top-0">
+                        <tr>
+                          <th className="px-4 py-3 font-semibold border-b border-slate-600">
+                            Name
+                          </th>
+                          <th className="px-4 py-3 font-semibold border-b border-slate-600">
+                            Database
+                          </th>
+                          <th className="px-4 py-3 font-semibold border-b border-slate-600">
+                            Schema
+                          </th>
+                          <th className="px-4 py-3 font-semibold border-b border-slate-600">
+                            Type
+                          </th>
+                          <th className="px-4 py-3 font-semibold border-b border-slate-600">
+                            Comment
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {table.map((table, i) => (
                           <tr
                             key={i}
-                            className="border-b border-slate-700 bg-[#1e293b]"
+                            className="border-b border-slate-600 hover:bg-slate-700 transition-colors duration-200"
                           >
-                            <td className="px-2 py-2 text-green-300">
+                            <td className="px-4 py-3 text-green-300">
+                              {table.table_name}
+                            </td>
+                            <td className="px-4 py-3 text-green-300">
+                              {table.table_catalog}
+                            </td>
+                            <td className="px-4 py-3 text-green-300">
+                              {table.table_schema}
+                            </td>
+                            <td className="px-4 py-3 text-green-300">
+                              {table.table_type}
+                            </td>
+                            <td className="px-4 py-3 text-green-300">
+                              {table.comment ?? "null"}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+              {viewMode === "show" &&
+                (!selectedTable || table.length === 0) && (
+                  <div className="flex flex-col items-center justify-center h-full text-gray-400 bg-[#1e293b] p-6 rounded-lg shadow-md border border-slate-600">
+                    <Database className="w-12 h-12 mb-4 text-green-400" />
+                    <p className="text-lg">
+                      Run a query to view table metadata.
+                    </p>
+                  </div>
+                )}
+              {viewMode === "describe" && selectedTable && tableDescription && (
+                <div className="bg-[#1e293b] p-6 rounded-lg shadow-md border border-slate-600">
+                  <div className="flex items-center mb-4">
+                    <ListTree className="w-5 h-5 text-green-400 mr-2" />
+                    <h2 className="text-xl font-semibold text-green-300">
+                      Description for {selectedTable}
+                    </h2>
+                  </div>
+                  <p className="text-gray-400 mb-4">
+                    Shows the structure of the queried table, including column
+                    names, data types, nullability, and default values.
+                  </p>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-sm">
+                      <thead className="bg-[#111827] text-green-400 sticky top-0">
+                        <tr>
+                          <th className="px-4 py-3 font-semibold border-b border-slate-600">
+                            Column
+                          </th>
+                          <th className="px-4 py-3 font-semibold border-b border-slate-600">
+                            Type
+                          </th>
+                          <th className="px-4 py-3 font-semibold border-b border-slate-600">
+                            Nullable
+                          </th>
+                          <th className="px-4 py-3 font-semibold border-b border-slate-600">
+                            Default
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {tableDescription.columns.map((col, i) => (
+                          <tr
+                            key={i}
+                            className="border-b border-slate-600 hover:bg-slate-700 transition-colors duration-200"
+                          >
+                            <td className="px-4 py-3 text-green-300">
                               {col.column_name}
                             </td>
-                            <td className="px-2 py-2 text-green-300">
+                            <td className="px-4 py-3 text-green-300">
                               {col.data_type}
                             </td>
-                            <td className="px-2 py-2 text-green-300">
+                            <td className="px-4 py-3 text-green-300">
                               {col.is_nullable}
                             </td>
-                            <td className="px-2 py-2 text-green-300">
+                            <td className="px-4 py-3 text-green-300">
                               {col.column_default ?? "null"}
                             </td>
                           </tr>
                         ))}
-                    </tbody>
-                  </table>
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               )}
-              {viewMode === "schema" &&
-                (tables.length === 0 || !selectedTable) && (
-                  <div className="flex flex-col items-center justify-center h-full text-gray-400">
-                    <Database className="w-16 h-16 mb-4" />
-                    <p>
-                      {tables.length === 0
-                        ? "No tables available."
-                        : "Run a query to select a table schema."}
+              {viewMode === "describe" &&
+                (!selectedTable || !tableDescription) && (
+                  <div className="flex flex-col items-center justify-center h-full text-gray-400 bg-[#1e293b] p-6 rounded-lg shadow-md border border-slate-600">
+                    <ListTree className="w-12 h-12 mb-4 text-green-400" />
+                    <p className="text-lg">
+                      {selectedTable
+                        ? "Loading table description..."
+                        : "Run a query to select a table to describe."}
                     </p>
                   </div>
                 )}
               {result && viewMode === "table" && (
                 <>
-                  <div className="flex justify-end mb-2 space-x-2">
+                  <div className="flex justify-end mb-4 space-x-2">
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={exportToCsv}
-                      className="px-4 py-2 text-green-300 border-slate-700 bg-slate-800 hover:bg-green-500 hover:text-white transition-all duration-300"
+                      className="px-4 py-2 text-green-300 border-slate-600 bg-slate-800 hover:bg-green-500 hover:text-white transition-all duration-300 rounded-md"
                     >
                       <Download className="w-4 h-4 mr-2" />
                       Export to CSV
@@ -449,115 +560,80 @@ export default function SqlEditor() {
                       variant="outline"
                       size="sm"
                       onClick={exportToJson}
-                      className="px-4 py-2 text-green-300 border-slate-700 bg-slate-800 hover:bg-green-500 hover:text-white transition-all duration-300"
+                      className="px-4 py-2 text-green-300 border-slate-600 bg-slate-800 hover:bg-green-500 hover:text-white transition-all duration-300 rounded-md"
                     >
                       <Download className="w-4 h-4 mr-2" />
                       Export to JSON
                     </Button>
                   </div>
-                  <div className="overflow-x-auto border border-slate-700 rounded">
-                    <table className="w-full text-left text-sm">
-                      <thead className="bg-[#111827] sticky top-0 text-green-500">
-                        <tr>
-                          {result.fields.map((field) => (
-                            <th
-                              key={field}
-                              className="px-2 py-2 border-b border-slate-700"
-                            >
-                              {field}
-                            </th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {result.rows.map((row, i) => (
-                          <tr
-                            key={i}
-                            className="border-b border-slate-700 bg-[#1e293b]"
-                          >
+                  <div className="bg-[#1e293b] p-6 rounded-lg shadow-md border border-slate-600">
+                    <h2 className="text-xl font-semibold text-green-300 mb-4 flex items-center">
+                      <Table className="w-5 h-5 text-green-400 mr-2" />
+                      Query Results
+                    </h2>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-sm">
+                        <thead className="bg-[#111827] text-green-400 sticky top-0">
+                          <tr>
                             {result.fields.map((field) => (
-                              <td
+                              <th
                                 key={field}
-                                className="px-2 py-2 text-green-300 break-words"
+                                className="px-4 py-3 font-semibold border-b border-slate-600"
                               >
-                                {row[field] !== null
-                                  ? String(row[field])
-                                  : "null"}
-                              </td>
+                                {field}
+                              </th>
                             ))}
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                  {tables.length > 0 && selectedTable && (
-                    <div className="mt-4">
-                      <h2 className="text-lg font-bold text-green-300 mb-2">
-                        Schema for {selectedTable}
-                      </h2>
-                      <div className="overflow-x-auto border border-slate-700 rounded">
-                        <table className="w-full text-left text-sm">
-                          <thead className="bg-[#111827] sticky top-0 text-green-500">
-                            <tr>
-                              <th className="px-2 py-2 border-b border-slate-700">
-                                Column
-                              </th>
-                              <th className="px-2 py-2 border-b border-slate-700">
-                                Type
-                              </th>
-                              <th className="px-2 py-2 border-b border-slate-700">
-                                Nullable
-                              </th>
-                              <th className="px-2 py-2 border-b border-slate-700">
-                                Default
-                              </th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {tables
-                              .find(
-                                (table) => table.table_name === selectedTable
-                              )
-                              ?.columns.map((col, i) => (
-                                <tr
-                                  key={i}
-                                  className="border-b border-slate-700 bg-[#1e293b]"
+                        </thead>
+                        <tbody>
+                          {result.rows.map((row, i) => (
+                            <tr
+                              key={i}
+                              className="border-b border-slate-600 hover:bg-slate-700 transition-colors duration-200"
+                            >
+                              {result.fields.map((field) => (
+                                <td
+                                  key={field}
+                                  className="px-4 py-3 text-green-300 break-words"
                                 >
-                                  <td className="px-2 py-2 text-green-300">
-                                    {col.column_name}
-                                  </td>
-                                  <td className="px-2 py-2 text-green-300">
-                                    {col.data_type}
-                                  </td>
-                                  <td className="px-2 py-2 text-green-300">
-                                    {col.is_nullable}
-                                  </td>
-                                  <td className="px-2 py-2 text-green-300">
-                                    {col.column_default ?? "null"}
-                                  </td>
-                                </tr>
+                                  {row[field] !== null
+                                    ? String(row[field])
+                                    : "null"}
+                                </td>
                               ))}
-                          </tbody>
-                        </table>
-                      </div>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
-                  )}
+                  </div>
                 </>
               )}
               {result && viewMode === "json" && (
-                <pre className="bg-[#1e293b] text-green-500 p-4 rounded-md whitespace-pre-wrap break-words">
-                  {JSON.stringify(result.rows, null, 2)}
-                </pre>
+                <div className="bg-[#1e293b] p-6 rounded-lg shadow-md border border-slate-600">
+                  <h2 className="text-xl font-semibold text-green-300 mb-4 flex items-center">
+                    <Braces className="w-5 h-5 text-green-400 mr-2" />
+                    JSON Results
+                  </h2>
+                  <pre className="bg-[#111827] text-green-400 p-4 rounded-md font-mono text-sm whitespace-pre-wrap break-words">
+                    {JSON.stringify(result.rows, null, 2)}
+                  </pre>
+                </div>
               )}
               {result && viewMode === "stats" && (
                 <StatsPanel result={result} chartData={chartData} />
               )}
-              {!result && viewMode !== "schema" && !loading && (
-                <div className="flex flex-col items-center justify-center h-full text-gray-400">
-                  <Database className="w-16 h-16 mb-4" />
-                  <p>The results of your query will appear here.</p>
-                </div>
-              )}
+              {!result &&
+                viewMode !== "show" &&
+                viewMode !== "describe" &&
+                !loading && (
+                  <div className="flex flex-col items-center justify-center h-full text-gray-400 bg-[#1e293b] p-6 rounded-lg shadow-md border border-slate-600">
+                    <Database className="w-12 h-12 mb-4 text-green-400" />
+                    <p className="text-lg">
+                      The results of your query will appear here.
+                    </p>
+                  </div>
+                )}
             </>
           )}
         </div>
