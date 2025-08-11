@@ -14,12 +14,16 @@ const pool = new Pool({
   application_name: "sculptql-api",
 });
 
-interface TableSchema {
+interface ColumnSchema {
+  column_name: string;
+  data_type: string;
+  is_nullable: string;
+  column_default: string | null;
+}
+
+interface TableDescription {
   table_name: string;
-  table_catalog: string;
-  table_schema: string;
-  table_type: string;
-  comment: string | null;
+  columns: ColumnSchema[];
 }
 
 export async function GET(req: Request) {
@@ -36,28 +40,31 @@ export async function GET(req: Request) {
   try {
     const client = await pool.connect();
     try {
-      const tablesQuery = `
+      const columnsQuery = `
         SELECT 
-          table_name,
-          table_catalog,
-          table_schema,
-          table_type,
-          NULL AS comment
-        FROM information_schema.tables
+          column_name,
+          data_type,
+          is_nullable,
+          column_default
+        FROM information_schema.columns
         WHERE table_schema = 'public' AND table_name = $1
-        ORDER BY table_name;
+        ORDER BY ordinal_position;
       `;
-      const tablesResult = await client.query(tablesQuery, [tableName]);
+      const columnsResult = await client.query(columnsQuery, [tableName]);
 
-      if (tablesResult.rows.length === 0) {
+      if (columnsResult.rows.length === 0) {
         return NextResponse.json(
           { error: `Table '${tableName}' not found` },
           { status: 404 }
         );
       }
 
-      const table: TableSchema = tablesResult.rows[0];
-      return NextResponse.json({ tables: [table] });
+      const schema: TableDescription = {
+        table_name: tableName,
+        columns: columnsResult.rows,
+      };
+
+      return NextResponse.json(schema);
     } finally {
       client.release();
     }
