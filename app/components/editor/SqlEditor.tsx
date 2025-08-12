@@ -1,17 +1,16 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
-import {
-  EditorView,
-  keymap,
-  highlightSpecialChars,
-  drawSelection,
-  highlightActiveLine,
-} from "@codemirror/view";
-import { EditorState } from "@codemirror/state";
-import { sql } from "@codemirror/lang-sql";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { EditorView, keymap, drawSelection } from "@codemirror/view";
 import { autocompletion, startCompletion } from "@codemirror/autocomplete";
 import { indentWithTab, defaultKeymap } from "@codemirror/commands";
+import { sql } from "@codemirror/lang-sql";
+import {
+  defaultHighlightStyle,
+  syntaxHighlighting,
+} from "@codemirror/language";
+import { EditorState } from "@codemirror/state";
+
 import {
   Braces,
   Database,
@@ -39,6 +38,7 @@ import {
   setLocalStorageItem,
   removeLocalStorageItem,
 } from "../../utils/localStorageUtils";
+import { useSqlCompletion } from "@/app/hooks/useTableAutocomplete";
 
 interface QueryHistoryItem {
   query: string;
@@ -46,22 +46,26 @@ interface QueryHistoryItem {
 }
 
 export default function SqlEditor() {
-  const [query, setQuery] = useState("SELECT * FROM users;");
-  const [loading, setLoading] = useState(false);
+  const [query, setQuery] = useState<string>("");
+  const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | undefined>(undefined);
   const [result, setResult] = useState<QueryResult | undefined>(undefined);
   const [viewMode, setViewMode] = useState<ViewMode>("table");
   const [history, setHistory] = useState<QueryHistoryItem[]>([]);
-  const [showHistory, setShowHistory] = useState(false);
+  const [showHistory, setShowHistory] = useState<boolean>(false);
   const [table, setTable] = useState<TableSchema[]>([]);
   const [selectedTable, setSelectedTable] = useState<string>("");
   const [tableDescription, setTableDescription] =
     useState<TableDescription | null>(null);
-  const [fullScreenEditor, setFullScreenEditor] = useState(false);
+  const [fullScreenEditor, setFullScreenEditor] = useState<boolean>(false);
+  const [tableNames, setTableNames] = useState<string[]>([]);
   const editorRef = useRef<EditorView | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  const handleViewModeChange = (mode: ViewMode) => setViewMode(mode);
+  const handleViewModeChange = useCallback((mode: ViewMode) => {
+    setViewMode(mode);
+  }, []);
 
   const toggleFullscreen = useCallback(() => {
     setFullScreenEditor((prev) => !prev);
@@ -77,7 +81,10 @@ export default function SqlEditor() {
 
   const saveQueryToHistory = useCallback(
     (q: string) => {
-      const newItem = { query: q, timestamp: new Date().toISOString() };
+      const newItem: QueryHistoryItem = {
+        query: q,
+        timestamp: new Date().toISOString(),
+      };
       const updated = [newItem, ...history].slice(0, 200);
       setHistory(updated);
       setLocalStorageItem("sculptql_history", updated);
@@ -97,6 +104,7 @@ export default function SqlEditor() {
         changes: { from: 0, to: editorRef.current.state.doc.length, insert: q },
       });
       editorRef.current.dispatch(transaction);
+      editorRef.current.focus();
     }
   }, []);
 
@@ -145,6 +153,28 @@ export default function SqlEditor() {
     }
   }, []);
 
+  const fetchTableNames = useCallback(async () => {
+    try {
+      const res = await fetch("/api/tables");
+      const data = await res.json();
+      if (res.ok) {
+        const newTableNames = data.tables as string[];
+        setTableNames((prev) =>
+          JSON.stringify(prev) === JSON.stringify(newTableNames)
+            ? prev
+            : newTableNames
+        );
+        return newTableNames;
+      } else {
+        console.error("Failed to fetch table names:", data.error);
+        return [];
+      }
+    } catch (e: unknown) {
+      console.error("Error fetching table names:", (e as Error).message);
+      return [];
+    }
+  }, []);
+
   const runQuery = useCallback(async () => {
     setLoading(true);
     setError(undefined);
@@ -153,7 +183,8 @@ export default function SqlEditor() {
     setTable([]);
     setSelectedTable("");
 
-    if (!query.trim()) {
+    const currentQuery = editorRef.current?.state.doc.toString() || "";
+    if (!currentQuery.trim()) {
       setError("Query cannot be empty.");
       setLoading(false);
       return;
@@ -163,7 +194,7 @@ export default function SqlEditor() {
       const res = await fetch("/api/query", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query }),
+        body: JSON.stringify({ query: currentQuery }),
       });
       const data = await res.json();
 
@@ -171,8 +202,8 @@ export default function SqlEditor() {
         setError(data.error || "Unknown error");
       } else {
         setResult(data as QueryResult);
-        saveQueryToHistory(query);
-        const match = query.match(/FROM\s+([a-zA-Z_][a-zA-Z0-9_]*)/i);
+        saveQueryToHistory(currentQuery);
+        const match = currentQuery.match(/FROM\s+([a-zA-Z_][a-zA-Z0-9_]*)/i);
         if (match && match[1]) {
           const tableName = match[1].toLowerCase();
           setSelectedTable(tableName);
@@ -188,11 +219,10 @@ export default function SqlEditor() {
     } finally {
       setLoading(false);
     }
-  }, [query, saveQueryToHistory, fetchTables, fetchTableDescription]);
+  }, [saveQueryToHistory, fetchTables, fetchTableDescription]);
 
   const exportToCsv = useCallback(() => {
     if (!result || !result.rows || !result.fields) return;
-
     const headers = result.fields.join(",");
     const rows = result.rows.map((row) =>
       result.fields
@@ -222,7 +252,6 @@ export default function SqlEditor() {
 
   const exportToJson = useCallback(() => {
     if (!result || !result.rows) return;
-
     const jsonContent = JSON.stringify(result.rows, null, 2);
     const blob = new Blob([jsonContent], {
       type: "application/json;charset=utf-8;",
@@ -240,27 +269,88 @@ export default function SqlEditor() {
     URL.revokeObjectURL(url);
   }, [result]);
 
-  useEffect(() => {
-    loadHistory();
-  }, [loadHistory]);
+  const completion = useSqlCompletion(tableNames);
 
   useEffect(() => {
-    if (!containerRef.current) return;
+    loadHistory();
+    fetchTableNames();
+  }, [loadHistory, fetchTableNames]);
+
+  useEffect(() => {
+    if (!containerRef.current || editorRef.current) return;
 
     const customTheme = EditorView.theme(
       {
-        "&": { backgroundColor: "#1e293b", color: "white", fontSize: "14px" },
-        ".cm-content": { caretColor: "#ffffff", paddingRight: "30px" },
-        ".cm-line": { backgroundColor: "transparent" },
-        ".cm-keyword": { color: "#a78bfa" },
-        ".cm-operator": { color: "#60a5fa" },
-        ".cm-variableName": { color: "#f87171" },
-        ".cm-string": { color: "#34d399" },
-        ".cm-comment": { color: "#9ca3af", fontStyle: "italic" },
+        "&": {
+          backgroundColor: "#0f172a",
+          color: "#f8f9fa",
+          fontSize: "14px",
+        },
+        ".cm-content": {
+          caretColor: "#22c55e",
+          paddingRight: "30px",
+        },
+        ".cm-line": {
+          backgroundColor: "transparent",
+        },
+        ".cm-keyword": {
+          color: "#f8f9fa !important",
+        },
+        ".cm-operator": {
+          color: "#f8f9fa !important",
+        },
+        ".cm-variableName": {
+          color: "#f8f9fa !important",
+        },
+        ".cm-string": {
+          color: "#f8f9fa",
+        },
+        ".cm-comment": {
+          color: "#4a4a4a",
+          fontStyle: "italic",
+        },
+        ".cm-attribute": {
+          color: "#f8f9fa",
+        },
+        ".cm-property": {
+          color: "#f8f9fa",
+        },
+        ".cm-atom": {
+          color: "#f8f9fa",
+        },
+        ".cm-number": {
+          color: "#f8f9fa",
+        },
+        ".cm-def": {
+          color: "#f8f9fa",
+        },
+        ".cm-variable-2": {
+          color: "#f8f9fa",
+        },
+        ".cm-tag": {
+          color: "#f8f9fa", 
+        },
+        "&.cm-focused .cm-cursor": {
+          borderLeftColor: "#22c55e",
+        },
+        "&.cm-focused .cm-selectionBackground, ::selection": {
+          backgroundColor: "rgba(34, 197, 94, 0.1)",
+        },
+        ".cm-gutters": {
+          backgroundColor: "#0f172a",
+          color: "#22c55e",
+          border: "none",
+        },
+        ".cm-gutter": {
+          backgroundColor: "#0f172a",
+          border: "none",
+        },
+        ".cm-active-line": {
+          backgroundColor: "rgba(34, 197, 94, 0.05)",
+        },
       },
       { dark: true }
     );
-
     const state = EditorState.create({
       doc: query,
       extensions: [
@@ -277,33 +367,60 @@ export default function SqlEditor() {
           ...defaultKeymap,
         ]),
         sql(),
-        autocompletion(),
-        highlightSpecialChars(),
+        autocompletion({
+          override: [completion],
+          activateOnTyping: true,
+        }),
         drawSelection(),
-        highlightActiveLine(),
         customTheme,
-        EditorView.updateListener.of(
-          (u) => u.docChanged && setQuery(u.state.doc.toString())
-        ),
+        syntaxHighlighting(defaultHighlightStyle, { fallback: true }), // ✅ Syntax highlighting
       ],
     });
 
     const view = new EditorView({ state, parent: containerRef.current });
     editorRef.current = view;
+
     return () => {
       view.destroy();
       editorRef.current = null;
+      if (debounceTimeoutRef.current) {
+        clearTimeout(debounceTimeoutRef.current);
+      }
     };
-  }, [runQuery]);
+  }, [completion, runQuery]);
 
-  const chartData: ChartDataItem[] = result
-    ? [
-        { name: "Parsing", value: result.parsingTime ?? 0, unit: "ms" },
-        { name: "Execution", value: result.executionTime ?? 0, unit: "ms" },
-        { name: "Response", value: result.responseTime ?? 0, unit: "ms" },
-        { name: "Locks Wait", value: result.locksWaitTime ?? 0, unit: "ms" },
-      ]
-    : [];
+  useEffect(() => {
+    if (
+      editorRef.current &&
+      query &&
+      editorRef.current.state.doc.toString() !== query
+    ) {
+      editorRef.current.dispatch({
+        changes: {
+          from: 0,
+          to: editorRef.current.state.doc.length,
+          insert: query,
+        },
+      });
+    }
+  }, [query]);
+
+  const chartData: ChartDataItem[] = useMemo(
+    () =>
+      result
+        ? [
+            { name: "Parsing", value: result.parsingTime ?? 0, unit: "ms" },
+            { name: "Execution", value: result.executionTime ?? 0, unit: "ms" },
+            { name: "Response", value: result.responseTime ?? 0, unit: "ms" },
+            {
+              name: "Locks Wait",
+              value: result.locksWaitTime ?? 0,
+              unit: "ms",
+            },
+          ]
+        : [],
+    [result]
+  );
 
   return (
     <div
@@ -324,8 +441,7 @@ export default function SqlEditor() {
               variant="outline"
               size="sm"
               onClick={() => setShowHistory((prev) => !prev)}
-              className={`px-4 py-2 rounded-lg transition-all duration-300 ease-in-out border-2 shadow-sm
-              ${
+              className={`px-4 py-2 rounded-lg transition-all duration-300 ease-in-out border-2 shadow-sm ${
                 showHistory
                   ? "bg-gradient-to-r from-green-600 to-green-700 text-white border-green-700 shadow-md"
                   : "text-white bg-slate-800 text-green-300 border-slate-700 hover:bg-green-500 hover:text-white"
@@ -340,7 +456,7 @@ export default function SqlEditor() {
               onClick={() => editorRef.current && runQuery()}
               className="px-3 py-1 bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-400 font-bold rounded-lg transition duration-200 shadow-sm min-w-[100px]"
             >
-              ▶ Run
+              Run
             </Button>
             <div className="absolute -top-10 left-1/2 -translate-x-1/2 z-20 hidden md:group-hover:block bg-gray-700 text-white text-xs rounded px-2 py-1 shadow transition-opacity duration-150 whitespace-nowrap">
               {navigator.platform.includes("Mac") ? "⌘+Enter" : "Ctrl+Enter"}
@@ -372,8 +488,7 @@ export default function SqlEditor() {
                 variant="ghost"
                 size="icon"
                 onClick={toggleFullscreen}
-                className="absolute -top-1 -right-2
-                text-green-300 hover:bg-transparent hover:text-green-400 transition-all duration-300 z-50"
+                className="absolute -top-1 -right-2 text-green-300 hover:bg-transparent hover:text-green-400 transition-all duration-300 z-50"
                 aria-label={
                   fullScreenEditor
                     ? "Exit editor fullscreen"
