@@ -91,3 +91,14 @@ export interface Column {
 export interface TableColumn {
   [tableName: string]: string[];
 }
+
+export interface QueryHistoryItem {
+  query: string;
+  timestamp: string;
+}
+
+export interface Tab {
+  id: number;
+  title: string;
+  query: string;
+}
