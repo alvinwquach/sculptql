@@ -30,6 +30,7 @@ export interface QueryResult {
   };
 }
 
+
 export interface ExplainPlanNode {
   "Node Type": string;
   "Relation Name"?: string;
@@ -83,4 +84,10 @@ export interface TableDescription {
   columns: ColumnSchema[];
 }
 
+export interface Column {
+  column_name: string;
+}
 
+export interface TableColumn {
+  [tableName: string]: string[];
+}
