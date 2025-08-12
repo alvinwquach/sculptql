@@ -10,6 +10,7 @@ import {
   syntaxHighlighting,
 } from "@codemirror/language";
 import { EditorState } from "@codemirror/state";
+import { ViewPlugin } from "@codemirror/view";
 
 import {
   Braces,
@@ -32,6 +33,7 @@ import {
   ChartDataItem,
   TableSchema,
   TableDescription,
+  TableColumn,
 } from "../../types/query";
 import {
   getLocalStorageItem,
@@ -45,8 +47,17 @@ interface QueryHistoryItem {
   timestamp: string;
 }
 
+interface Tab {
+  id: number;
+  title: string;
+  query: string;
+}
+
 export default function SqlEditor() {
-  const [query, setQuery] = useState<string>("");
+  const [queryTabs, setQueryTabs] = useState<Tab[]>([
+    { id: 1, title: "Query 1", query: "" },
+  ]);
+  const [activeTab, setActiveTab] = useState<number>(1);
   const [loading, setLoading] = useState<boolean>(false);
   const [metadataLoading, setMetadataLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | undefined>(undefined);
@@ -60,12 +71,35 @@ export default function SqlEditor() {
     useState<TableDescription | null>(null);
   const [fullScreenEditor, setFullScreenEditor] = useState<boolean>(false);
   const [tableNames, setTableNames] = useState<string[]>([]);
-  const [tableColumns, setTableColumns] = useState<{ [key: string]: string[] }>(
-    {}
-  );
+  const [tableColumns, setTableColumns] = useState<TableColumn>({});
   const editorRef = useRef<EditorView | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    const savedTabs = getLocalStorageItem<Tab[]>("queryTabs", [
+      { id: 1, title: "Query 1", query: "" },
+    ]);
+    setQueryTabs(savedTabs);
+    const activeTabId = getLocalStorageItem<number>("activeTab", 1);
+    setActiveTab(activeTabId);
+  }, []);
+
+  useEffect(() => {
+    setLocalStorageItem("queryTabs", queryTabs);
+    setLocalStorageItem("activeTab", activeTab);
+  }, [queryTabs, activeTab]);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key === "t") {
+        event.preventDefault();
+        addTab();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [queryTabs]);
 
   const handleViewModeChange = useCallback((mode: ViewMode) => {
     setViewMode(mode);
@@ -101,16 +135,30 @@ export default function SqlEditor() {
     removeLocalStorageItem("sculptql_history");
   }, []);
 
-  const loadQueryFromHistory = useCallback((q: string) => {
-    setQuery(q);
-    if (editorRef.current) {
-      const transaction = editorRef.current.state.update({
-        changes: { from: 0, to: editorRef.current.state.doc.length, insert: q },
-      });
-      editorRef.current.dispatch(transaction);
-      editorRef.current.focus();
-    }
-  }, []);
+  const loadQueryFromHistory = useCallback(
+    (q: string) => {
+      const currentTab = queryTabs.find((tab) => tab.id === activeTab);
+      if (currentTab) {
+        setQueryTabs(
+          queryTabs.map((tab) =>
+            tab.id === activeTab ? { ...tab, query: q } : tab
+          )
+        );
+        if (editorRef.current) {
+          const transaction = editorRef.current.state.update({
+            changes: {
+              from: 0,
+              to: editorRef.current.state.doc.length,
+              insert: q,
+            },
+          });
+          editorRef.current.dispatch(transaction);
+          editorRef.current.focus();
+        }
+      }
+    },
+    [queryTabs, activeTab]
+  );
 
   const runQueryFromHistory = useCallback(
     (q: string) => {
@@ -228,7 +276,8 @@ export default function SqlEditor() {
     setTable([]);
     setSelectedTable("");
 
-    const currentQuery = editorRef.current?.state.doc.toString() || "";
+    const currentTab = queryTabs.find((tab) => tab.id === activeTab);
+    const currentQuery = currentTab?.query || "";
     if (!currentQuery.trim()) {
       setError("Query cannot be empty.");
       setLoading(false);
@@ -258,6 +307,11 @@ export default function SqlEditor() {
             fetchColumns(tableName),
           ]);
         }
+        setQueryTabs(
+          queryTabs.map((tab) =>
+            tab.id === activeTab ? { ...tab, query: "" } : tab
+          )
+        );
         setViewMode("table");
       }
     } catch (e: unknown) {
@@ -265,7 +319,14 @@ export default function SqlEditor() {
     } finally {
       setLoading(false);
     }
-  }, [saveQueryToHistory, fetchTables, fetchTableDescription, fetchColumns]);
+  }, [
+    queryTabs,
+    activeTab,
+    saveQueryToHistory,
+    fetchTables,
+    fetchTableDescription,
+    fetchColumns,
+  ]);
 
   const exportToCsv = useCallback(() => {
     if (!result || !result.rows || !result.fields) return;
@@ -325,6 +386,18 @@ export default function SqlEditor() {
   useEffect(() => {
     if (!containerRef.current || editorRef.current || metadataLoading) return;
 
+    const updateQueryOnChange = ViewPlugin.define((view) => ({
+      update: (update) => {
+        if (!update.docChanged) return;
+        const newQuery = update.state.doc.toString();
+        setQueryTabs(
+          queryTabs.map((tab) =>
+            tab.id === activeTab ? { ...tab, query: newQuery } : tab
+          )
+        );
+      },
+    }));
+
     const customTheme = EditorView.theme(
       {
         "&": {
@@ -339,46 +412,19 @@ export default function SqlEditor() {
         ".cm-line": {
           backgroundColor: "transparent",
         },
-        ".cm-keyword": {
-          color: "#f8f9fa !important",
-        },
-        ".cm-operator": {
-          color: "#f8f9fa !important",
-        },
-        ".cm-variableName": {
-          color: "#f8f9fa !important",
-        },
-        ".cm-string": {
-          color: "#f8f9fa",
-        },
-        ".cm-comment": {
-          color: "#4a4a4a",
-          fontStyle: "italic",
-        },
-        ".cm-attribute": {
-          color: "#f8f9fa",
-        },
-        ".cm-property": {
-          color: "#f8f9fa",
-        },
-        ".cm-atom": {
-          color: "#f8f9fa",
-        },
-        ".cm-number": {
-          color: "#f8f9fa",
-        },
-        ".cm-def": {
-          color: "#f8f9fa",
-        },
-        ".cm-variable-2": {
-          color: "#f8f9fa",
-        },
-        ".cm-tag": {
-          color: "#f8f9fa",
-        },
-        "&.cm-focused .cm-cursor": {
-          borderLeftColor: "#22c55e",
-        },
+        ".cm-keyword": { color: "#f8f9fa !important" },
+        ".cm-operator": { color: "#f8f9fa !important" },
+        ".cm-variableName": { color: "#f8f9fa !important" },
+        ".cm-string": { color: "#f8f9fa" },
+        ".cm-comment": { color: "#4a4a4a", fontStyle: "italic" },
+        ".cm-attribute": { color: "#f8f9fa" },
+        ".cm-property": { color: "#f8f9fa" },
+        ".cm-atom": { color: "#f8f9fa" },
+        ".cm-number": { color: "#f8f9fa" },
+        ".cm-def": { color: "#f8f9fa" },
+        ".cm-variable-2": { color: "#f8f9fa" },
+        ".cm-tag": { color: "#f8f9fa" },
+        "&.cm-focused .cm-cursor": { borderLeftColor: "#22c55e" },
         "&.cm-focused .cm-selectionBackground, ::selection": {
           backgroundColor: "rgba(34, 197, 94, 0.1)",
         },
@@ -387,19 +433,14 @@ export default function SqlEditor() {
           color: "#22c55e",
           border: "none",
         },
-        ".cm-gutter": {
-          backgroundColor: "#0f172a",
-          border: "none",
-        },
-        ".cm-active-line": {
-          backgroundColor: "rgba(34, 197, 94, 0.05)",
-        },
+        ".cm-gutter": { backgroundColor: "#0f172a", border: "none" },
+        ".cm-active-line": { backgroundColor: "rgba(34, 197, 94, 0.05)" },
       },
       { dark: true }
     );
 
     const state = EditorState.create({
-      doc: query,
+      doc: queryTabs.find((tab) => tab.id === activeTab)?.query || "",
       extensions: [
         keymap.of([
           indentWithTab,
@@ -411,17 +452,14 @@ export default function SqlEditor() {
             },
           },
           { key: "Ctrl-Space", run: startCompletion },
-
           ...defaultKeymap,
         ]),
         sql(),
-        autocompletion({
-          override: [completion],
-          activateOnTyping: true,
-        }),
+        autocompletion({ override: [completion], activateOnTyping: true }),
         drawSelection(),
         customTheme,
         syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
+        updateQueryOnChange,
       ],
     });
 
@@ -431,27 +469,25 @@ export default function SqlEditor() {
     return () => {
       view.destroy();
       editorRef.current = null;
-      if (debounceTimeoutRef.current) {
-        clearTimeout(debounceTimeoutRef.current);
-      }
+      if (debounceTimeoutRef.current) clearTimeout(debounceTimeoutRef.current);
     };
-  }, [completion, runQuery, metadataLoading]);
+  }, [completion, runQuery, metadataLoading, activeTab, queryTabs]);
 
   useEffect(() => {
-    if (
-      editorRef.current &&
-      query &&
-      editorRef.current.state.doc.toString() !== query
-    ) {
-      editorRef.current.dispatch({
-        changes: {
-          from: 0,
-          to: editorRef.current.state.doc.length,
-          insert: query,
-        },
-      });
+    if (editorRef.current) {
+      const currentTab = queryTabs.find((tab) => tab.id === activeTab);
+      const currentQuery = currentTab?.query || "";
+      if (editorRef.current.state.doc.toString() !== currentQuery) {
+        editorRef.current.dispatch({
+          changes: {
+            from: 0,
+            to: editorRef.current.state.doc.length,
+            insert: currentQuery,
+          },
+        });
+      }
     }
-  }, [query]);
+  }, [activeTab, queryTabs]);
 
   const chartData: ChartDataItem[] = useMemo(
     () =>
@@ -468,6 +504,29 @@ export default function SqlEditor() {
           ]
         : [],
     [result]
+  );
+
+  const addTab = useCallback(() => {
+    if (queryTabs.length >= 5) {
+      alert("Maximum tab limit (5) reached.");
+      return;
+    }
+    const newId = Math.max(...queryTabs.map((tab) => tab.id)) + 1;
+    const newTab = { id: newId, title: `Query ${newId}`, query: "" };
+    setQueryTabs([...queryTabs, newTab]);
+    setActiveTab(newId);
+  }, [queryTabs]);
+
+  const closeTab = useCallback(
+    (id: number) => {
+      if (id === 1) return;
+      const newTabs = queryTabs.filter((tab) => tab.id !== id);
+      setQueryTabs(newTabs);
+      if (activeTab === id) {
+        setActiveTab(newTabs[0]?.id || 1);
+      }
+    },
+    [queryTabs, activeTab]
   );
 
   return (
@@ -491,13 +550,13 @@ export default function SqlEditor() {
                 SculptQL
               </h1>
             </div>
-            <div className="flex items-center space-x-3">
+            <div className="flex flex-col sm:flex-row items-center space-y-2 sm:space-y-0 sm:space-x-2">
               <div className="relative group">
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={() => setShowHistory((prev) => !prev)}
-                  className={`px-4 py-2 rounded-lg transition-all duration-300 ease-in-out border-2 shadow-sm ${
+                  className={`px-3 py-1 rounded-lg transition-all duration-300 ease-in-out border-2 shadow-sm ${
                     showHistory
                       ? "bg-gradient-to-r from-green-600 to-green-700 text-white border-green-700 shadow-md"
                       : "text-white bg-slate-800 text-green-300 border-slate-700 hover:bg-green-500 hover:text-white"
@@ -506,11 +565,29 @@ export default function SqlEditor() {
                   <History className="w-4 h-4 mr-2" />
                   {showHistory ? "Hide History" : "Show History"}
                 </Button>
+                <div className="absolute -top-10 left-1/2 -translate-x-1/2 z-20 hidden md:group-hover:block bg-gray-700 text-white text-xs rounded px-2 py-1 shadow transition-opacity duration-150 whitespace-nowrap">
+                  Show/Hide History
+                  <div className="absolute bottom-[-5px] left-1/2 -translate-x-1/2 w-2 h-2 bg-gray-700 rotate-45" />
+                </div>
               </div>
-              <div className="relative group flex flex-col items-center">
+              <div className="relative group">
+                <Button
+                  onClick={addTab}
+                  className="px-3 py-1 bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-400 font-bold rounded-lg transition duration-200 shadow-sm min-w-[100px]"
+                  title="New Tab (Ctrl+T)"
+                >
+                  New Tab
+                </Button>
+                <div className="absolute -top-10 left-1/2 -translate-x-1/2 z-20 hidden md:group-hover:block bg-gray-700 text-white text-xs rounded px-2 py-1 shadow transition-opacity duration-150 whitespace-nowrap">
+                  Ctrl+T
+                  <div className="absolute bottom-[-5px] left-1/2 -translate-x-1/2 w-2 h-2 bg-gray-700 rotate-45" />
+                </div>
+              </div>
+              <div className="relative group">
                 <Button
                   onClick={() => editorRef.current && runQuery()}
                   className="px-3 py-1 bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-400 font-bold rounded-lg transition duration-200 shadow-sm min-w-[100px]"
+                  title="Run Query (Cmd+Enter / Ctrl+Enter)"
                 >
                   Run
                 </Button>
@@ -523,6 +600,7 @@ export default function SqlEditor() {
               </div>
             </div>
           </div>
+
           <div
             className={`flex flex-1 flex-col lg:flex-row overflow-hidden ${
               fullScreenEditor ? "h-full" : ""
@@ -536,44 +614,71 @@ export default function SqlEditor() {
                 loadQueryFromHistory={loadQueryFromHistory}
                 runQueryFromHistory={runQueryFromHistory}
               />
-              <div
-                className={`flex-1 lg:w-1/2 border-b lg:border-b-0 lg:border-r border-slate-700 relative ${
-                  fullScreenEditor ? "h-full" : "h-full"
-                }`}
-              >
-                <div className="relative group">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={toggleFullscreen}
-                    className="absolute -top-1 -right-2 text-green-300 hover:bg-transparent hover:text-green-400 transition-all duration-300 z-50"
-                    aria-label={
-                      fullScreenEditor
-                        ? "Exit editor fullscreen"
-                        : "Enter editor fullscreen"
-                    }
-                  >
-                    {fullScreenEditor ? (
-                      <Minimize2 className="w-5 h-5" />
-                    ) : (
-                      <Maximize2 className="w-5 h-5" />
-                    )}
-                  </Button>
-                  <div className="absolute -top-1 right-6 z-30 hidden group-hover:block bg-gray-700 text-white text-xs rounded px-3 py-2 shadow-lg transition-opacity duration-150 whitespace-nowrap">
-                    {fullScreenEditor ? "Exit fullscreen" : "Enter fullscreen"}
-                    <div className="absolute top-1/2 -right-1 w-2 h-2 bg-gray-700 rotate-45 -translate-y-1/2" />
+              <div className="flex-1 lg:w-1/2 border-b lg:border-b-0 lg:border-r border-slate-700 relative">
+                <div className="flex items-center border-b border-slate-700 bg-[#1e293b] overflow-x-auto">
+                  {queryTabs.map((tab) => (
+                    <div
+                      key={tab.id}
+                      className={`flex items-center px-3 py-1 sm:px-4 sm:py-2 cursor-pointer whitespace-nowrap text-sm sm:text-base transition-all duration-300 ${
+                        activeTab === tab.id
+                          ? "bg-[#2d3748] text-[#f8f9fa]"
+                          : "bg-[#1e293b] text-[#9ca3af] hover:bg-[#2d3748] hover:text-[#f8f9fa]"
+                      }`}
+                      onClick={() => setActiveTab(tab.id)}
+                      style={{ marginTop: 0, borderTop: "none" }}
+                    >
+                      {tab.title}
+                      {tab.id !== 1 && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            closeTab(tab.id);
+                          }}
+                          className="ml-2 text-red-400 hover:text-red-600 text-xs sm:text-sm"
+                        >
+                          ×
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                <div ref={containerRef} className="h-[calc(100%-40px)]" />
+                <div className="absolute top-10 -right-2 z-50">
+                  <div className="relative group">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={toggleFullscreen}
+                      className="text-green-300 hover:bg-transparent hover:text-green-400 transition-all duration-300"
+                      aria-label={
+                        fullScreenEditor
+                          ? "Exit editor fullscreen"
+                          : "Enter editor fullscreen"
+                      }
+                    >
+                      {fullScreenEditor ? (
+                        <Minimize2 className="w-5 h-5" />
+                      ) : (
+                        <Maximize2 className="w-5 h-5" />
+                      )}
+                    </Button>
+                    <div className="absolute top-1 right-8 z-30 hidden md:group-hover:block bg-gray-700 text-white text-xs rounded px-3 py-2 shadow-lg transition-opacity duration-150 whitespace-nowrap">
+                      {fullScreenEditor
+                        ? "Exit fullscreen"
+                        : "Enter fullscreen"}
+                      <div className="absolute top-1/2 -right-1 w-2 h-2 bg-gray-700 rotate-45 -translate-y-1/2" />
+                    </div>
                   </div>
                 </div>
-                <div ref={containerRef} className="h-full" />
               </div>
             </div>
             <div
-              className={`flex-1 lg:w-1/2 p-6 overflow-auto ${
+              className={`flex-1 lg:w-1/2 p-4 overflow-auto ${
                 fullScreenEditor ? "hidden" : "h-1/2 lg:h-full"
-              } space-y-6`}
+              } space-y-4 sm:space-y-6`}
             >
               {error && (
-                <div className="bg-red-900/30 border border-red-500/50 text-red-300 p-4 rounded-lg shadow-md">
+                <div className="bg-red-900/30 border border-red-500/50 text-red-300 p-3 sm:p-4 rounded-lg shadow-md">
                   {error}
                 </div>
               )}
@@ -594,14 +699,14 @@ export default function SqlEditor() {
                     />
                   )}
                   {viewMode === "show" && selectedTable && table.length > 0 && (
-                    <div className="bg-[#1e293b] p-6 rounded-lg shadow-md border border-slate-600">
-                      <div className="flex items-center mb-4">
+                    <div className="bg-[#1e293b] p-3 sm:p-6 rounded-lg shadow-md border border-slate-600">
+                      <div className="flex items-center mb-2 sm:mb-4">
                         <Database className="w-5 h-5 text-green-400 mr-2" />
                         <h2 className="text-xl font-semibold text-green-300">
                           Show Table
                         </h2>
                       </div>
-                      <p className="text-gray-400 mb-4">
+                      <p className="text-gray-400 mb-2 sm:mb-4 text-sm sm:text-base">
                         Displays metadata for the queried table, including its
                         name, database, schema, and type.
                       </p>
@@ -609,19 +714,19 @@ export default function SqlEditor() {
                         <table className="w-full text-left text-sm">
                           <thead className="bg-[#111827] text-green-400 sticky top-0">
                             <tr>
-                              <th className="px-4 py-3 font-semibold border-b border-slate-600">
+                              <th className="px-2 sm:px-4 py-2 sm:py-3 font-semibold border-b border-slate-600">
                                 Name
                               </th>
-                              <th className="px-4 py-3 font-semibold border-b border-slate-600">
+                              <th className="px-2 sm:px-4 py-2 sm:py-3 font-semibold border-b border-slate-600">
                                 Database
                               </th>
-                              <th className="px-4 py-3 font-semibold border-b border-slate-600">
+                              <th className="px-2 sm:px-4 py-2 sm:py-3 font-semibold border-b border-slate-600">
                                 Schema
                               </th>
-                              <th className="px-4 py-3 font-semibold border-b border-slate-600">
+                              <th className="px-2 sm:px-4 py-2 sm:py-3 font-semibold border-b border-slate-600">
                                 Type
                               </th>
-                              <th className="px-4 py-3 font-semibold border-b border-slate-600">
+                              <th className="px-2 sm:px-4 py-2 sm:py-3 font-semibold border-b border-slate-600">
                                 Comment
                               </th>
                             </tr>
@@ -632,19 +737,19 @@ export default function SqlEditor() {
                                 key={i}
                                 className="border-b border-slate-600 hover:bg-slate-700 transition-colors duration-200"
                               >
-                                <td className="px-4 py-3 text-green-300">
+                                <td className="px-2 sm:px-4 py-2 sm:py-3 text-green-300">
                                   {table.table_name}
                                 </td>
-                                <td className="px-4 py-3 text-green-300">
+                                <td className="px-2 sm:px-4 py-2 sm:py-3 text-green-300">
                                   {table.table_catalog}
                                 </td>
-                                <td className="px-4 py-3 text-green-300">
+                                <td className="px-2 sm:px-4 py-2 sm:py-3 text-green-300">
                                   {table.table_schema}
                                 </td>
-                                <td className="px-4 py-3 text-green-300">
+                                <td className="px-2 sm:px-4 py-2 sm:py-3 text-green-300">
                                   {table.table_type}
                                 </td>
-                                <td className="px-4 py-3 text-green-300">
+                                <td className="px-2 sm:px-4 py-2 sm:py-3 text-green-300">
                                   {table.comment ?? "null"}
                                 </td>
                               </tr>
@@ -656,7 +761,7 @@ export default function SqlEditor() {
                   )}
                   {viewMode === "show" &&
                     (!selectedTable || table.length === 0) && (
-                      <div className="flex flex-col items-center justify-center h-full text-gray-400 bg-[#1e293b] p-6 rounded-lg shadow-md border border-slate-600">
+                      <div className="flex flex-col items-center justify-center h-full text-gray-400 bg-[#1e293b] p-3 sm:p-6 rounded-lg shadow-md border border-slate-600">
                         <Database className="w-12 h-12 mb-4 text-green-400" />
                         <p className="text-lg">
                           Run a query to view table metadata.
@@ -666,14 +771,14 @@ export default function SqlEditor() {
                   {viewMode === "describe" &&
                     selectedTable &&
                     tableDescription && (
-                      <div className="bg-[#1e293b] p-6 rounded-lg shadow-md border border-slate-600">
-                        <div className="flex items-center mb-4">
+                      <div className="bg-[#1e293b] p-3 sm:p-6 rounded-lg shadow-md border border-slate-600">
+                        <div className="flex items-center mb-2 sm:mb-4">
                           <ListTree className="w-5 h-5 text-green-400 mr-2" />
                           <h2 className="text-xl font-semibold text-green-300">
                             Description for {selectedTable}
                           </h2>
                         </div>
-                        <p className="text-gray-400 mb-4">
+                        <p className="text-gray-400 mb-2 sm:mb-4 text-sm sm:text-base">
                           Shows the structure of the queried table, including
                           column names, data types, nullability, and default
                           values.
@@ -682,16 +787,16 @@ export default function SqlEditor() {
                           <table className="w-full text-left text-sm">
                             <thead className="bg-[#111827] text-green-400 sticky top-0">
                               <tr>
-                                <th className="px-4 py-3 font-semibold border-b border-slate-600">
+                                <th className="px-2 sm:px-4 py-2 sm:py-3 font-semibold border-b border-slate-600">
                                   Column
                                 </th>
-                                <th className="px-4 py-3 font-semibold border-b border-slate-600">
+                                <th className="px-2 sm:px-4 py-2 sm:py-3 font-semibold border-b border-slate-600">
                                   Type
                                 </th>
-                                <th className="px-4 py-3 font-semibold border-b border-slate-600">
+                                <th className="px-2 sm:px-4 py-2 sm:py-3 font-semibold border-b border-slate-600">
                                   Nullable
                                 </th>
-                                <th className="px-4 py-3 font-semibold border-b border-slate-600">
+                                <th className="px-2 sm:px-4 py-2 sm:py-3 font-semibold border-b border-slate-600">
                                   Default
                                 </th>
                               </tr>
@@ -702,16 +807,16 @@ export default function SqlEditor() {
                                   key={i}
                                   className="border-b border-slate-600 hover:bg-slate-700 transition-colors duration-200"
                                 >
-                                  <td className="px-4 py-3 text-green-300">
+                                  <td className="px-2 sm:px-4 py-2 sm:py-3 text-green-300">
                                     {col.column_name}
                                   </td>
-                                  <td className="px-4 py-3 text-green-300">
+                                  <td className="px-2 sm:px-4 py-2 sm:py-3 text-green-300">
                                     {col.data_type}
                                   </td>
-                                  <td className="px-4 py-3 text-green-300">
+                                  <td className="px-2 sm:px-4 py-2 sm:py-3 text-green-300">
                                     {col.is_nullable}
                                   </td>
-                                  <td className="px-4 py-3 text-green-300">
+                                  <td className="px-2 sm:px-4 py-2 sm:py-3 text-green-300">
                                     {col.column_default ?? "null"}
                                   </td>
                                 </tr>
@@ -723,7 +828,7 @@ export default function SqlEditor() {
                     )}
                   {viewMode === "describe" &&
                     (!selectedTable || !tableDescription) && (
-                      <div className="flex flex-col items-center justify-center h-full text-gray-400 bg-[#1e293b] p-6 rounded-lg shadow-md border border-slate-600">
+                      <div className="flex flex-col items-center justify-center h-full text-gray-400 bg-[#1e293b] p-3 sm:p-6 rounded-lg shadow-md border border-slate-600">
                         <ListTree className="w-12 h-12 mb-4 text-green-400" />
                         <p className="text-lg">
                           {selectedTable
@@ -734,12 +839,12 @@ export default function SqlEditor() {
                     )}
                   {result && viewMode === "table" && (
                     <>
-                      <div className="flex justify-end mb-4 space-x-2">
+                      <div className="flex justify-end mb-2 sm:mb-4 space-x-2">
                         <Button
                           variant="outline"
                           size="sm"
                           onClick={exportToCsv}
-                          className="px-4 py-2 text-green-300 border-slate-600 bg-slate-800 hover:bg-green-500 hover:text-white transition-all duration-300 rounded-md"
+                          className="px-2 sm:px-4 py-1 sm:py-2 text-green-300 border-slate-600 bg-slate-800 hover:bg-green-500 hover:text-white transition-all duration-300 rounded-md text-sm sm:text-base"
                         >
                           <Download className="w-4 h-4 mr-2" />
                           Export to CSV
@@ -748,14 +853,14 @@ export default function SqlEditor() {
                           variant="outline"
                           size="sm"
                           onClick={exportToJson}
-                          className="px-4 py-2 text-green-300 border-slate-600 bg-slate-800 hover:bg-green-500 hover:text-white transition-all duration-300 rounded-md"
+                          className="px-2 sm:px-4 py-1 sm:py-2 text-green-300 border-slate-600 bg-slate-800 hover:bg-green-500 hover:text-white transition-all duration-300 rounded-md text-sm sm:text-base"
                         >
                           <Download className="w-4 h-4 mr-2" />
                           Export to JSON
                         </Button>
                       </div>
-                      <div className="bg-[#1e293b] p-6 rounded-lg shadow-md border border-slate-600">
-                        <h2 className="text-xl font-semibold text-green-300 mb-4 flex items-center">
+                      <div className="bg-[#1e293b] p-3 sm:p-6 rounded-lg shadow-md border border-slate-600">
+                        <h2 className="text-xl font-semibold text-green-300 mb-2 sm:mb-4 flex items-center">
                           <Table className="w-5 h-5 text-green-400 mr-2" />
                           Query Results
                         </h2>
@@ -766,7 +871,7 @@ export default function SqlEditor() {
                                 {result.fields.map((field) => (
                                   <th
                                     key={field}
-                                    className="px-4 py-3 font-semibold border-b border-slate-600"
+                                    className="px-2 sm:px-4 py-2 sm:py-3 font-semibold border-b border-slate-600"
                                   >
                                     {field}
                                   </th>
@@ -782,7 +887,7 @@ export default function SqlEditor() {
                                   {result.fields.map((field) => (
                                     <td
                                       key={field}
-                                      className="px-4 py-3 text-green-300 break-words"
+                                      className="px-2 sm:px-4 py-2 sm:py-3 text-green-300 break-words"
                                     >
                                       {row[field] !== null
                                         ? String(row[field])
@@ -798,12 +903,12 @@ export default function SqlEditor() {
                     </>
                   )}
                   {result && viewMode === "json" && (
-                    <div className="bg-[#1e293b] p-6 rounded-lg shadow-md border border-slate-600">
-                      <h2 className="text-xl font-semibold text-green-300 mb-4 flex items-center">
+                    <div className="bg-[#1e293b] p-3 sm:p-6 rounded-lg shadow-md border border-slate-600">
+                      <h2 className="text-xl font-semibold text-green-300 mb-2 sm:mb-4 flex items-center">
                         <Braces className="w-5 h-5 text-green-400 mr-2" />
                         JSON Results
                       </h2>
-                      <pre className="bg-[#111827] text-green-400 p-4 rounded-md font-mono text-sm whitespace-pre-wrap break-words">
+                      <pre className="bg-[#111827] text-green-400 p-2 sm:p-4 rounded-md font-mono text-sm whitespace-pre-wrap break-words">
                         {JSON.stringify(result.rows, null, 2)}
                       </pre>
                     </div>
@@ -815,7 +920,7 @@ export default function SqlEditor() {
                     viewMode !== "show" &&
                     viewMode !== "describe" &&
                     !loading && (
-                      <div className="flex flex-col items-center justify-center h-full text-gray-400 bg-[#1e293b] p-6 rounded-lg shadow-md border border-slate-600">
+                      <div className="flex flex-col items-center justify-center h-full text-gray-400 bg-[#1e293b] p-3 sm:p-6 rounded-lg shadow-md border border-slate-600">
                         <Database className="w-12 h-12 mb-4 text-green-400" />
                         <p className="text-lg">
                           The results of your query will appear here.
