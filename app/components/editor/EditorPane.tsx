@@ -1,8 +1,8 @@
 "use client";
 
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
-import { Maximize2, Minimize2 } from "lucide-react";
+import { Maximize2, Minimize2, Wand2 } from "lucide-react";
 import QueryTabs from "./QueryTabs";
 import { Tab } from "@/app/types/query";
 import { EditorView, keymap, drawSelection } from "@codemirror/view";
@@ -20,6 +20,7 @@ import {
 } from "@codemirror/language";
 import { EditorState, Compartment } from "@codemirror/state";
 import { ViewPlugin } from "@codemirror/view";
+import { format as formatSQL } from "sql-formatter";
 
 interface EditorPaneProps {
   queryTabs: Tab[];
@@ -49,6 +50,30 @@ export default function EditorPane({
   const containerRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<EditorView | null>(null);
   const languageCompartment = useRef(new Compartment());
+
+  const isMac =
+    typeof navigator !== "undefined" && /Mac/i.test(navigator.platform);
+
+  const formatQuery = useCallback(() => {
+    if (!editorRef.current) return;
+    const currentText = editorRef.current.state.doc.toString();
+    try {
+      const formatted = formatSQL(currentText, {
+        language: "postgresql",
+        keywordCase: "upper",
+      });
+      editorRef.current.dispatch({
+        changes: {
+          from: 0,
+          to: editorRef.current.state.doc.length,
+          insert: formatted,
+        },
+      });
+      onQueryChange(formatted);
+    } catch (err) {
+      console.error("SQL formatting failed:", err);
+    }
+  }, [onQueryChange]);
 
   useEffect(() => {
     if (!containerRef.current || editorRef.current || metadataLoading) return;
@@ -106,15 +131,22 @@ export default function EditorPane({
       doc: queryTabs.find((tab) => tab.id === activeTab)?.query || "",
       extensions: [
         keymap.of([
-          indentWithTab,
           {
-            key: "Mod-Enter",
+            key: isMac ? "Cmd-Shift-f" : "Ctrl-Shift-f",
+            run: () => {
+              formatQuery();
+              return true;
+            },
+          },
+          {
+            key: "Cmd-Enter",
             run: () => {
               runQuery();
               return true;
             },
           },
           { key: "Ctrl-Space", run: startCompletion },
+          indentWithTab,
           ...defaultKeymap,
         ]),
         languageCompartment.current.of(sql()),
@@ -140,6 +172,8 @@ export default function EditorPane({
     activeTab,
     queryTabs,
     onQueryChange,
+    formatQuery,
+    isMac,
   ]);
 
   useEffect(() => {
@@ -168,7 +202,7 @@ export default function EditorPane({
         onTabClose={onTabClose}
       />
       <div ref={containerRef} className="h-[calc(100%-40px)]" />
-      <div className="absolute top-10 -right-2 z-50">
+      <div className="absolute top-10 -right-2 z-50 flex flex-col gap-2">
         <div className="relative group">
           <Button
             variant="ghost"
@@ -187,8 +221,23 @@ export default function EditorPane({
               <Maximize2 className="w-5 h-5" />
             )}
           </Button>
-          <div className="absolute top-1 right-8 z-30 hidden md:group-hover:block bg-gray-700 text-white text-xs rounded px-3 py-2 shadow-lg transition-opacity duration-150 whitespace-nowrap">
+          <div className="absolute top-1 right-8 z-30 hidden md:group-hover:block bg-gray-700 text-white text-xs rounded px-3 py-2 shadow-lg whitespace-nowrap">
             {fullScreenEditor ? "Exit fullscreen" : "Enter fullscreen"}
+            <div className="absolute top-1/2 -right-1 w-2 h-2 bg-gray-700 rotate-45 -translate-y-1/2" />
+          </div>
+        </div>
+        <div className="relative group">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={formatQuery}
+            className="text-blue-300 hover:bg-transparent hover:text-blue-400 transition-all duration-300"
+            aria-label="Format SQL"
+          >
+            <Wand2 className="w-5 h-5" />
+          </Button>
+          <div className="absolute top-1 right-8 z-30 hidden md:group-hover:block bg-gray-700 text-white text-xs rounded px-3 py-2 shadow-lg whitespace-nowrap">
+            Format SQL ({isMac ? "⌘+⇧+F" : "Ctrl+Shift+F"})
             <div className="absolute top-1/2 -right-1 w-2 h-2 bg-gray-700 rotate-45 -translate-y-1/2" />
           </div>
         </div>
