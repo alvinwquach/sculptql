@@ -1,4 +1,5 @@
 import { CompletionResult } from "@codemirror/autocomplete";
+import { Select } from "node-sql-parser";
 
 // This function provides autocomplete suggestions for column names
 // immediately after the `SELECT` keyword in a SQL query.
@@ -9,7 +10,7 @@ export const suggestColumnsAfterSelect = (
   word: { from: number } | null, // The range of the current word
   allColumns: string[], // List of available column names to suggest
   needsQuotes: (id: string) => boolean, // Function to determine if a column name needs quotes
-  ast: any // The parsed SQL AST (Abstract Syntax Tree)
+  ast: Select | Select[] | null // The parsed SQL AST (Abstract Syntax Tree), can be a single Select or an array of Selects
 ): CompletionResult | null => {
   // === STEP 1: Determine if we're in a SELECT clause with no columns ===
 
@@ -17,10 +18,13 @@ export const suggestColumnsAfterSelect = (
   // AND the select clause has no columns yet.
   const inSelectClause =
     ast &&
-    (ast.type === "select" ||
-      (Array.isArray(ast) &&
-        ast.some((node: any) => node.type === "select"))) &&
-    (!ast.columns || ast.columns.length === 0);
+    (Array.isArray(ast)
+      ? ast.some(
+          (node: Select) =>
+            node.type === "select" &&
+            (!node.columns || node.columns.length === 0)
+        )
+      : ast.type === "select" && (!ast.columns || ast.columns.length === 0));
 
   // Regex to match `SELECT` with no columns yet typed (e.g., just "SELECT")
   const selectRegex = /^select\s*$/i;

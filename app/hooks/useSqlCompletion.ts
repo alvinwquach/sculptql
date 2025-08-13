@@ -2,7 +2,7 @@
 
 import { useCallback } from "react";
 import { CompletionContext, CompletionResult } from "@codemirror/autocomplete";
-import { Parser } from "node-sql-parser";
+import { Parser, Select } from "node-sql-parser";
 import { TableColumn } from "@/app/types/query";
 
 import { getAllColumns } from "../utils/sqlCompletion/getAllColumns";
@@ -31,6 +31,13 @@ export const useSqlCompletion = (
   // Create SQL parser instance
   const parser = new Parser();
 
+  // Type guard to check if an AST node is a Select node
+  const isSelectNode = (node: unknown): node is Select =>
+    !!node &&
+    typeof node === "object" &&
+    "type" in node &&
+    (node as { type: unknown }).type === "select";
+
   /**
    * sqlCompletion: Main function used by CodeMirror to determine what suggestions to show
    */
@@ -48,9 +55,16 @@ export const useSqlCompletion = (
 
       // === STEP 3: Try parsing the SQL into an AST (Abstract Syntax Tree) ===
 
-      let ast;
+      let ast: Select | Select[] | null;
       try {
-        ast = parser.astify(docText, { database: "postgresql" });
+        const parsedAst = parser.astify(docText, { database: "postgresql" });
+        if (Array.isArray(parsedAst)) {
+          // Filter to only Select nodes
+          const selectNodes = parsedAst.filter(isSelectNode);
+          ast = selectNodes.length > 0 ? selectNodes : null;
+        } else {
+          ast = isSelectNode(parsedAst) ? parsedAst : null;
+        }
       } catch (e) {
         // If parsing fails (e.g., incomplete or invalid SQL), we continue without AST
         ast = null;

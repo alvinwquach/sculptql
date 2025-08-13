@@ -1,4 +1,5 @@
 import { CompletionResult } from "@codemirror/autocomplete";
+import { Select, Column } from "node-sql-parser";
 import { TableColumn } from "@/app/types/query";
 
 // This function suggests a semicolon (";") to complete a SQL query,
@@ -7,65 +8,105 @@ export const suggestSemicolonCompletion = (
   pos: number, // Cursor position
   tableColumns: TableColumn, // A map of table name -> array of valid column names
   stripQuotes: (s: string) => string, // Helper function to remove quotes from identifiers
-  ast: any // The parsed SQL AST
+  ast: Select | Select[] | null // The parsed SQL AST from node-sql-parser
 ): CompletionResult | null => {
   // === STEP 1: Validate that we have a SELECT query with FROM and columns ===
 
   const isValidSelect =
     ast &&
-    // AST is either a single select node
-    (ast.type === "select" ||
-      // Or an array containing at least one select node
-      (Array.isArray(ast) &&
-        ast.some((node: any) => node.type === "select"))) &&
-    ast.from && // FROM clause exists
-    ast.columns && // At least one column is selected
-    ast.columns.length > 0;
-
-  if (isValidSelect) {
-    // === STEP 2: Extract selected column names (ignoring "*") ===
-
-    const selectedColumns = ast.columns
-      .map((col: any) =>
-        // Try to get column name from either `expr.column` or `expr.value`, fallback to empty string
-        stripQuotes(col.expr.column || col.expr.value || "")
-      )
-      .filter((col: string) => col !== "*"); // Ignore "*" since it doesn't need validation
-
-    // === STEP 3: Get the table name being queried ===
-    const selectedTable = ast.from[0]?.table;
-
-    // If no table is found, we can't continue
-    if (!selectedTable) {
-      return null;
-    }
-
-    // === STEP 4: Validate all selected columns exist in the specified table ===
-
-    const tableHasColumns = tableColumns[selectedTable];
-    const allColumnsValid =
-      selectedColumns.length > 0 &&
-      tableHasColumns &&
-      selectedColumns.every((col: string) =>
-        tableHasColumns.some(
-          (tableCol) => tableCol.toLowerCase() === col.toLowerCase()
+    // AST is either a single select node or an array of nodes
+    (Array.isArray(ast)
+      ? ast.some(
+          (node: Select) =>
+            node.type === "select" &&
+            node.from &&
+            node.columns &&
+            node.columns.length > 0
         )
-      );
+      : ast.type === "select" &&
+        ast.from &&
+        ast.columns &&
+        ast.columns.length > 0);
 
-    // === STEP 5: If all columns are valid, suggest semicolon completion ===
-    if (allColumnsValid) {
-      return {
-        from: pos, // Insert semicolon at cursor
-        options: [
-          {
-            label: ";", // The suggestion shown to the user
-            type: "text", // Simple text insert
-            apply: ";", // The actual character inserted
-            detail: "Complete query", // Description shown in UI
-          },
-        ],
-      };
+  if (!isValidSelect) {
+    return null;
+  }
+
+  // === STEP 2: Extract selected column names (ignoring "*") ===
+
+  const selectNode = Array.isArray(ast)
+    ? ast.find(
+        (node: Select) => node.type === "select" && node.from && node.columns
+      )
+    : ast;
+
+  // Ensure selectNode is a Select and has columns
+  if (!selectNode || !selectNode.columns) {
+    return null;
+  }
+
+  const selectedColumns = selectNode.columns
+    .map((col: Column) => {
+      // Handle the expr.column safely, accounting for node-sql-parser's type
+      if ("expr" in col && col.expr && "column" in col.expr) {
+        const columnValue = col.expr.column;
+        // Ensure columnValue is a string before stripping quotes
+        return typeof columnValue === "string" ? stripQuotes(columnValue) : "";
+      }
+      return "";
+    })
+    .filter((col: string) => col !== "*" && col !== ""); // Ignore "*" and invalid columns
+
+  // === STEP 3: Get the table name being queried ===
+  // Type guard to check if the from item has a table property
+  const isTableReference = (
+    fromItem: any
+  ): fromItem is { table: string | null } => {
+    return fromItem && typeof fromItem === "object" && "table" in fromItem;
+  };
+
+  let selectedTable: string | null = null;
+  if (Array.isArray(selectNode.from)) {
+    // Handle array of FROM items
+    const firstFrom = selectNode.from[0];
+    if (isTableReference(firstFrom)) {
+      selectedTable = firstFrom.table || null;
     }
+  } else if (selectNode.from && isTableReference(selectNode.from)) {
+    // Handle single FROM item
+    selectedTable = selectNode.from.table || null;
+  }
+
+  // If no table is found, we can't continue
+  if (!selectedTable) {
+    return null;
+  }
+
+  // === STEP 4: Validate all selected columns exist in the specified table ===
+
+  const tableHasColumns = tableColumns[selectedTable];
+  const allColumnsValid =
+    selectedColumns.length > 0 &&
+    tableHasColumns &&
+    selectedColumns.every((col: string) =>
+      tableHasColumns.some(
+        (tableCol) => tableCol.toLowerCase() === col.toLowerCase()
+      )
+    );
+
+  // === STEP 5: If all columns are valid, suggest semicolon completion ===
+  if (allColumnsValid) {
+    return {
+      from: pos, // Insert semicolon at cursor
+      options: [
+        {
+          label: ";", // The suggestion shown to the user
+          type: "text", // Simple text insert
+          apply: ";", // The actual character inserted
+          detail: "Complete query", // Description shown in UI
+        },
+      ],
+    };
   }
 
   // === STEP 6: If query isn't valid, don't suggest anything ===

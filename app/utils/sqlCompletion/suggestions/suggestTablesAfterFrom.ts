@@ -1,4 +1,5 @@
 import { CompletionResult } from "@codemirror/autocomplete";
+import { Select, ColumnRefExpr } from "node-sql-parser";
 
 // This function suggests table names after the "FROM" keyword in a SQL query.
 export const suggestTablesAfterFrom = (
@@ -9,18 +10,18 @@ export const suggestTablesAfterFrom = (
   getValidTables: (selectedColumn: string | null) => string[], // Function to get valid tables, optionally based on a selected column
   stripQuotes: (s: string) => string, // Utility to remove quotes from identifiers
   needsQuotes: (id: string) => boolean, // Utility to check if a table name needs quotes
-  ast: any // Parsed SQL Abstract Syntax Tree (AST)
+  ast: Select | Select[] | null // Parsed SQL Abstract Syntax Tree (AST)
 ): CompletionResult | null => {
   // === STEP 1: Detect if we're in or after a FROM clause ===
 
   const inFromClause =
     ast &&
     // AST is a single SELECT node
-    (ast.type === "select" ||
-      // OR it's an array of nodes, and one of them is a SELECT
-      (Array.isArray(ast) &&
-        ast.some((node: any) => node.type === "select"))) &&
-    ast.from !== undefined; // Allow ast.from to be empty array but not undefined/null
+    (Array.isArray(ast)
+      ? ast.some(
+          (node: Select) => node.type === "select" && node.from !== undefined
+        )
+      : ast.type === "select" && ast.from !== undefined); // Allow ast.from to be empty array but not undefined/null
 
   // Fallback check: matches simple incomplete queries like "SELECT * FROM "
   const fromRegex = /\bSELECT\s+.*\bFROM\s*$/i;
@@ -29,11 +30,23 @@ export const suggestTablesAfterFrom = (
   if (inFromClause || fromRegex.test(docText)) {
     // === STEP 2: Get the first selected column (if any), to provide context-aware table suggestions ===
 
+    const selectNode = Array.isArray(ast)
+      ? ast.find((node: Select) => node.type === "select")
+      : ast;
+
+    // Type guard to check if expr is a ColumnRefExpr
+    const isColumnRefExpr = (expr: unknown): expr is ColumnRefExpr =>
+      !!expr &&
+      typeof expr === "object" &&
+      Object.prototype.hasOwnProperty.call(expr, "type") &&
+      (expr as { type: unknown }).type === "column_ref" &&
+      Object.prototype.hasOwnProperty.call(expr, "column");
+
     const firstCol =
-      ast && ast.columns && ast.columns[0]
-        ? stripQuotes(
-            ast.columns[0].expr.column || ast.columns[0].expr.value || ""
-          )
+      selectNode && selectNode.columns && selectNode.columns[0]
+        ? isColumnRefExpr(selectNode.columns[0].expr)
+          ? stripQuotes(selectNode.columns[0].expr.column)
+          : null
         : null;
 
     // === STEP 3: Filter valid tables based on the typed prefix ===

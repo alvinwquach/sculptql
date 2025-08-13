@@ -123,4 +123,10 @@ export interface SelectAst {
   limit?: unknown;
 }
 
-export type SqlAst = SelectAst | SelectAst[];
+export interface ASTNode {
+  type: string;
+  from?: Array<{ table?: string }>;
+  columns?: Array<{ expr?: { column?: string; value?: string } }>;
+}
+
+export type SqlAst = SelectAst | SelectAst[] | ASTNode | ASTNode[] | null;
