@@ -88,9 +88,7 @@ export interface Column {
   column_name: string;
 }
 
-export interface TableColumn {
-  [tableName: string]: string[];
-}
+export type TableColumn = Record<string, string[]>;
 
 export interface QueryHistoryItem {
   query: string;
@@ -102,3 +100,27 @@ export interface Tab {
   title: string;
   query: string;
 }
+
+export interface SqlColumn {
+  expr: {
+    column?: string;
+    value?: string;
+  };
+}
+
+export interface SqlFromItem {
+  table: string;
+  alias?: string;
+}
+
+export interface SelectAst {
+  type: "select";
+  columns: SqlColumn[];
+  from: SqlFromItem[];
+  where?: unknown;
+  orderby?: unknown;
+  groupby?: unknown;
+  limit?: unknown;
+}
+
+export type SqlAst = SelectAst | SelectAst[];

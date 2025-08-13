@@ -2,81 +2,96 @@
 
 import { useCallback } from "react";
 import { CompletionContext, CompletionResult } from "@codemirror/autocomplete";
-import { TableColumn } from "../types/query";
-import { needsQuotes } from "../utils/sqlCompletion/needsQuotes";
-import { stripQuotes } from "../utils/sqlCompletion/stripQuotes";
+import { Parser } from "node-sql-parser";
+import { TableColumn } from "@/app/types/query";
+
 import { getAllColumns } from "../utils/sqlCompletion/getAllColumns";
 import { getValidTables } from "../utils/sqlCompletion/getValidTables";
+
+import { suggestAsOrFromKeyword } from "../utils/sqlCompletion/suggestions/suggestAsOrFromKeyword";
 import { suggestColumnsAfterSelect } from "../utils/sqlCompletion/suggestions/suggestColumnsAfterSelect";
-import { suggestFromKeyword } from "../utils/sqlCompletion/suggestions/suggestFromKeyword";
 import { suggestSelect } from "../utils/sqlCompletion/suggestions/suggestSelect";
 import { suggestSemicolonCompletion } from "../utils/sqlCompletion/suggestions/suggestSemicolonCompletion";
 import { suggestTablesAfterFrom } from "../utils/sqlCompletion/suggestions/suggestTablesAfterFrom";
 
+/**
+ * Hook: useSqlCompletion
+ * This custom React hook provides autocomplete logic for SQL using CodeMirror's API.
+ * It integrates multiple context-aware suggestion strategies to guide users while writing SQL.
+ */
 export const useSqlCompletion = (
-  tableNames: string[],
-  tableColumns: TableColumn
+  tableNames: string[], // List of known table names
+  tableColumns: TableColumn, // Mapping of table names to their columns
+  stripQuotes: (s: string) => string, // Helper to strip quotes from identifiers
+  needsQuotes: (id: string) => boolean // Helper to determine if a name needs quotes
 ) => {
-  const allColumnsGetter = useCallback(
-    () => getAllColumns(tableNames, tableColumns),
-    [tableNames, tableColumns]
-  );
+  // === STEP 1: Prepare full list of available columns ===
+  const allColumns = getAllColumns(tableNames, tableColumns);
 
-  const validTablesGetter = useCallback(
-    (selectedColumn: string | null) =>
-      getValidTables(tableNames, tableColumns, selectedColumn),
-    [tableNames, tableColumns]
-  );
+  // Create SQL parser instance
+  const parser = new Parser();
 
-  return useCallback(
+  /**
+   * sqlCompletion: Main function used by CodeMirror to determine what suggestions to show
+   */
+  const sqlCompletion = useCallback(
     (context: CompletionContext): CompletionResult | null => {
-      const { state, pos } = context;
-      const word = context.matchBefore(/["\w.]*/);
-      const docText = state.doc.toString().substring(0, pos).trim();
-      const currentWord = word ? word.text.toLowerCase() : "";
+      // === STEP 2: Extract the current word and document context ===
 
-      // Suggest SELECT
-      const selectSuggestion = suggestSelect(docText, currentWord, pos, word);
-      if (selectSuggestion) return selectSuggestion;
+      // Match the current word under the cursor (alphanumeric + dot + quotes + asterisk)
+      const word = context.matchBefore(/["'\w.*]+/);
+      const currentWord = word?.text || "";
+      const pos = context.pos;
 
-      // After SELECT → suggest * and columns
-      const columnsSuggestion = suggestColumnsAfterSelect(
-        docText,
-        currentWord,
-        pos,
-        word,
-        allColumnsGetter(),
-        needsQuotes
+      // Get the full text from the beginning of the document up to the current position
+      const docText = context.state.sliceDoc(0, context.pos);
+
+      // === STEP 3: Try parsing the SQL into an AST (Abstract Syntax Tree) ===
+
+      let ast;
+      try {
+        ast = parser.astify(docText, { database: "postgresql" });
+      } catch (e) {
+        // If parsing fails (e.g., incomplete or invalid SQL), we continue without AST
+        ast = null;
+      }
+
+      // === STEP 4: Call suggestion functions in priority order ===
+      // Each function returns either a CompletionResult or null.
+      // The first non-null result is returned to CodeMirror.
+
+      return (
+        suggestSelect(docText, currentWord, pos, word, ast) ||
+        suggestColumnsAfterSelect(
+          docText,
+          currentWord,
+          pos,
+          word,
+          allColumns,
+          needsQuotes,
+          ast
+        ) ||
+        suggestAsOrFromKeyword(docText, pos, word, ast) ||
+        suggestTablesAfterFrom(
+          docText,
+          currentWord,
+          pos,
+          word,
+          (selectedColumn) =>
+            getValidTables(tableNames, tableColumns, selectedColumn),
+          stripQuotes,
+          needsQuotes,
+          ast
+        ) ||
+        suggestSemicolonCompletion(pos, tableColumns, stripQuotes, ast)
       );
-      if (columnsSuggestion) return columnsSuggestion;
-
-      // Suggest FROM keyword
-      const fromKeywordSuggestion = suggestFromKeyword(docText, pos);
-      if (fromKeywordSuggestion) return fromKeywordSuggestion;
-
-      // Suggest tables after FROM
-      const tableSuggestion = suggestTablesAfterFrom(
-        docText,
-        currentWord,
-        pos,
-        word,
-        validTablesGetter,
-        stripQuotes,
-        needsQuotes
-      );
-      if (tableSuggestion) return tableSuggestion;
-
-      // Suggest semicolon to complete query
-      const semicolonSuggestion = suggestSemicolonCompletion(
-        docText,
-        pos,
-        tableColumns,
-        stripQuotes
-      );
-      if (semicolonSuggestion) return semicolonSuggestion;
-
-      return null;
     },
-    [tableNames, tableColumns, allColumnsGetter, validTablesGetter]
+
+    // === STEP 5: Dependencies for useCallback ===
+    // Ensures the completion function updates when any inputs change
+    [allColumns, tableNames, tableColumns, stripQuotes, needsQuotes]
   );
+
+  // === STEP 6: Return the completion function to be used by the editor ===
+  return sqlCompletion;
 };
