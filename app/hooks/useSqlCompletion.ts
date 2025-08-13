@@ -7,7 +7,6 @@ import { TableColumn } from "@/app/types/query";
 
 import { getAllColumns } from "../utils/sqlCompletion/getAllColumns";
 import { getValidTables } from "../utils/sqlCompletion/getValidTables";
-
 import { suggestAsOrFromKeyword } from "../utils/sqlCompletion/suggestions/suggestAsOrFromKeyword";
 import { suggestColumnsAfterSelect } from "../utils/sqlCompletion/suggestions/suggestColumnsAfterSelect";
 import { suggestSelect } from "../utils/sqlCompletion/suggestions/suggestSelect";

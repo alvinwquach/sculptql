@@ -1,8 +1,8 @@
 import { CompletionResult } from "@codemirror/autocomplete";
 import { Select } from "node-sql-parser";
 
-// This function provides autocomplete suggestions for column names
-// immediately after the `SELECT` keyword in a SQL query.
+// This function provides autocomplete suggestions for DISTINCT, *, and column names
+// immediately after the `SELECT` or `SELECT DISTINCT` keywords in a SQL query.
 export const suggestColumnsAfterSelect = (
   docText: string, // The full text of the current SQL document
   currentWord: string, // The current word being typed at the cursor
@@ -10,10 +10,9 @@ export const suggestColumnsAfterSelect = (
   word: { from: number } | null, // The range of the current word
   allColumns: string[], // List of available column names to suggest
   needsQuotes: (id: string) => boolean, // Function to determine if a column name needs quotes
-  ast: Select | Select[] | null // The parsed SQL AST (Abstract Syntax Tree), can be a single Select or an array of Selects
+  ast: Select | Select[] | null // The parsed SQL AST (Abstract Syntax Tree)
 ): CompletionResult | null => {
   // === STEP 1: Determine if we're in a SELECT clause with no columns ===
-
   // Check if AST is a "select" node or contains a "select" node
   // AND the select clause has no columns yet.
   const inSelectClause =
@@ -26,11 +25,24 @@ export const suggestColumnsAfterSelect = (
         )
       : ast.type === "select" && (!ast.columns || ast.columns.length === 0));
 
-  // Regex to match `SELECT` with no columns yet typed (e.g., just "SELECT")
+  // Regex to match `SELECT` or `SELECT DISTINCT` with no columns yet typed
   const selectRegex = /^select\s*$/i;
+  const selectDistinctRegex = /^select\s+distinct\s*$/i;
 
-  // === STEP 2: If in SELECT with no columns, or typing just "SELECT", offer column suggestions ===
-  if (inSelectClause || selectRegex.test(docText.trim())) {
+  // === STEP 2: Check if DISTINCT is present ===
+  const isDistinctPresent =
+    selectDistinctRegex.test(docText.trim()) ||
+    (ast &&
+      (Array.isArray(ast)
+        ? ast.some((node: Select) => node.type === "select" && node.distinct)
+        : ast.type === "select" && ast.distinct));
+
+  // === STEP 3: If in SELECT or SELECT DISTINCT with no columns, offer suggestions ===
+  if (
+    inSelectClause ||
+    selectRegex.test(docText.trim()) ||
+    selectDistinctRegex.test(docText.trim())
+  ) {
     // Filter column suggestions if user has started typing a partial word
     const filteredColumns = allColumns.filter((column) =>
       currentWord
@@ -38,29 +50,50 @@ export const suggestColumnsAfterSelect = (
         : true
     );
 
-    // === STEP 3: Return suggestions ===
-    return {
-      from: word ? word.from : pos, // Suggestion should replace the current word
-      options: [
-        {
-          label: "*",
-          type: "field",
-          apply: "* ", // Suggest selecting all columns
-          detail: "All columns",
-        },
-        // Map each matching column to a completion item
-        ...filteredColumns.map((column) => ({
-          label: column,
-          type: "field",
-          apply: needsQuotes(column) ? `"${column}" ` : `${column} `, // Quote if necessary
-          detail: "Column name",
-        })),
-      ],
-      filter: true, // Enable filtering as user types more
-      validFor: /^["'\w.]*$/, // Only trigger if valid characters (letters, quotes, etc.)
-    };
+    // === STEP 4: Build suggestions ===
+    const options = [
+      // Suggest DISTINCT only if not already present and not after SELECT DISTINCT
+      ...(!isDistinctPresent
+        ? [
+            {
+              label: "DISTINCT",
+              type: "keyword",
+              apply: "DISTINCT ",
+              detail: "Select unique values",
+            },
+          ]
+        : []),
+      // Only include '*' if DISTINCT is not present
+      ...(!isDistinctPresent
+        ? [
+            {
+              label: "*",
+              type: "field",
+              apply: "* ", 
+              detail: "All columns",
+            },
+          ]
+        : []),
+      // Map each matching column to a completion item
+      ...filteredColumns.map((column) => ({
+        label: column,
+        type: "field",
+        apply: needsQuotes(column) ? `"${column}" ` : `${column} `, 
+        detail: "Column name",
+      })),
+    ];
+
+    // === STEP 5: Return suggestions if there are any ===
+    if (options.length > 0) {
+      return {
+        from: word ? word.from : pos, 
+        options,
+        filter: true, // Enable filtering as user types more
+        validFor: /^["'\w.]*$/, // Only trigger if valid characters (letters, quotes, etc.)
+      };
+    }
   }
 
-  // === STEP 4: Not in SELECT clause or already has columns -> no suggestions ===
+  // === STEP 6: Not in SELECT clause or already has columns -> no suggestions ===
   return null;
 };
