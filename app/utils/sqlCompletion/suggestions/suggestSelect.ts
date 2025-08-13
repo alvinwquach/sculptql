@@ -1,4 +1,5 @@
 import { CompletionResult } from "@codemirror/autocomplete";
+import { Select } from "node-sql-parser";
 
 // This function suggests the "SELECT" keyword when the user is starting a new SQL query.
 export const suggestSelect = (
@@ -6,7 +7,7 @@ export const suggestSelect = (
   currentWord: string, // The current word the user is typing
   pos: number, // Current cursor position
   word: { from: number } | null, // The range of the current word
-  ast: any // The parsed SQL Abstract Syntax Tree (AST)
+  ast: Select | Select[] | null // The parsed SQL Abstract Syntax Tree (AST)
 ): CompletionResult | null => {
   // === STEP 1: Check if we should suggest "SELECT" ===
 
@@ -19,7 +20,7 @@ export const suggestSelect = (
   const hasNoSelectInAst =
     !ast ||
     (Array.isArray(ast)
-      ? ast.every((node: any) => node.type !== "select") // If AST is an array of statements, none are SELECT
+      ? ast.every((node: Select) => node.type !== "select") // If AST is an array of statements, none are SELECT
       : ast.type !== "select"); // Or, if single AST node, it's not a SELECT
 
   if (isTypingSelect && hasNoSelectInAst) {

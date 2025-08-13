@@ -1,6 +1,6 @@
 import { CompletionResult } from "@codemirror/autocomplete";
-import { Select, Column } from "node-sql-parser";
-import { TableColumn } from "@/app/types/query";
+import { Select, Column, From } from "node-sql-parser";
+import { TableColumn, TableReference } from "@/app/types/query";
 
 // This function suggests a semicolon (";") to complete a SQL query,
 // but only if the query is a valid SELECT with known, valid columns and a FROM clause.
@@ -59,22 +59,30 @@ export const suggestSemicolonCompletion = (
 
   // === STEP 3: Get the table name being queried ===
   // Type guard to check if the from item has a table property
-  const isTableReference = (
-    fromItem: any
-  ): fromItem is { table: string | null } => {
-    return fromItem && typeof fromItem === "object" && "table" in fromItem;
+  const isTableReference = (fromItem: unknown): fromItem is TableReference => {
+    if (
+      fromItem != null &&
+      typeof fromItem === "object" &&
+      "table" in (fromItem as Record<string, unknown>)
+    ) {
+      const tableValue = (fromItem as Record<string, unknown>).table;
+      return tableValue === null || typeof tableValue === "string";
+    }
+    return false;
   };
 
   let selectedTable: string | null = null;
-  if (Array.isArray(selectNode.from)) {
+  // Ensure selectNode.from is treated as From | From[] | null
+  const fromClause = selectNode.from as From | From[] | null;
+  if (Array.isArray(fromClause)) {
     // Handle array of FROM items
-    const firstFrom = selectNode.from[0];
+    const firstFrom = fromClause[0];
     if (isTableReference(firstFrom)) {
-      selectedTable = firstFrom.table || null;
+      selectedTable = firstFrom.table;
     }
-  } else if (selectNode.from && isTableReference(selectNode.from)) {
+  } else if (fromClause && isTableReference(fromClause)) {
     // Handle single FROM item
-    selectedTable = selectNode.from.table || null;
+    selectedTable = fromClause.table;
   }
 
   // If no table is found, we can't continue

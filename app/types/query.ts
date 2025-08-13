@@ -130,3 +130,8 @@ export interface ASTNode {
 }
 
 export type SqlAst = SelectAst | SelectAst[] | ASTNode | ASTNode[] | null;
+
+export interface TableReference {
+  table: string | null;
+  [key: string]: unknown;
+}
