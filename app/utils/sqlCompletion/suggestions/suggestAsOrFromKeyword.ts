@@ -16,9 +16,8 @@ export const suggestAsOrFromKeyword = (
     "type" in node &&
     (node as { type: unknown }).type === "select";
 
-  // === STEP 2: Suggest "FROM" if the query ends with "SELECT *" ===
-  // Matches queries like `SELECT *` (with or without trailing spaces)
-  const selectStarRegex = /\bSELECT\s*\*\s*$/i;
+  // === STEP 2: Suggest "FROM" if the query ends with "SELECT *" or "SELECT DISTINCT *" ===
+  const selectStarRegex = /\bSELECT\s+(DISTINCT\s+)?\*\s*$/i;
   if (selectStarRegex.test(docText)) {
     return {
       from: word ? word.from : pos,
@@ -103,9 +102,9 @@ export const suggestAsOrFromKeyword = (
   }
 
   // === STEP 4: Special case – after typing AS "" (empty alias), suggest FROM ===
-  // Matches something like: SELECT column AS ""
+  // Matches something like: SELECT [DISTINCT] column AS ""
   const afterAsRegex =
-    /\bSELECT\s+((?:"[^"]+"|'[^']+'|[\w_][\w\d_]*))\s+AS\s+("")\s*$/i;
+    /\bSELECT\s+(DISTINCT\s+)?((?:"[^"]+"|'[^']+'|[\w_][\w\d_]*))\s+AS\s+("")\s*$/i;
   if (afterAsRegex.test(docText)) {
     return {
       from: pos,
