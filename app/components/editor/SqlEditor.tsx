@@ -22,6 +22,8 @@ import {
   removeLocalStorageItem,
 } from "../../utils/localStorageUtils";
 import { useSqlCompletion } from "@/app/hooks/useSqlCompletion";
+import { stripQuotes } from "@/app/utils/sqlCompletion/stripQuotes";
+import { needsQuotes } from "@/app/utils/sqlCompletion/needsQuotes";
 
 export default function SqlEditor() {
   const [queryTabs, setQueryTabs] = useState<Tab[]>([
@@ -365,7 +367,12 @@ export default function SqlEditor() {
     [queryTabs, activeTab]
   );
 
-  const completion = useSqlCompletion(tableNames, tableColumns);
+  const completion = useSqlCompletion(
+    tableNames,
+    tableColumns,
+    stripQuotes,
+    needsQuotes
+  );
 
   useEffect(() => {
     loadHistory();
