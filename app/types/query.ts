@@ -53,10 +53,19 @@ export interface ExplainAnalyzeJSON {
 export interface ChartDataItem {
   name: string;
   value: number;
-  unit: string;
+  unit?: string;
+  color?: string;
 }
 
-export type ViewMode = "table" | "json" | "stats" | "show" | "describe";
+export type ViewMode =
+  | "table"
+  | "json"
+  | "stats"
+  | "show"
+  | "describe"
+  | "bar"
+  | "pie"
+  | "line";
 
 export interface Stat {
   label: string;

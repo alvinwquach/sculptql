@@ -374,12 +374,76 @@ export default function SqlEditor() {
     needsQuotes
   );
 
+  const resultChartData: ChartDataItem[] = useMemo(() => {
+    // Step 1: If there's no result data, return an empty chart
+    if (!result || !result.rows || !result.fields) return [];
+
+    // Step 2: Split fields into two types:
+    // - Numerical columns: every value in the column is a number
+    // - Categorical columns: everything else (strings, booleans, etc.)
+    const numericalColumns = result.fields.filter((field) =>
+      result.rows.every((row) => typeof row[field] === "number")
+    );
+
+    const categoricalColumns = result.fields.filter(
+      (field) => !numericalColumns.includes(field)
+    );
+
+    // Step 3: If we have both a category (e.g. schedule) and numbers (e.g., duration):
+    // - Group the rows by the first categorical column
+    // - Sum the values of the first numerical column within each group
+    // - Format the result as an array of { name, value } for bar or line charts
+    if (categoricalColumns.length > 0 && numericalColumns.length > 0) {
+      const categoryField = categoricalColumns[0]; // e.g. "schedule"
+      const valueField = numericalColumns[0]; // e.g. "duration"
+
+      const groupedData = result.rows.reduce(
+        (acc: Record<string, number>, row) => {
+          const category = String(row[categoryField]); // Turn the group value into a string
+          const value = Number(row[valueField]) || 0; // Make sure value is a number
+          acc[category] = (acc[category] ?? 0) + value; // Sum values per category
+          return acc;
+        },
+        {}
+      );
+
+      // Turn the grouped result into an array of chart items
+      return Object.entries(groupedData).map(([name, value]) => ({
+        name, // category name
+        value, // total numeric value
+        unit: "count",
+      }));
+    }
+
+    // Step 4: If we *only* have categorical columns (no numbers):
+    // - Count how many times each unique value appears
+    // - Format as { name, value } for pie charts or frequency charts
+    if (categoricalColumns.length > 0) {
+      const categoryField = categoricalColumns[0]; // e.g. "status"
+
+      const counts = result.rows.reduce((acc: Record<string, number>, row) => {
+        const category = String(row[categoryField]); // Turn the value into a string
+        acc[category] = (acc[category] ?? 0) + 1; // Count how many times it appears
+        return acc;
+      }, {});
+
+      return Object.entries(counts).map(([name, value]) => ({
+        name, // category name
+        value, // count
+        unit: "count",
+      }));
+    }
+
+    // Step 5: No usable data for charts (e.g., only boolean fields or nulls)
+    return [];
+  }, [result]);
+
   useEffect(() => {
     loadHistory();
     fetchTableNames();
   }, [loadHistory, fetchTableNames]);
 
-  const chartData: ChartDataItem[] = useMemo(
+  const statsChartData: ChartDataItem[] = useMemo(
     () =>
       result
         ? [
@@ -506,7 +570,8 @@ export default function SqlEditor() {
                 selectedTable={selectedTable}
                 table={table}
                 tableDescription={tableDescription}
-                chartData={chartData}
+                chartData={statsChartData}
+                resultChartData={resultChartData}
                 onViewModeChange={handleViewModeChange}
                 onExportToCsv={exportToCsv}
                 onExportToJson={exportToJson}

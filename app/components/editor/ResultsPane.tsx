@@ -1,3 +1,5 @@
+"use client";
+
 import {
   Braces,
   Database,
@@ -5,10 +7,14 @@ import {
   ListTree,
   Loader2,
   Table,
+  BarChart2,
+  PieChart,
+  LineChart,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import ViewToggle from "../view/ViewToggle";
 import StatsPanel from "../panel/StatsPanel";
+import ChartsPanel from "../panel/ChartsPanel";
 import {
   QueryResult,
   ViewMode,
@@ -26,10 +32,11 @@ interface ResultsPaneProps {
   table: TableSchema[];
   tableDescription: TableDescription | null;
   chartData: ChartDataItem[];
+  resultChartData: ChartDataItem[];
   onViewModeChange: (mode: ViewMode) => void;
   onExportToCsv: () => void;
   onExportToJson: () => void;
-  fullScreenEditor: boolean; 
+  fullScreenEditor: boolean;
 }
 
 export default function ResultsPane({
@@ -41,6 +48,7 @@ export default function ResultsPane({
   table,
   tableDescription,
   chartData,
+  resultChartData,
   onViewModeChange,
   onExportToCsv,
   onExportToJson,
@@ -49,7 +57,7 @@ export default function ResultsPane({
   return (
     <div
       className={`flex-1 lg:w-1/2 p-4 overflow-auto ${
-        fullScreenEditor ? "hidden" : "h-1/2 lg:h-full"
+        fullScreenEditor ? "hidden" : "h-full"
       } space-y-4 sm:space-y-6`}
     >
       {error && (
@@ -65,7 +73,12 @@ export default function ResultsPane({
       )}
       {!loading && (
         <>
-          {(result || viewMode === "show" || viewMode === "describe") && (
+          {(result ||
+            viewMode === "show" ||
+            viewMode === "describe" ||
+            viewMode === "bar" ||
+            viewMode === "pie" ||
+            viewMode === "line") && (
             <ViewToggle
               viewMode={viewMode}
               onViewModeChange={onViewModeChange}
@@ -282,9 +295,14 @@ export default function ResultsPane({
           {result && viewMode === "stats" && (
             <StatsPanel result={result} chartData={chartData} />
           )}
+          {result &&
+            (viewMode === "bar" ||
+              viewMode === "pie" ||
+              viewMode === "line") && (
+              <ChartsPanel viewMode={viewMode} chartData={resultChartData} />
+            )}
           {!result &&
-            viewMode !== "show" &&
-            viewMode !== "describe" &&
+            !["show", "describe", "bar", "pie", "line"].includes(viewMode) &&
             !loading && (
               <div className="flex flex-col items-center justify-center h-full text-gray-400 bg-[#1e293b] p-3 sm:p-6 rounded-lg shadow-md border border-slate-600">
                 <Database className="w-12 h-12 mb-4 text-green-400" />
@@ -293,6 +311,22 @@ export default function ResultsPane({
                 </p>
               </div>
             )}
+          {["bar", "pie", "line"].includes(viewMode) && !result && (
+            <div className="flex flex-col items-center justify-center h-full text-gray-400 bg-[#1e293b] p-3 sm:p-6 rounded-lg shadow-md border border-slate-600">
+              {viewMode === "bar" && (
+                <BarChart2 className="w-12 h-12 mb-4 text-green-400" />
+              )}
+              {viewMode === "pie" && (
+                <PieChart className="w-12 h-12 mb-4 text-green-400" />
+              )}
+              {viewMode === "line" && (
+                <LineChart className="w-12 h-12 mb-4 text-green-400" />
+              )}
+              <p className="text-lg">
+                Run a query to visualize results as a {viewMode} chart.
+              </p>
+            </div>
+          )}
         </>
       )}
     </div>
