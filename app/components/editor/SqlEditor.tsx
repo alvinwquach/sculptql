@@ -15,6 +15,9 @@ import {
   TableColumn,
   Tab,
   QueryHistoryItem,
+  PinnedQuery,
+  BookmarkedQuery,
+  LabeledQuery,
 } from "../../types/query";
 import {
   getLocalStorageItem,
@@ -36,6 +39,11 @@ export default function SqlEditor() {
   const [result, setResult] = useState<QueryResult | undefined>(undefined);
   const [viewMode, setViewMode] = useState<ViewMode>("table");
   const [history, setHistory] = useState<QueryHistoryItem[]>([]);
+  const [pinnedQueries, setPinnedQueries] = useState<PinnedQuery[]>([]);
+  const [bookmarkedQueries, setBookmarkedQueries] = useState<BookmarkedQuery[]>(
+    []
+  );
+  const [labeledQueries, setLabeledQueries] = useState<LabeledQuery[]>([]);
   const [showHistory, setShowHistory] = useState<boolean>(false);
   const [table, setTable] = useState<TableSchema[]>([]);
   const [selectedTable, setSelectedTable] = useState<string>("");
@@ -54,12 +62,27 @@ export default function SqlEditor() {
     setQueryTabs(savedTabs);
     const activeTabId = getLocalStorageItem<number>("activeTab", 1);
     setActiveTab(activeTabId);
+    loadHistory();
+    loadPinnedQueries();
+    loadBookmarkedQueries();
+    loadLabeledQueries();
   }, []);
 
   useEffect(() => {
     setLocalStorageItem("queryTabs", queryTabs);
     setLocalStorageItem("activeTab", activeTab);
-  }, [queryTabs, activeTab]);
+    setLocalStorageItem("sculptql_history", history);
+    setLocalStorageItem("pinnedQueries", pinnedQueries);
+    setLocalStorageItem("bookmarkedQueries", bookmarkedQueries);
+    setLocalStorageItem("labeledQueries", labeledQueries);
+  }, [
+    queryTabs,
+    activeTab,
+    history,
+    pinnedQueries,
+    bookmarkedQueries,
+    labeledQueries,
+  ]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -89,6 +112,24 @@ export default function SqlEditor() {
     setHistory(stored);
   }, []);
 
+  const loadPinnedQueries = useCallback(() => {
+    const stored = getLocalStorageItem<PinnedQuery[]>("pinnedQueries", []);
+    setPinnedQueries(stored);
+  }, []);
+
+  const loadBookmarkedQueries = useCallback(() => {
+    const stored = getLocalStorageItem<BookmarkedQuery[]>(
+      "bookmarkedQueries",
+      []
+    );
+    setBookmarkedQueries(stored);
+  }, []);
+
+  const loadLabeledQueries = useCallback(() => {
+    const stored = getLocalStorageItem<LabeledQuery[]>("labeledQueries", []);
+    setLabeledQueries(stored);
+  }, []);
+
   const saveQueryToHistory = useCallback(
     (q: string) => {
       const newItem: QueryHistoryItem = {
@@ -100,6 +141,65 @@ export default function SqlEditor() {
       setLocalStorageItem("sculptql_history", updated);
     },
     [history]
+  );
+
+  const addPinnedQuery = useCallback((q: string) => {
+    const newItem: PinnedQuery = {
+      query: q,
+      timestamp: new Date().toISOString(),
+    };
+    setPinnedQueries([newItem]);
+    setLocalStorageItem("pinnedQueries", [newItem]);
+  }, []);
+
+  const removePinnedQuery = useCallback((q: string) => {
+    setPinnedQueries([]);
+    setLocalStorageItem("pinnedQueries", []);
+  }, []);
+
+  const addBookmarkedQuery = useCallback(
+    (q: string) => {
+      const newItem: BookmarkedQuery = {
+        query: q,
+        timestamp: new Date().toISOString(),
+      };
+      const updated = [newItem, ...bookmarkedQueries].slice(0, 200);
+      setBookmarkedQueries(updated);
+      setLocalStorageItem("bookmarkedQueries", updated);
+    },
+    [bookmarkedQueries]
+  );
+
+  const removeBookmarkedQuery = useCallback(
+    (q: string) => {
+      const updated = bookmarkedQueries.filter((item) => item.query !== q);
+      setBookmarkedQueries(updated);
+      setLocalStorageItem("bookmarkedQueries", updated);
+    },
+    [bookmarkedQueries]
+  );
+
+  const addLabeledQuery = useCallback(
+    (label: string, q: string) => {
+      const newItem: LabeledQuery = {
+        label,
+        query: q,
+        timestamp: new Date().toISOString(),
+      };
+      const updated = [newItem, ...labeledQueries].slice(0, 200);
+      setLabeledQueries(updated);
+      setLocalStorageItem("labeledQueries", updated);
+    },
+    [labeledQueries]
+  );
+
+  const removeLabeledQuery = useCallback(
+    (q: string) => {
+      const updated = labeledQueries.filter((item) => item.query !== q);
+      setLabeledQueries(updated);
+      setLocalStorageItem("labeledQueries", updated);
+    },
+    [labeledQueries]
   );
 
   const clearHistory = useCallback(() => {
@@ -412,12 +512,8 @@ export default function SqlEditor() {
   );
 
   const resultChartData: ChartDataItem[] = useMemo(() => {
-    // Step 1: If there's no result data, return an empty chart
     if (!result || !result.rows || !result.fields) return [];
 
-    // Step 2: Split fields into two types:
-    // - Numerical columns: every value in the column is a number
-    // - Categorical columns: everything else (strings, booleans, etc.)
     const numericalColumns = result.fields.filter((field) =>
       result.rows.every((row) => typeof row[field] === "number")
     );
@@ -426,52 +522,43 @@ export default function SqlEditor() {
       (field) => !numericalColumns.includes(field)
     );
 
-    // Step 3: If we have both a category (e.g. schedule) and numbers (e.g., duration):
-    // - Group the rows by the first categorical column
-    // - Sum the values of the first numerical column within each group
-    // - Format the result as an array of { name, value } for bar or line charts
     if (categoricalColumns.length > 0 && numericalColumns.length > 0) {
-      const categoryField = categoricalColumns[0]; // e.g. "schedule"
-      const valueField = numericalColumns[0]; // e.g. "duration"
+      const categoryField = categoricalColumns[0];
+      const valueField = numericalColumns[0];
 
       const groupedData = result.rows.reduce(
         (acc: Record<string, number>, row) => {
-          const category = String(row[categoryField]); // Turn the group value into a string
-          const value = Number(row[valueField]) || 0; // Make sure value is a number
-          acc[category] = (acc[category] ?? 0) + value; // Sum values per category
+          const category = String(row[categoryField]);
+          const value = Number(row[valueField]) || 0;
+          acc[category] = (acc[category] ?? 0) + value;
           return acc;
         },
         {}
       );
 
-      // Turn the grouped result into an array of chart items
       return Object.entries(groupedData).map(([name, value]) => ({
-        name, // category name
-        value, // total numeric value
+        name,
+        value,
         unit: "count",
       }));
     }
 
-    // Step 4: If we *only* have categorical columns (no numbers):
-    // - Count how many times each unique value appears
-    // - Format as { name, value } for pie charts or frequency charts
     if (categoricalColumns.length > 0) {
-      const categoryField = categoricalColumns[0]; // e.g. "status"
+      const categoryField = categoricalColumns[0];
 
       const counts = result.rows.reduce((acc: Record<string, number>, row) => {
-        const category = String(row[categoryField]); // Turn the value into a string
-        acc[category] = (acc[category] ?? 0) + 1; // Count how many times it appears
+        const category = String(row[categoryField]);
+        acc[category] = (acc[category] ?? 0) + 1;
         return acc;
       }, {});
 
       return Object.entries(counts).map(([name, value]) => ({
-        name, // category name
-        value, // count
+        name,
+        value,
         unit: "count",
       }));
     }
 
-    // Step 5: No usable data for charts (e.g., only boolean fields or nulls)
     return [];
   }, [result]);
 
@@ -577,9 +664,18 @@ export default function SqlEditor() {
               <QueryHistory
                 showHistory={showHistory}
                 history={history}
+                pinnedQueries={pinnedQueries}
+                bookmarkedQueries={bookmarkedQueries}
+                labeledQueries={labeledQueries}
                 clearHistory={clearHistory}
                 loadQueryFromHistory={loadQueryFromHistory}
                 runQueryFromHistory={runQueryFromHistory}
+                addPinnedQuery={addPinnedQuery}
+                removePinnedQuery={removePinnedQuery}
+                addBookmarkedQuery={addBookmarkedQuery}
+                removeBookmarkedQuery={removeBookmarkedQuery}
+                addLabeledQuery={addLabeledQuery}
+                removeLabeledQuery={removeLabeledQuery}
               />
               <EditorPane
                 queryTabs={queryTabs}
