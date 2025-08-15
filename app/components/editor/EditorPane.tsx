@@ -30,6 +30,7 @@ interface EditorPaneProps {
   onTabClick: (id: number) => void;
   onTabClose: (id: number) => void;
   onQueryChange: (query: string) => void;
+  onTabReorder: (newTabs: Tab[]) => void;
   completion: (context: CompletionContext) => CompletionResult | null;
   metadataLoading: boolean;
   runQuery: () => void;
@@ -43,6 +44,7 @@ export default function EditorPane({
   onTabClick,
   onTabClose,
   onQueryChange,
+  onTabReorder,
   completion,
   metadataLoading,
   runQuery,
@@ -200,6 +202,7 @@ export default function EditorPane({
         activeTab={activeTab}
         onTabClick={onTabClick}
         onTabClose={onTabClose}
+        onTabReorder={onTabReorder}
       />
       <div ref={containerRef} className="h-[calc(100%-40px)]" />
       <div className="absolute top-10 -right-2 z-50 flex flex-col gap-2">
