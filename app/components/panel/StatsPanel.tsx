@@ -1,31 +1,9 @@
 "use client";
 
-import {
-  ResponsiveContainer,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip as RechartsTooltip,
-  CartesianGrid,
-  TooltipProps,
-} from "recharts";
+import { TooltipProps } from "recharts";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import {
-  BarChart2,
-  List,
-  FileText,
-  Clock,
-  CheckCircle,
-  XCircle,
-  Zap,
-  Type,
-  Database,
-  Lock,
-  Cpu,
-  HardDrive,
-} from "lucide-react";
-import { ChartDataItem, QueryResult, Stat } from "../../types/query";
+import { BarChart2, List, FileText } from "lucide-react";
+import { ChartDataItem, QueryResult } from "../../types/query";
 import { formatSize, formatTime } from "../../utils/helpers";
 
 interface StatsPanelProps {
@@ -36,8 +14,7 @@ interface StatsPanelProps {
 type CustomTooltipProps = TooltipProps<number, string>;
 
 export default function StatsPanel({ result, chartData }: StatsPanelProps) {
-  const stats: Stat[] = [
-    { label: "Query Type", value: result.queryType || "Unknown", icon: Type },
+  const stats = [
     { label: "Rows Fetched", value: result.rowCount || 0, icon: List },
     {
       label: "Payload Size",
@@ -45,103 +22,9 @@ export default function StatsPanel({ result, chartData }: StatsPanelProps) {
       icon: FileText,
     },
     {
-      label: "Parsing Time",
-      value: formatTime(result.parsingTime),
-      icon: Clock,
-    },
-    {
-      label: "Execution Time",
-      value: formatTime(result.executionTime),
-      icon: Clock,
-    },
-    {
-      label: "Response Time",
-      value: formatTime(result.responseTime),
-      icon: Clock,
-    },
-    {
-      label: "Total Time",
+      label: "Query Time",
       value: formatTime(result.totalTime),
-      icon: Clock,
-    },
-    {
-      label: "Row Processing Time",
-      value: formatTime(result.rowProcessingTime),
-      icon: Zap,
-    },
-    {
-      label: "Avg Row Size",
-      value:
-        result.averageRowSize !== undefined
-          ? `${result.averageRowSize.toFixed(4)} bytes`
-          : "0 bytes",
-      icon: FileText,
-    },
-    {
-      label: "Index Used",
-      value: result.indexUsed ? "Yes" : "No",
-      icon: result.indexUsed ? CheckCircle : XCircle,
-    },
-    {
-      label: "Estimated Cost",
-      value:
-        result.estimatedCost !== undefined
-          ? result.estimatedCost.toFixed(4)
-          : "N/A",
-      icon: Clock,
-    },
-    {
-      label: "Tables Involved",
-      value:
-        result.tablesInvolved && result.tablesInvolved.length > 0
-          ? result.tablesInvolved.join(", ")
-          : "N/A",
-      icon: Database,
-    },
-    {
-      label: "Rows Filtered",
-      value: result.rowsFiltered || 0,
-      icon: List,
-    },
-    {
-      label: "Cache Hit",
-      value: result.cacheHit ? "Yes" : "No",
-      icon: result.cacheHit ? CheckCircle : XCircle,
-    },
-    {
-      label: "Warnings Count",
-      value: result.warningsCount || 0,
-      icon: XCircle,
-    },
-    {
-      label: "Errors Count",
-      value: result.errorsCount || 0,
-      icon: XCircle,
-    },
-    {
-      label: "Locks Wait Time",
-      value: formatTime(result.locksWaitTime),
-      icon: Lock,
-    },
-    {
-      label: "Parallel Workers",
-      value: result.parallelWorkers || 0,
-      icon: Cpu,
-    },
-    {
-      label: "Temp Files Size",
-      value: formatSize(result.tempFilesSize),
-      icon: HardDrive,
-    },
-    {
-      label: "Shared Hit Blocks",
-      value: result.ioStats?.sharedHitBlocks || 0,
-      icon: HardDrive,
-    },
-    {
-      label: "Shared Read Blocks",
-      value: result.ioStats?.sharedReadBlocks || 0,
-      icon: HardDrive,
+      icon: BarChart2,
     },
   ];
 
@@ -166,7 +49,7 @@ export default function StatsPanel({ result, chartData }: StatsPanelProps) {
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {stats.map(({ label, value, icon: Icon }) => (
           <Card
             key={label}
@@ -184,25 +67,6 @@ export default function StatsPanel({ result, chartData }: StatsPanelProps) {
           </Card>
         ))}
       </div>
-      <Card className="bg-slate-900 border-slate-700 hover:border-slate-600 transition-colors duration-200">
-        <CardHeader className="flex items-center space-x-2">
-          <BarChart2 className="w-4 h-4 text-green-400" />
-          <CardTitle className="text-sm font-medium text-gray-300">
-            Execution Breakdown
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={normalizedData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-              <XAxis dataKey="name" stroke="#9ca3af" className="text-xs" />
-              <YAxis stroke="#9ca3af" unit="ms" className="text-xs" />
-              <RechartsTooltip content={<CustomTooltip />} cursor={false} />
-              <Bar dataKey="value" fill="#34d399" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </CardContent>
-      </Card>
     </div>
   );
 }
