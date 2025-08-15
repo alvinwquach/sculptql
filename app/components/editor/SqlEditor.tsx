@@ -384,6 +384,10 @@ export default function SqlEditor() {
     [queryTabs, activeTab]
   );
 
+  const handleTabReorder = useCallback((newTabs: Tab[]) => {
+    setQueryTabs(newTabs);
+  }, []);
+
   const handlePageChange = useCallback(
     (page: number) => {
       const totalRows = result?.rows?.length || 0;
@@ -585,6 +589,7 @@ export default function SqlEditor() {
                 onTabClick={handleTabClick}
                 onTabClose={handleTabClose}
                 onQueryChange={handleQueryChange}
+                onTabReorder={handleTabReorder}
                 completion={completion}
                 metadataLoading={metadataLoading}
                 runQuery={runQuery}
