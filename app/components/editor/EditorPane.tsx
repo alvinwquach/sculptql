@@ -78,7 +78,7 @@ export default function EditorPane({
   useEffect(() => {
     if (!containerRef.current || editorRef.current || metadataLoading) return;
 
-    const updateQueryOnChange = ViewPlugin.define((view) => ({
+    const updateQueryOnChange = ViewPlugin.define(() => ({
       update: (update) => {
         if (!update.docChanged) return;
         const newQuery = update.state.doc.toString();

@@ -93,7 +93,7 @@ export default function ResultsPane({
     const maxPagesToShow = 10;
     const half = Math.floor(maxPagesToShow / 2);
     let startPage = Math.max(1, currentPage - half);
-    let endPage = Math.min(totalPages, startPage + maxPagesToShow - 1);
+    const endPage = Math.min(totalPages, startPage + maxPagesToShow - 1);
 
     if (endPage - startPage + 1 < maxPagesToShow) {
       startPage = Math.max(1, endPage - maxPagesToShow + 1);
