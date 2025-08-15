@@ -45,7 +45,7 @@ export default function SqlEditor() {
   const [tableNames, setTableNames] = useState<string[]>([]);
   const [tableColumns, setTableColumns] = useState<TableColumn>({});
   const [currentPage, setCurrentPage] = useState<number>(1);
-  const [pageSize, setPageSize] = useState<number>(5); 
+  const [pageSize, setPageSize] = useState<number>(5);
 
   useEffect(() => {
     const savedTabs = getLocalStorageItem<Tab[]>("queryTabs", [
@@ -234,6 +234,7 @@ export default function SqlEditor() {
     setTable([]);
     setSelectedTable("");
     setCurrentPage(1);
+
     const currentTab = queryTabs.find((tab) => tab.id === activeTab);
     const currentQuery = currentTab?.query || "";
     if (!currentQuery.trim()) {
@@ -265,11 +266,6 @@ export default function SqlEditor() {
             fetchColumns(tableName),
           ]);
         }
-        setQueryTabs(
-          queryTabs.map((tab) =>
-            tab.id === activeTab ? { ...tab, query: "" } : tab
-          )
-        );
         setViewMode("table");
       }
     } catch (e: unknown) {
