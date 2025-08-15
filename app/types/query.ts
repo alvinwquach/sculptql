@@ -30,7 +30,6 @@ export interface QueryResult {
   };
 }
 
-
 export interface ExplainPlanNode {
   "Node Type": string;
   "Relation Name"?: string;
@@ -100,6 +99,22 @@ export interface Column {
 export type TableColumn = Record<string, string[]>;
 
 export interface QueryHistoryItem {
+  query: string;
+  timestamp: string;
+}
+
+export interface PinnedQuery {
+  query: string;
+  timestamp: string;
+}
+
+export interface BookmarkedQuery {
+  query: string;
+  timestamp: string;
+}
+
+export interface LabeledQuery {
+  label: string;
   query: string;
   timestamp: string;
 }
