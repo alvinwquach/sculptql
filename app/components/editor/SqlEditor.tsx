@@ -44,6 +44,8 @@ export default function SqlEditor() {
   const [fullScreenEditor, setFullScreenEditor] = useState<boolean>(false);
   const [tableNames, setTableNames] = useState<string[]>([]);
   const [tableColumns, setTableColumns] = useState<TableColumn>({});
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(5); 
 
   useEffect(() => {
     const savedTabs = getLocalStorageItem<Tab[]>("queryTabs", [
@@ -72,6 +74,7 @@ export default function SqlEditor() {
 
   const handleViewModeChange = useCallback((mode: ViewMode) => {
     setViewMode(mode);
+    setCurrentPage(1);
   }, []);
 
   const toggleFullscreen = useCallback(() => {
@@ -230,7 +233,7 @@ export default function SqlEditor() {
     setTableDescription(null);
     setTable([]);
     setSelectedTable("");
-
+    setCurrentPage(1);
     const currentTab = queryTabs.find((tab) => tab.id === activeTab);
     const currentQuery = currentTab?.query || "";
     if (!currentQuery.trim()) {
@@ -283,53 +286,71 @@ export default function SqlEditor() {
     fetchColumns,
   ]);
 
-  const exportToCsv = useCallback(() => {
-    if (!result || !result.rows || !result.fields) return;
-    const headers = result.fields.join(",");
-    const rows = result.rows.map((row) =>
-      result.fields
-        .map((field) => {
-          const value = row[field] !== null ? String(row[field]) : "";
-          if (value.includes(",") || value.includes('"')) {
-            return `"${value.replace(/"/g, '""')}"`;
-          }
-          return value;
-        })
-        .join(",")
-    );
-    const csvContent = [headers, ...rows].join("\n");
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.setAttribute("href", url);
-    link.setAttribute(
-      "download",
-      `query_results_${new Date().toISOString()}.csv`
-    );
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-  }, [result]);
+  const exportToCsv = useCallback(
+    (exportAll: boolean = false, startIndex: number, endIndex: number) => {
+      if (!result || !result.rows || !result.fields) return;
+      const headers = result.fields.join(",");
+      const rows = result.rows
+        .slice(
+          exportAll ? 0 : startIndex,
+          exportAll ? result.rows.length : endIndex
+        )
+        .map((row) =>
+          result.fields
+            .map((field) => {
+              const value = row[field] !== null ? String(row[field]) : "";
+              if (value.includes(",") || value.includes('"')) {
+                return `"${value.replace(/"/g, '""')}"`;
+              }
+              return value;
+            })
+            .join(",")
+        );
+      const csvContent = [headers, ...rows].join("\n");
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.setAttribute("href", url);
+      link.setAttribute(
+        "download",
+        `query_results_${new Date().toISOString()}.csv`
+      );
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    },
+    [result]
+  );
 
-  const exportToJson = useCallback(() => {
-    if (!result || !result.rows) return;
-    const jsonContent = JSON.stringify(result.rows, null, 2);
-    const blob = new Blob([jsonContent], {
-      type: "application/json;charset=utf-8;",
-    });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.setAttribute("href", url);
-    link.setAttribute(
-      "download",
-      `query_results_${new Date().toISOString()}.json`
-    );
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-  }, [result]);
+  const exportToJson = useCallback(
+    (exportAll: boolean = false, startIndex: number, endIndex: number) => {
+      if (!result || !result.rows) return;
+      const jsonContent = JSON.stringify(
+        result.rows.slice(
+          exportAll ? 0 : startIndex,
+          exportAll ? result.rows.length : endIndex
+        ),
+        null,
+        2
+      );
+      const blob = new Blob([jsonContent], {
+        type: "application/json;charset=utf-8;",
+      });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.setAttribute("href", url);
+      link.setAttribute(
+        "download",
+        `query_results_${new Date().toISOString()}.json`
+      );
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    },
+    [result]
+  );
 
   const addTab = useCallback(() => {
     if (queryTabs.length >= 5) {
@@ -366,6 +387,22 @@ export default function SqlEditor() {
     },
     [queryTabs, activeTab]
   );
+
+  const handlePageChange = useCallback(
+    (page: number) => {
+      const totalRows = result?.rows?.length || 0;
+      const totalPages = Math.ceil(totalRows / pageSize);
+      if (page >= 1 && page <= totalPages) {
+        setCurrentPage(page);
+      }
+    },
+    [result, pageSize]
+  );
+
+  const handlePageSizeChange = useCallback((size: number) => {
+    setPageSize(size);
+    setCurrentPage(1);
+  }, []);
 
   const completion = useSqlCompletion(
     tableNames,
@@ -576,6 +613,10 @@ export default function SqlEditor() {
                 onExportToCsv={exportToCsv}
                 onExportToJson={exportToJson}
                 fullScreenEditor={fullScreenEditor}
+                currentPage={currentPage}
+                pageSize={pageSize}
+                onPageChange={handlePageChange}
+                onPageSizeChange={handlePageSizeChange}
               />
             </div>
           </div>
