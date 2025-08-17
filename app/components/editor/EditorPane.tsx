@@ -5,7 +5,6 @@ import Select, {
   MultiValue,
   SingleValue,
   StylesConfig,
-  ClearIndicatorProps,
   GroupBase,
 } from "react-select";
 import CreatableSelect from "react-select/creatable";
@@ -79,6 +78,7 @@ export default function EditorPane({
   const [fetchError, setFetchError] = useState<string | null>(null);
   const isMac =
     typeof navigator !== "undefined" && /Mac/i.test(navigator.platform);
+  const isInitialRender = useRef(true); 
 
   const tableOptions: SelectOption[] = tableNames.map((name) => ({
     value: name,
@@ -110,6 +110,7 @@ export default function EditorPane({
       { value: "<", label: "<" },
       { value: ">=", label: ">=" },
       { value: "<=", label: "<=" },
+      { value: "LIKE", label: "LIKE" },
     ];
   }, []);
 
@@ -137,9 +138,11 @@ export default function EditorPane({
         if (!data.values || !Array.isArray(data.values)) {
           throw new Error("Invalid response format: 'values' array expected");
         }
-        setUniqueValues(
-          data.values.map((value: string) => ({ value, label: value }))
-        );
+        const values =
+          whereCondition.operator?.value === "LIKE"
+            ? [] 
+            : data.values.map((value: string) => ({ value, label: value }));
+        setUniqueValues(values);
         setFetchError(null);
       } catch (e) {
         const message = (e as Error).message || "Failed to fetch unique values";
@@ -149,7 +152,7 @@ export default function EditorPane({
       }
     };
     fetchUniqueValues();
-  }, [selectedTable, whereCondition.column]);
+  }, [selectedTable, whereCondition.column, whereCondition.operator]);
 
   const handleTableSelect = useCallback(
     (newValue: SingleValue<SelectOption>) => {
@@ -159,7 +162,6 @@ export default function EditorPane({
       setUniqueValues([]);
       setFetchError(null);
       const query = newValue ? `SELECT * FROM ${newValue.value} ` : "";
-      onQueryChange(query);
       if (editorRef.current) {
         editorRef.current.dispatch({
           changes: {
@@ -169,6 +171,7 @@ export default function EditorPane({
           },
         });
       }
+      setTimeout(() => onQueryChange(query), 0);
     },
     [onQueryChange]
   );
@@ -180,7 +183,7 @@ export default function EditorPane({
         setWhereCondition({ column: null, operator: null, value: null });
         setUniqueValues([]);
         setFetchError(null);
-        onQueryChange("");
+        setTimeout(() => onQueryChange(""), 0);
         if (editorRef.current) {
           editorRef.current.dispatch({
             changes: {
@@ -223,14 +226,12 @@ export default function EditorPane({
         if (operator) {
           query += ` ${operator.value}`;
           if (value) {
-            const isNumeric =
-              !isNaN(Number(value.value)) && !value.value.includes(" ");
-            query += isNumeric ? ` ${value.value}` : ` '${value.value}'`;
+            const isLike = operator.value === "LIKE";
+            query += isLike ? ` '${value.value}'` : ` '${value.value}'`;
           }
         }
       }
 
-      onQueryChange(query);
       if (editorRef.current) {
         editorRef.current.dispatch({
           changes: {
@@ -240,8 +241,9 @@ export default function EditorPane({
           },
         });
       }
+      setTimeout(() => onQueryChange(query), 0);
     },
-    [selectedTable, tableColumns, onQueryChange, whereCondition]
+    [selectedTable, tableColumns, whereCondition, onQueryChange]
   );
 
   const handleWhereColumnSelect = useCallback(
@@ -263,7 +265,6 @@ export default function EditorPane({
         const query = newValue
           ? `${baseQuery}WHERE ${newValue.value} `
           : baseQuery;
-        onQueryChange(query);
         if (editorRef.current) {
           editorRef.current.dispatch({
             changes: {
@@ -273,6 +274,7 @@ export default function EditorPane({
             },
           });
         }
+        setTimeout(() => onQueryChange(query), 0);
         return newCondition;
       });
     },
@@ -293,7 +295,6 @@ export default function EditorPane({
               newValue ? newValue.value : ""
             } `
           : baseQuery;
-        onQueryChange(query);
         if (editorRef.current) {
           editorRef.current.dispatch({
             changes: {
@@ -303,6 +304,7 @@ export default function EditorPane({
             },
           });
         }
+        setTimeout(() => onQueryChange(query), 0);
         return newCondition;
       });
     },
@@ -318,7 +320,6 @@ export default function EditorPane({
               .map((col) => col.value)
               .join(", ")} FROM ${selectedTable!.value}`
           : `SELECT * FROM ${selectedTable!.value}`;
-        onQueryChange(baseQuery);
         if (editorRef.current) {
           editorRef.current.dispatch({
             changes: {
@@ -328,6 +329,7 @@ export default function EditorPane({
             },
           });
         }
+        setTimeout(() => onQueryChange(baseQuery), 0);
         return;
       }
 
@@ -346,14 +348,14 @@ export default function EditorPane({
         const query =
           prev.column && prev.operator
             ? `${baseQuery} WHERE ${prev.column.value} ${prev.operator.value} ${
-                !isNaN(Number(selectedOption.value)) &&
-                !selectedOption.value.includes(" ")
-                  ? selectedOption.value
-                  : `'${selectedOption.value}'`
+                prev.operator.value === "LIKE" ||
+                isNaN(Number(selectedOption.value)) ||
+                selectedOption.value.includes(" ")
+                  ? `'${selectedOption.value}'`
+                  : selectedOption.value
               }`
             : baseQuery;
 
-        onQueryChange(query);
         if (editorRef.current) {
           editorRef.current.dispatch({
             changes: {
@@ -363,6 +365,7 @@ export default function EditorPane({
             },
           });
         }
+        setTimeout(() => onQueryChange(query), 0);
         return newCondition;
       });
     },
@@ -385,7 +388,7 @@ export default function EditorPane({
           insert: formatted,
         },
       });
-      onQueryChange(formatted);
+      setTimeout(() => onQueryChange(formatted), 0);
     } catch (err) {
       console.error("SQL formatting failed:", err);
     }
@@ -394,29 +397,32 @@ export default function EditorPane({
   useEffect(() => {
     if (!containerRef.current || editorRef.current || metadataLoading) return;
 
-    const updateQueryOnChange = ViewPlugin.define(() => ({
-      update: (update) => {
-        if (!update.docChanged) return;
-
-        const newQuery: string = update.state.doc.toString();
-
-        setTimeout(() => {
-          onQueryChange(newQuery);
-
-          const tableName: string | null = extractTableName(newQuery);
-          if (!tableName || !tableNames.includes(tableName)) {
-            resetQueryState();
-            return;
-          }
-
-          updateTableSelection(tableName);
-
-          updateColumnSelection(newQuery, tableName);
-
-          updateWhereCondition(newQuery);
-        }, 0);
-      },
-    }));
+    const updateQueryOnChange = ViewPlugin.define(
+      () => ({
+        update: (update) => {
+          if (!update.docChanged || isInitialRender.current) return;
+          const newQuery: string = update.state.doc.toString();
+          setTimeout(() => {
+            onQueryChange(newQuery);
+            const tableName: string | null = extractTableName(newQuery);
+            if (!tableName || !tableNames.includes(tableName)) {
+              resetQueryState();
+              return;
+            }
+            updateTableSelection(tableName);
+            updateColumnSelection(newQuery, tableName);
+            updateWhereCondition(newQuery);
+          }, 0);
+        },
+      }),
+      {
+        eventHandlers: {
+          mount: () => {
+            isInitialRender.current = false;
+          },
+        },
+      }
+    );
 
     const extractTableName = (query: string): string | null => {
       const tableMatch = query.match(/FROM\s+([a-zA-Z_][a-zA-Z0-9_]*)/i);
@@ -461,7 +467,7 @@ export default function EditorPane({
 
     const updateWhereCondition = (query: string): void => {
       const whereMatch = query.match(
-        /WHERE\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*([=!><]=?)\s*['"]?([^'";\s]+)['"]?/i
+        /WHERE\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*([=!><]=?|LIKE)\s*['"]?([^'";\s]+)['"]?/i
       );
 
       if (whereMatch) {
@@ -564,6 +570,7 @@ export default function EditorPane({
     return () => {
       view.destroy();
       editorRef.current = null;
+      isInitialRender.current = true;
     };
   }, [
     runQuery,

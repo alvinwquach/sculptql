@@ -7,9 +7,9 @@ export const suggestWhereClause = (
   currentWord: string, // Word currently being typed at the cursor
   pos: number, // Cursor position
   word: { from: number } | null, // Word range (used for determining where to insert suggestion)
-  tableColumns: TableColumn, // Function to get valid tables, optionally based on a selected column
+  tableColumns: TableColumn, // Mapping of table names to their columns
   stripQuotes: (s: string) => string, // Utility to remove quotes from identifiers
-  needsQuotes: (id: string) => boolean, // Utility to check if a table name needs quotes
+  needsQuotes: (id: string) => boolean, // Utility to check if a name needs quotes
   ast: Select | Select[] | null // Parsed SQL Abstract Syntax Tree (AST)
 ): CompletionResult | null => {
   // Type guard for Select node
@@ -80,7 +80,7 @@ export const suggestWhereClause = (
     }
   }
 
-  // Suggest comparison operators after a valid column
+  // Suggest comparison operators and LIKE after a valid column
   const afterColumnRegex = /\bWHERE\s+((?:"[\w]+"|'[\w]+'|[\w_]+))\s*(\w*)$/i;
   const match = docText.match(afterColumnRegex);
   if (match) {
@@ -90,33 +90,63 @@ export const suggestWhereClause = (
         (c) => stripQuotes(c).toLowerCase() === column.toLowerCase()
       )
     ) {
-      const operators = ["=", "!=", ">", "<", ">=", "<="];
+      const operators = ["=", "!=", ">", "<", ">=", "<=", "LIKE"];
       return {
         from: word ? word.from : pos,
         options: operators.map((op) => ({
           label: op,
           type: "keyword",
           apply: `${op} `,
-          detail: "Comparison operator",
+          detail: op === "LIKE" ? "Pattern matching" : "Comparison operator",
         })),
         filter: true,
-        validFor: /^[=!><]*$/,
+        validFor: /^[=!><]*$|^LIKE$/i,
       };
     }
   }
 
-  // Suggest unique values after an operator
+  // Suggest pattern-based values or unique values after an operator
   const afterOperatorRegex =
-    /\bWHERE\s+((?:"[\w]+"|'[\w]+'|[\w_]+))\s*([=!><]=?)\s*(\w*)$/i;
-  if (afterOperatorRegex.test(docText)) {
-    const [column] = docText.match(afterOperatorRegex)!;
+    /\bWHERE\s+((?:"[\w]+"|'[\w]+'|[\w_]+))\s*([=!><]=?|LIKE)\s*('[^']*')?$/i;
+  const operatorMatch = docText.match(afterOperatorRegex);
+  if (operatorMatch) {
+    const [, column, operator, partialValue] = operatorMatch;
     const strippedColumn = stripQuotes(column);
+
     if (
       tableColumns[selectedTable].some(
         (c) => stripQuotes(c).toLowerCase() === strippedColumn.toLowerCase()
       )
     ) {
-      return null;
+      if (operator.toUpperCase() === "LIKE") {
+        // Suggest common LIKE patterns
+        const patternSuggestions = [
+          { label: "'%value%'", detail: "Contains value" },
+          { label: "'value%'", detail: "Starts with value" },
+          { label: "'%value'", detail: "Ends with value" },
+          { label: "'_value_'", detail: "Single character wildcards" },
+          {
+            label: "'value_%'",
+            detail: "Starts with value, single char after",
+          },
+          { label: "'_value%'", detail: "Single char before, ends with value" },
+          { label: "'value__%'", detail: "Starts with value, two chars after" },
+        ];
+
+        return {
+          from: partialValue ? word?.from || pos : pos,
+          options: patternSuggestions.map((pattern) => ({
+            label: pattern.label,
+            type: "text",
+            apply: pattern.label + " ",
+            detail: pattern.detail,
+          })),
+          filter: true,
+          validFor: /^['"].*['"]?$/,
+        };
+      } else {
+        return null;
+      }
     }
   }
 
