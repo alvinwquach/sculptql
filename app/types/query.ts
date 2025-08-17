@@ -169,6 +169,7 @@ export interface WhereCondition {
   column: SelectOption | null;
   operator: SelectOption | null;
   value: SelectOption | null;
+  value2?: SelectOption | null;
 }
 
 export type OptionType = {
