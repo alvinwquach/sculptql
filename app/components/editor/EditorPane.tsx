@@ -78,7 +78,7 @@ export default function EditorPane({
   const [fetchError, setFetchError] = useState<string | null>(null);
   const isMac =
     typeof navigator !== "undefined" && /Mac/i.test(navigator.platform);
-  const isInitialRender = useRef(true); 
+  const isInitialRender = useRef(true);
 
   const tableOptions: SelectOption[] = tableNames.map((name) => ({
     value: name,
@@ -111,6 +111,8 @@ export default function EditorPane({
       { value: ">=", label: ">=" },
       { value: "<=", label: "<=" },
       { value: "LIKE", label: "LIKE" },
+      { value: "IS NULL", label: "IS NULL" },
+      { value: "IS NOT NULL", label: "IS NOT NULL" },
     ];
   }, []);
 
@@ -139,7 +141,9 @@ export default function EditorPane({
           throw new Error("Invalid response format: 'values' array expected");
         }
         const values =
-          whereCondition.operator?.value === "LIKE"
+          whereCondition.operator?.value === "LIKE" ||
+          whereCondition.operator?.value === "IS NULL" ||
+          whereCondition.operator?.value === "IS NOT NULL"
             ? [] 
             : data.values.map((value: string) => ({ value, label: value }));
         setUniqueValues(values);
@@ -225,7 +229,11 @@ export default function EditorPane({
         query += `WHERE ${column.value}`;
         if (operator) {
           query += ` ${operator.value}`;
-          if (value) {
+          if (
+            value &&
+            operator.value !== "IS NULL" &&
+            operator.value !== "IS NOT NULL"
+          ) {
             const isLike = operator.value === "LIKE";
             query += isLike ? ` '${value.value}'` : ` '${value.value}'`;
           }
@@ -313,23 +321,27 @@ export default function EditorPane({
 
   const handleValueSelect = useCallback(
     (newValue: SingleValue<SelectOption>) => {
-      if (!newValue) {
+      if (!newValue || !whereCondition.operator) {
         setWhereCondition((prev) => ({ ...prev, value: null }));
         const baseQuery = selectedColumns.length
           ? `SELECT ${selectedColumns
               .map((col) => col.value)
               .join(", ")} FROM ${selectedTable!.value}`
           : `SELECT * FROM ${selectedTable!.value}`;
+        const query =
+          whereCondition.column && whereCondition.operator
+            ? `${baseQuery} WHERE ${whereCondition.column.value} ${whereCondition.operator.value}`
+            : baseQuery;
         if (editorRef.current) {
           editorRef.current.dispatch({
             changes: {
               from: 0,
               to: editorRef.current.state.doc.length,
-              insert: baseQuery,
+              insert: query,
             },
           });
         }
-        setTimeout(() => onQueryChange(baseQuery), 0);
+        setTimeout(() => onQueryChange(query), 0);
         return;
       }
 
@@ -369,7 +381,7 @@ export default function EditorPane({
         return newCondition;
       });
     },
-    [selectedTable, selectedColumns, onQueryChange]
+    [selectedTable, selectedColumns, whereCondition, onQueryChange]
   );
 
   const formatQuery = useCallback(() => {
@@ -467,7 +479,7 @@ export default function EditorPane({
 
     const updateWhereCondition = (query: string): void => {
       const whereMatch = query.match(
-        /WHERE\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*([=!><]=?|LIKE)\s*['"]?([^'";\s]+)['"]?/i
+        /WHERE\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*(IS NULL|IS NOT NULL|[=!><]=?|LIKE)\s*('[^']*')?/i
       );
 
       if (whereMatch) {
@@ -482,7 +494,13 @@ export default function EditorPane({
               ? prev.operator
               : operatorOptions.find((opt) => opt.value === operator) || null,
           value:
-            prev.value?.value === value ? prev.value : { value, label: value },
+            operator === "IS NULL" || operator === "IS NOT NULL"
+              ? null
+              : prev.value?.value === value
+              ? prev.value
+              : value
+              ? { value, label: value }
+              : null,
         }));
       } else if (!query.includes("WHERE")) {
         setWhereCondition({ column: null, operator: null, value: null });
@@ -833,6 +851,8 @@ export default function EditorPane({
                   !selectedTable ||
                   !whereCondition.column ||
                   !whereCondition.operator ||
+                  whereCondition.operator?.value === "IS NULL" ||
+                  whereCondition.operator?.value === "IS NOT NULL" ||
                   metadataLoading
                 }
                 styles={singleSelectStyles}
