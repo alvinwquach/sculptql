@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useEffect, useCallback, useState } from "react";
+import { useRef, useEffect, useCallback, useState, useMemo } from "react";
 import Select, {
   MultiValue,
   SingleValue,
@@ -19,7 +19,11 @@ import {
   WhereCondition,
 } from "@/app/types/query";
 import { EditorView, keymap, drawSelection } from "@codemirror/view";
-import { autocompletion, startCompletion } from "@codemirror/autocomplete";
+import {
+  autocompletion,
+  startCompletion,
+  CompletionSource,
+} from "@codemirror/autocomplete";
 import { indentWithTab, defaultKeymap } from "@codemirror/commands";
 import { sql } from "@codemirror/lang-sql";
 import {
@@ -39,7 +43,7 @@ interface EditorPaneProps {
   onTabClose: (id: number) => void;
   onQueryChange: (query: string) => void;
   onTabReorder: (newTabs: Tab[]) => void;
-  completion: (context: any) => any;
+  completion: CompletionSource;
   metadataLoading: boolean;
   runQuery: () => void;
   tableNames: string[];
@@ -98,14 +102,16 @@ export default function EditorPane({
       })) || []
     : [];
 
-  const operatorOptions: SelectOption[] = [
-    { value: "=", label: "=" },
-    { value: "!=", label: "!=" },
-    { value: ">", label: ">" },
-    { value: "<", label: "<" },
-    { value: ">=", label: ">=" },
-    { value: "<=", label: "<=" },
-  ];
+  const operatorOptions = useMemo(() => {
+    return [
+      { value: "=", label: "=" },
+      { value: "!=", label: "!=" },
+      { value: ">", label: ">" },
+      { value: "<", label: "<" },
+      { value: ">=", label: ">=" },
+      { value: "<=", label: "<=" },
+    ];
+  }, []);
 
   useEffect(() => {
     if (!selectedTable || !whereCondition.column) {
@@ -723,10 +729,7 @@ export default function EditorPane({
       color: "#94a3b8",
       "&:hover": { color: "#3b82f6" },
     }),
-    clearIndicator: (
-      baseStyles,
-      props: ClearIndicatorProps<SelectOption, false, GroupBase<SelectOption>>
-    ) => ({
+    clearIndicator: (baseStyles) => ({
       ...baseStyles,
       color: "#94a3b8",
       "&:hover": { color: "#3b82f6" },

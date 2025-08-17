@@ -4,7 +4,6 @@ import { useCallback } from "react";
 import { CompletionContext, CompletionResult } from "@codemirror/autocomplete";
 import { Parser, Select } from "node-sql-parser";
 import { TableColumn } from "@/app/types/query";
-
 import { getAllColumns } from "../utils/sqlCompletion/getAllColumns";
 import { getValidTables } from "../utils/sqlCompletion/getValidTables";
 import { suggestAsOrFromKeyword } from "../utils/sqlCompletion/suggestions/suggestAsOrFromKeyword";
@@ -26,9 +25,6 @@ export const useSqlCompletion = (
 ) => {
   // === STEP 1: Prepare full list of available columns ===
   const allColumns = getAllColumns(tableNames, tableColumns);
-
-  // Create SQL parser instance
-  const parser = new Parser();
 
   // Type guard to check if an AST node is a Select node
   const isSelectNode = (node: unknown): node is Select =>
@@ -52,7 +48,8 @@ export const useSqlCompletion = (
       // Get the full text from the beginning of the document up to the current position
       const docText = context.state.sliceDoc(0, context.pos);
 
-      // === STEP 3: Try parsing the SQL into an AST (Abstract Syntax Tree) ===
+      // === STEP 3: Create SQL parser instance inside the callback and try parsing the SQL into an AST (Abstract Syntax Tree) ===
+      const parser = new Parser();
 
       let ast: Select | Select[] | null;
       try {
@@ -111,7 +108,7 @@ export const useSqlCompletion = (
 
     // === STEP 5: Dependencies for useCallback ===
     // Ensures the completion function updates when any inputs change
-    [allColumns, tableNames, tableColumns, stripQuotes, needsQuotes, parser]
+    [allColumns, tableNames, tableColumns, stripQuotes, needsQuotes]
   );
 
   // === STEP 6: Return the completion function to be used by the editor ===
