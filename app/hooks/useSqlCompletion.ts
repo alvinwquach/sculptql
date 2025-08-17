@@ -4,14 +4,13 @@ import { useCallback } from "react";
 import { CompletionContext, CompletionResult } from "@codemirror/autocomplete";
 import { Parser, Select } from "node-sql-parser";
 import { TableColumn } from "@/app/types/query";
-
 import { getAllColumns } from "../utils/sqlCompletion/getAllColumns";
 import { getValidTables } from "../utils/sqlCompletion/getValidTables";
 import { suggestAsOrFromKeyword } from "../utils/sqlCompletion/suggestions/suggestAsOrFromKeyword";
 import { suggestColumnsAfterSelect } from "../utils/sqlCompletion/suggestions/suggestColumnsAfterSelect";
 import { suggestSelect } from "../utils/sqlCompletion/suggestions/suggestSelect";
-import { suggestSemicolonCompletion } from "../utils/sqlCompletion/suggestions/suggestSemicolonCompletion";
 import { suggestTablesAfterFrom } from "../utils/sqlCompletion/suggestions/suggestTablesAfterFrom";
+import { suggestWhereClause } from "../utils/sqlCompletion/suggestions/suggestWhereClause";
 
 /**
  * Hook: useSqlCompletion
@@ -26,9 +25,6 @@ export const useSqlCompletion = (
 ) => {
   // === STEP 1: Prepare full list of available columns ===
   const allColumns = getAllColumns(tableNames, tableColumns);
-
-  // Create SQL parser instance
-  const parser = new Parser();
 
   // Type guard to check if an AST node is a Select node
   const isSelectNode = (node: unknown): node is Select =>
@@ -52,7 +48,8 @@ export const useSqlCompletion = (
       // Get the full text from the beginning of the document up to the current position
       const docText = context.state.sliceDoc(0, context.pos);
 
-      // === STEP 3: Try parsing the SQL into an AST (Abstract Syntax Tree) ===
+      // === STEP 3: Create SQL parser instance inside the callback and try parsing the SQL into an AST (Abstract Syntax Tree) ===
+      const parser = new Parser();
 
       let ast: Select | Select[] | null;
       try {
@@ -64,7 +61,7 @@ export const useSqlCompletion = (
         } else {
           ast = isSelectNode(parsedAst) ? parsedAst : null;
         }
-      } catch (e) {
+      } catch {
         // If parsing fails (e.g., incomplete or invalid SQL), we continue without AST
         ast = null;
       }
@@ -96,7 +93,16 @@ export const useSqlCompletion = (
           needsQuotes,
           ast
         ) ||
-        suggestSemicolonCompletion(pos, tableColumns, stripQuotes, ast)
+        suggestWhereClause(
+          docText,
+          currentWord,
+          pos,
+          word,
+          tableColumns,
+          stripQuotes,
+          needsQuotes,
+          ast
+        )
       );
     },
 

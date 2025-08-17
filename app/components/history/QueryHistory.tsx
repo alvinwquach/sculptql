@@ -88,9 +88,9 @@ export default function QueryHistory({
 
   return (
     <div
-      className={`w-full sm:w-80 h-full bg-[#1e293b] border-r border-slate-700 ${
+      className={`w-64 h-full bg-[#1e293b] border-r border-slate-700 ${
         showHistory ? "block" : "hidden"
-      }`}
+      } flex-shrink-0`}
     >
       <div className="flex justify-between items-center p-2 border-b border-slate-700">
         <h2 className="text-sm font-bold text-green-300">Query History</h2>
@@ -104,89 +104,39 @@ export default function QueryHistory({
           <Trash2 className="w-4 h-4" />
         </Button>
       </div>
-      <ScrollArea className="h-[calc(100%-3rem)]">
-        <div className="p-2 border-b border-slate-700">
-          <h3 className="text-xs font-bold text-green-300">Pinned Query</h3>
-          {pinnedQueries.length === 0 ? (
-            <p className="text-xs text-gray-400 py-2">No pinned query set</p>
-          ) : (
-            <div
-              className="p-2 border-b border-slate-700 hover:bg-[#2d3748] cursor-pointer flex flex-col"
-              onClick={() => loadQueryFromHistory(pinnedQueries[0].query)}
-            >
-              <div className="flex items-center">
-                <Pin
-                  className="w-4 h-4 mr-1 text-yellow-400"
-                  fill="currentColor"
-                  strokeWidth={0}
-                />
-                <p className="text-sm text-green-300 truncate flex-1">
-                  {pinnedQueries[0].query}
-                </p>
-              </div>
-              <p className="text-xs text-gray-400 mt-1">
-                {new Date(pinnedQueries[0].timestamp).toLocaleString()}
-              </p>
-              <div className="flex space-x-2 mt-2">
-                <Button
-                  variant="link"
-                  size="sm"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    runQueryFromHistory(pinnedQueries[0].query);
-                  }}
-                  className="text-green-400 hover:bg-slate-700/50 p-0 h-auto"
-                >
-                  Run
-                </Button>
-                <Button
-                  variant="link"
-                  size="sm"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    removePinnedQuery(pinnedQueries[0].query);
-                  }}
-                  className="text-yellow-400 hover:bg-slate-700/50 p-0 h-auto"
-                >
-                  Unpin
-                </Button>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Bookmarks Section */}
-        <div className="p-2 border-b border-slate-700">
-          <h3 className="text-xs font-bold text-green-300">Bookmarks</h3>
-          {bookmarkedQueries.length === 0 ? (
-            <p className="text-xs text-gray-400 py-2">No bookmarked queries</p>
-          ) : (
-            bookmarkedQueries.map((item, index) => (
+      <ScrollArea className="h-[calc(100%-3rem)] p-2">
+        <div className="space-y-4">
+          <div className="border-b border-slate-700 pb-2">
+            <h3 className="text-xs font-bold text-green-300">Pinned Query</h3>
+            {pinnedQueries.length === 0 ? (
+              <p className="text-xs text-gray-400 py-1">No pinned query set</p>
+            ) : (
               <div
-                key={`bookmark-${index}`}
-                className="p-2 border-b border-slate-700 hover:bg-[#2d3748] cursor-pointer flex flex-col"
-                onClick={() => loadQueryFromHistory(item.query)}
+                className="p-1 border-b border-slate-700 hover:bg-[#2d3748] cursor-pointer flex flex-col"
+                onClick={() => loadQueryFromHistory(pinnedQueries[0].query)}
               >
-                <div className="flex items-center">
-                  <Bookmark
-                    className="w-4 h-4 mr-1 text-blue-400"
+                <div className="flex items-start">
+                  <Pin
+                    className="w-4 h-4 mr-1 text-yellow-400 mt-1"
                     fill="currentColor"
                     strokeWidth={0}
                   />
-                  <p className="text-sm text-green-300 truncate flex-1">
-                    {item.query}
-                  </p>
+                  <ScrollArea className="max-h-16 w-full overflow-x-auto">
+                    <p className="text-sm text-green-300 break-words whitespace-pre-wrap max-w-full">
+                      {pinnedQueries[0].query}
+                    </p>
+                  </ScrollArea>
                 </div>
                 <p className="text-xs text-gray-400 mt-1">
-                  {new Date(item.timestamp).toLocaleString()}
+                  {new Date(pinnedQueries[0].timestamp).toLocaleString()}
                 </p>
-                <div className="flex space-x-2 mt-2">
+                <div className="flex space-x-1 mt-1">
                   <Button
                     variant="link"
                     size="sm"
                     onClick={(e) => {
                       e.stopPropagation();
-                      runQueryFromHistory(item.query);
+                      runQueryFromHistory(pinnedQueries[0].query);
                     }}
                     className="text-green-400 hover:bg-slate-700/50 p-0 h-auto"
                   >
@@ -197,193 +147,256 @@ export default function QueryHistory({
                     size="sm"
                     onClick={(e) => {
                       e.stopPropagation();
-                      removeBookmarkedQuery(item.query);
+                      removePinnedQuery(pinnedQueries[0].query);
                     }}
-                    className="text-blue-400 hover:bg-slate-700/50 p-0 h-auto"
+                    className="text-yellow-400 hover:bg-slate-700/50 p-0 h-auto"
                   >
-                    Remove
+                    Unpin
                   </Button>
                 </div>
               </div>
-            ))
-          )}
-        </div>
-        <div className="p-2 border-b border-slate-700">
-          <h3 className="text-xs font-bold text-green-300">Labeled Queries</h3>
-          {labeledQueries.length === 0 ? (
-            <p className="text-xs text-gray-400 py-2">No labeled queries</p>
-          ) : (
-            labeledQueries.map((item, index) => (
-              <div
-                key={`labeled-${index}`}
-                className="p-2 border-b border-slate-700 hover:bg-[#2d3748] cursor-pointer flex flex-col"
-                onClick={() => loadQueryFromHistory(item.query)}
-              >
-                <div className="flex items-center">
-                  <Tag className="w-4 h-4 mr-1 text-purple-400" />
-                  <p className="text-sm text-green-300 truncate flex-1">
-                    {item.label}
-                  </p>
-                </div>
-                <p className="text-xs text-gray-400 mt-1 truncate">
-                  {item.query}
-                </p>
-                <p className="text-xs text-gray-400 mt-1">
-                  {new Date(item.timestamp).toLocaleString()}
-                </p>
-                <div className="flex space-x-2 mt-2">
-                  <Button
-                    variant="link"
-                    size="sm"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      runQueryFromHistory(item.query);
-                    }}
-                    className="text-green-400 hover:bg-slate-700/50 p-0 h-auto"
-                  >
-                    Run
-                  </Button>
-                  <Button
-                    variant="link"
-                    size="sm"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      removeLabeledQuery(item.query);
-                    }}
-                    className="text-purple-400 hover:bg-slate-700/50 p-0 h-auto"
-                  >
-                    Delete
-                  </Button>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-        <div className="p-2">
-          <h3 className="text-xs font-bold text-green-300">Recent Queries</h3>
-          <p className="text-xs text-gray-400 py-2">
-            Showing up to 200 recent queries
-          </p>
-          {history.length === 0 ? (
-            <p className="text-xs text-gray-400 py-2">No queries in history</p>
-          ) : (
-            history.map((item, index) => (
-              <div
-                key={`history-${index}`}
-                className="p-2 border-b border-slate-700 hover:bg-[#2d3748] cursor-pointer flex flex-col"
-              >
-                <p
-                  className="text-sm text-green-300 truncate"
+            )}
+          </div>
+          <div className="border-b border-slate-700 pb-2">
+            <h3 className="text-xs font-bold text-green-300">Bookmarks</h3>
+            {bookmarkedQueries.length === 0 ? (
+              <p className="text-xs text-gray-400 py-1">
+                No bookmarked queries
+              </p>
+            ) : (
+              bookmarkedQueries.map((item, index) => (
+                <div
+                  key={`bookmark-${index}`}
+                  className="p-1 border-b border-slate-700 hover:bg-[#2d3748] cursor-pointer flex flex-col"
                   onClick={() => loadQueryFromHistory(item.query)}
                 >
-                  {item.query}
-                </p>
-                <p className="text-xs text-gray-400 mt-1">
-                  {new Date(item.timestamp).toLocaleString()}
-                </p>
-                <div className="flex flex-wrap gap-2 mt-2">
-                  <Button
-                    variant="link"
-                    size="sm"
-                    onClick={() => runQueryFromHistory(item.query)}
-                    className="text-green-400 hover:bg-slate-700/50 p-0 h-auto"
-                  >
-                    Run
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => togglePinnedQuery(item.query)}
-                    className={` hover:bg-slate-700/50 hover:text-white p-1 h-auto rounded-full ${
-                      pinnedQueries.some((pin) => pin.query === item.query)
-                        ? "text-yellow-400 "
-                        : "text-gray-400"
-                    }`}
-                    title={
-                      pinnedQueries.some((pin) => pin.query === item.query)
-                        ? "Unpin"
-                        : "Pin (replaces current pinned query)"
-                    }
-                  >
-                    <Pin
-                      className="w-5 h-5 sm:w-4 sm:h-4 "
-                      fill={
-                        pinnedQueries.some((pin) => pin.query === item.query)
-                          ? "currentColor"
-                          : "none"
-                      }
-                      strokeWidth={
-                        pinnedQueries.some((pin) => pin.query === item.query)
-                          ? 0
-                          : 2
-                      }
-                    />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      bookmarkedQueries.some((bm) => bm.query === item.query)
-                        ? removeBookmarkedQuery(item.query)
-                        : addBookmarkedQuery(item.query);
-                    }}
-                    className={`p-1 h-auto hover:bg-slate-700/50 hover:text-white rounded-full hover:bg-slate-700/50 hover:text-white ${
-                      bookmarkedQueries.some((bm) => bm.query === item.query)
-                        ? "text-blue-400"
-                        : "text-gray-400"
-                    }`}
-                    title={
-                      bookmarkedQueries.some((bm) => bm.query === item.query)
-                        ? "Remove Bookmark"
-                        : "Bookmark"
-                    }
-                  >
+                  <div className="flex items-start">
                     <Bookmark
-                      className="w-5 h-5 sm:w-4 sm:h-4 hover:bg-slate-700/50 hover:text-white"
-                      fill={
-                        bookmarkedQueries.some(
-                          (bookmarked) => bookmarked.query === item.query
-                        )
-                          ? "currentColor"
-                          : "none"
-                      }
-                      strokeWidth={
-                        bookmarkedQueries.some(
-                          (bookmarked) => bookmarked.query === item.query
-                        )
-                          ? 0
-                          : 2
-                      }
+                      className="w-4 h-4 mr-1 text-blue-400 mt-1"
+                      fill="currentColor"
+                      strokeWidth={0}
                     />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleLabelQuery(item.query)}
-                    className="text-purple-400 hover:bg-slate-700/50 hover:text-white p-1 h-auto rounded-full"
-                    title="Label Query"
-                  >
-                    <Tag className="w-5 h-5 sm:w-4 sm:h-4" />
-                  </Button>
-                </div>
-                {labelingQuery === item.query && (
-                  <div className="mt-2">
-                    <input
-                      type="text"
-                      value={labelInput}
-                      onChange={(e) => setLabelInput(e.target.value)}
-                      placeholder="Enter query label"
-                      className="w-full p-1 text-sm bg-[#2d3748] text-white border border-slate-600 rounded"
-                      onKeyDown={(e) => handleKeyDown(e, item.query)}
-                    />
+                    <ScrollArea className="max-h-16 w-full overflow-x-auto">
+                      <p className="text-sm text-green-300 break-words whitespace-pre-wrap max-w-full">
+                        {item.query}
+                      </p>
+                    </ScrollArea>
                   </div>
-                )}
-              </div>
-            ))
-          )}
+                  <p className="text-xs text-gray-400 mt-1">
+                    {new Date(item.timestamp).toLocaleString()}
+                  </p>
+                  <div className="flex space-x-1 mt-1">
+                    <Button
+                      variant="link"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        runQueryFromHistory(item.query);
+                      }}
+                      className="text-green-400 hover:bg-slate-700/50 p-0 h-auto"
+                    >
+                      Run
+                    </Button>
+                    <Button
+                      variant="link"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        removeBookmarkedQuery(item.query);
+                      }}
+                      className="text-blue-400 hover:bg-slate-700/50 p-0 h-auto"
+                    >
+                      Remove
+                    </Button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+          <div className="border-b border-slate-700 pb-2">
+            <h3 className="text-xs font-bold text-green-300">
+              Labeled Queries
+            </h3>
+            {labeledQueries.length === 0 ? (
+              <p className="text-xs text-gray-400 py-1">No labeled queries</p>
+            ) : (
+              labeledQueries.map((item, index) => (
+                <div
+                  key={`labeled-${index}`}
+                  className="p-1 border-b border-slate-700 hover:bg-[#2d3748] cursor-pointer flex flex-col"
+                  onClick={() => loadQueryFromHistory(item.query)}
+                >
+                  <div className="flex items-start">
+                    <Tag className="w-4 h-4 mr-1 text-purple-400 mt-1" />
+                    <ScrollArea className="max-h-16 w-full overflow-x-auto">
+                      <p className="text-sm text-green-300 break-words whitespace-pre-wrap max-w-full">
+                        {item.label}
+                      </p>
+                    </ScrollArea>
+                  </div>
+                  <p className="text-xs text-gray-400 mt-1 break-words whitespace-pre-wrap max-w-full">
+                    {item.query}
+                  </p>
+                  <p className="text-xs text-gray-400 mt-1">
+                    {new Date(item.timestamp).toLocaleString()}
+                  </p>
+                  <div className="flex space-x-1 mt-1">
+                    <Button
+                      variant="link"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        runQueryFromHistory(item.query);
+                      }}
+                      className="text-green-400 hover:bg-slate-700/50 p-0 h-auto"
+                    >
+                      Run
+                    </Button>
+                    <Button
+                      variant="link"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        removeLabeledQuery(item.query);
+                      }}
+                      className="text-purple-400 hover:bg-slate-700/50 p-0 h-auto"
+                    >
+                      Delete
+                    </Button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+          <div>
+            <h3 className="text-xs font-bold text-green-300">Recent Queries</h3>
+            <p className="text-xs text-gray-400 py-1">
+              Showing up to 200 recent queries
+            </p>
+            {history.length === 0 ? (
+              <p className="text-xs text-gray-400 py-1">
+                No queries in history
+              </p>
+            ) : (
+              history.map((item, index) => (
+                <div
+                  key={`history-${index}`}
+                  className="p-1 border-b border-slate-700 hover:bg-[#2d3748] cursor-pointer flex flex-col"
+                >
+                  <ScrollArea className="max-h-16 w-full overflow-x-auto">
+                    <p
+                      className="text-sm text-green-300 break-words whitespace-pre-wrap max-w-full"
+                      onClick={() => loadQueryFromHistory(item.query)}
+                    >
+                      {item.query}
+                    </p>
+                  </ScrollArea>
+                  <p className="text-xs text-gray-400 mt-1">
+                    {new Date(item.timestamp).toLocaleString()}
+                  </p>
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    <Button
+                      variant="link"
+                      size="sm"
+                      onClick={() => runQueryFromHistory(item.query)}
+                      className="text-green-400 hover:bg-slate-700/50 p-0 h-auto"
+                    >
+                      Run
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => togglePinnedQuery(item.query)}
+                      className={`hover:bg-slate-700/50 hover:text-white p-1 h-auto rounded-full ${
+                        pinnedQueries.some((pin) => pin.query === item.query)
+                          ? "text-yellow-400"
+                          : "text-gray-400"
+                      }`}
+                      title={
+                        pinnedQueries.some((pin) => pin.query === item.query)
+                          ? "Unpin"
+                          : "Pin (replaces current pinned query)"
+                      }
+                    >
+                      <Pin
+                        className="w-5 h-5 sm:w-4 sm:h-4"
+                        fill={
+                          pinnedQueries.some((pin) => pin.query === item.query)
+                            ? "currentColor"
+                            : "none"
+                        }
+                        strokeWidth={
+                          pinnedQueries.some((pin) => pin.query === item.query)
+                            ? 0
+                            : 2
+                        }
+                      />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() =>
+                        bookmarkedQueries.some((bm) => bm.query === item.query)
+                          ? removeBookmarkedQuery(item.query)
+                          : addBookmarkedQuery(item.query)
+                      }
+                      className={`p-1 h-auto hover:bg-slate-700/50 hover:text-white rounded-full ${
+                        bookmarkedQueries.some((bm) => bm.query === item.query)
+                          ? "text-blue-400"
+                          : "text-gray-400"
+                      }`}
+                      title={
+                        bookmarkedQueries.some((bm) => bm.query === item.query)
+                          ? "Remove Bookmark"
+                          : "Bookmark"
+                      }
+                    >
+                      <Bookmark
+                        className="w-5 h-5 sm:w-4 sm:h-4"
+                        fill={
+                          bookmarkedQueries.some(
+                            (bookmarked) => bookmarked.query === item.query
+                          )
+                            ? "currentColor"
+                            : "none"
+                        }
+                        strokeWidth={
+                          bookmarkedQueries.some(
+                            (bookmarked) => bookmarked.query === item.query
+                          )
+                            ? 0
+                            : 2
+                        }
+                      />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleLabelQuery(item.query)}
+                      className="text-purple-400 hover:bg-slate-700/50 hover:text-white p-1 h-auto rounded-full"
+                      title="Label Query"
+                    >
+                      <Tag className="w-5 h-5 sm:w-4 sm:h-4" />
+                    </Button>
+                  </div>
+                  {labelingQuery === item.query && (
+                    <div className="mt-1">
+                      <input
+                        type="text"
+                        value={labelInput}
+                        onChange={(e) => setLabelInput(e.target.value)}
+                        placeholder="Enter query label"
+                        className="w-full p-1 text-sm bg-[#2d3748] text-white border border-slate-600 rounded"
+                        onKeyDown={(e) => handleKeyDown(e, item.query)}
+                      />
+                    </div>
+                  )}
+                </div>
+              ))
+            )}
+          </div>
         </div>
       </ScrollArea>
     </div>
   );
 }
-
