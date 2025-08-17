@@ -90,14 +90,24 @@ export const suggestWhereClause = (
         (c) => stripQuotes(c).toLowerCase() === column.toLowerCase()
       )
     ) {
-      const operators = ["=", "!=", ">", "<", ">=", "<=", "LIKE"];
+      const operators = [
+        "=",
+        "!=",
+        ">",
+        "<",
+        ">=",
+        "<=",
+        "LIKE",
+        "IS NULL",
+        "IS NOT NULL",
+      ];
       return {
         from: word ? word.from : pos,
         options: operators.map((op) => ({
           label: op,
           type: "keyword",
           apply: `${op} `,
-          detail: op === "LIKE" ? "Pattern matching" : "Comparison operator",
+          detail: getOperatorDetail(op),
         })),
         filter: true,
         validFor: /^[=!><]*$|^LIKE$/i,
@@ -108,6 +118,7 @@ export const suggestWhereClause = (
   // Suggest pattern-based values or unique values after an operator
   const afterOperatorRegex =
     /\bWHERE\s+((?:"[\w]+"|'[\w]+'|[\w_]+))\s*([=!><]=?|LIKE)\s*('[^']*')?$/i;
+
   const operatorMatch = docText.match(afterOperatorRegex);
   if (operatorMatch) {
     const [, column, operator, partialValue] = operatorMatch;
@@ -129,8 +140,14 @@ export const suggestWhereClause = (
             label: "'value_%'",
             detail: "Starts with value, single char after",
           },
-          { label: "'_value%'", detail: "Single char before, ends with value" },
-          { label: "'value__%'", detail: "Starts with value, two chars after" },
+          {
+            label: "'_value%'",
+            detail: "Single char before, ends with value",
+          },
+          {
+            label: "'value__%'",
+            detail: "Starts with value, two chars after",
+          },
         ];
 
         return {
@@ -144,6 +161,11 @@ export const suggestWhereClause = (
           filter: true,
           validFor: /^['"].*['"]?$/,
         };
+      } else if (
+        operator.toUpperCase() === "IS NULL" ||
+        operator.toUpperCase() === "IS NOT NULL"
+      ) {
+        return null;
       } else {
         return null;
       }
@@ -151,4 +173,29 @@ export const suggestWhereClause = (
   }
 
   return null;
+};
+
+const getOperatorDetail = (operator: string): string => {
+  switch (operator.toUpperCase()) {
+    case "=":
+      return "Equals";
+    case "!=":
+      return "Does not equal";
+    case ">":
+      return "Greater than";
+    case "<":
+      return "Less than";
+    case ">=":
+      return "Greater than or equal to";
+    case "<=":
+      return "Less than or equal to";
+    case "LIKE":
+      return "Pattern matching (supports wildcards)";
+    case "IS NULL":
+      return "Checks if the value is NULL";
+    case "IS NOT NULL":
+      return "Checks if the value is not NULL";
+    default:
+      return "";
+  }
 };
