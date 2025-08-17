@@ -166,10 +166,20 @@ export interface SelectOption {
 }
 
 export interface WhereCondition {
+  logicalOperator: SelectOption | null;
   column: SelectOption | null;
   operator: SelectOption | null;
   value: SelectOption | null;
   value2?: SelectOption | null;
+}
+
+export interface WhereClause {
+  conditions: WhereCondition[];
+}
+
+export interface UniqueValues {
+  condition1: SelectOption[];
+  condition2: SelectOption[];
 }
 
 export type OptionType = {

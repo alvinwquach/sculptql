@@ -11,12 +11,7 @@ import CreatableSelect from "react-select/creatable";
 import { Button } from "@/components/ui/button";
 import { Maximize2, Minimize2, Wand2, AlertCircle } from "lucide-react";
 import QueryTabs from "./QueryTabs";
-import {
-  SelectOption,
-  Tab,
-  TableColumn,
-  WhereCondition,
-} from "@/app/types/query";
+import { SelectOption, Tab, TableColumn, WhereClause } from "@/app/types/query";
 import { EditorView, keymap, drawSelection } from "@codemirror/view";
 import {
   autocompletion,
@@ -69,13 +64,27 @@ export default function EditorPane({
   const languageCompartment = useRef(new Compartment());
   const [selectedTable, setSelectedTable] = useState<SelectOption | null>(null);
   const [selectedColumns, setSelectedColumns] = useState<SelectOption[]>([]);
-  const [whereCondition, setWhereCondition] = useState<WhereCondition>({
-    column: null,
-    operator: null,
-    value: null,
-    value2: null,
+  const [whereClause, setWhereClause] = useState<WhereClause>({
+    conditions: [
+      {
+        column: null,
+        operator: null,
+        value: null,
+        value2: null,
+        logicalOperator: { value: "AND", label: "AND" },
+      },
+      {
+        column: null,
+        operator: null,
+        value: null,
+        value2: null,
+        logicalOperator: null,
+      },
+    ],
   });
-  const [uniqueValues, setUniqueValues] = useState<SelectOption[]>([]);
+  const [uniqueValues, setUniqueValues] = useState<
+    Record<string, SelectOption[]>
+  >({ condition1: [], condition2: [] });
   const [fetchError, setFetchError] = useState<string | null>(null);
   const isMac =
     typeof navigator !== "undefined" && /Mac/i.test(navigator.platform);
@@ -118,18 +127,30 @@ export default function EditorPane({
     ];
   }, []);
 
+  const logicalOperatorOptions = useMemo(() => {
+    return [{ value: "AND", label: "AND" }];
+  }, []);
+
   useEffect(() => {
-    if (!selectedTable || !whereCondition.column) {
-      setUniqueValues([]);
+    if (!selectedTable) {
+      setUniqueValues({ condition1: [], condition2: [] });
       setFetchError(null);
       return;
     }
-    const fetchUniqueValues = async () => {
+    const fetchUniqueValues = async (conditionIndex: number) => {
+      const condition = whereClause.conditions[conditionIndex];
+      if (!condition.column) {
+        setUniqueValues((prev) => ({
+          ...prev,
+          [`condition${conditionIndex + 1}`]: [],
+        }));
+        return;
+      }
       try {
         const res = await fetch(
           `/api/unique-values?table=${encodeURIComponent(
             selectedTable.value
-          )}&column=${encodeURIComponent(whereCondition.column!.value)}`
+          )}&column=${encodeURIComponent(condition.column!.value)}`
         );
         if (!res.ok) {
           throw new Error(`HTTP ${res.status}: ${res.statusText}`);
@@ -143,34 +164,107 @@ export default function EditorPane({
           throw new Error("Invalid response format: 'values' array expected");
         }
         const values =
-          whereCondition.operator?.value === "LIKE" ||
-          whereCondition.operator?.value === "IS NULL" ||
-          whereCondition.operator?.value === "IS NOT NULL"
+          condition.operator?.value === "LIKE" ||
+          condition.operator?.value === "IS NULL" ||
+          condition.operator?.value === "IS NOT NULL"
             ? []
             : data.values.map((value: string) => ({ value, label: value }));
-        setUniqueValues(values);
+        setUniqueValues((prev) => ({
+          ...prev,
+          [`condition${conditionIndex + 1}`]: values,
+        }));
         setFetchError(null);
       } catch (e) {
         const message = (e as Error).message || "Failed to fetch unique values";
-        console.error("Error fetching unique values:", message);
+        console.error(
+          `Error fetching unique values for condition ${conditionIndex + 1}:`,
+          message
+        );
         setFetchError(message);
-        setUniqueValues([]);
+        setUniqueValues((prev) => ({
+          ...prev,
+          [`condition${conditionIndex + 1}`]: [],
+        }));
       }
     };
-    fetchUniqueValues();
-  }, [selectedTable, whereCondition.column, whereCondition.operator]);
+    fetchUniqueValues(0);
+    fetchUniqueValues(1);
+  }, [selectedTable, whereClause.conditions]);
+
+  const buildQuery = useCallback(() => {
+    const columns = selectedColumns.length
+      ? selectedColumns.map((col) => col.value).join(", ")
+      : "*";
+    let query = selectedTable
+      ? `SELECT ${columns} FROM ${selectedTable.value} `
+      : "";
+    const validConditions = whereClause.conditions.filter(
+      (c) =>
+        c.column &&
+        c.operator &&
+        (c.operator.value === "IS NULL" ||
+          c.operator.value === "IS NOT NULL" ||
+          c.value)
+    );
+    if (validConditions.length > 0) {
+      query += "WHERE ";
+      query += validConditions
+        .map((condition) => {
+          let conditionStr = `${condition.column!.value} ${
+            condition.operator!.value
+          }`;
+          if (
+            condition.operator!.value === "BETWEEN" &&
+            condition.value &&
+            condition.value2
+          ) {
+            const isNumeric =
+              !isNaN(Number(condition.value.value)) &&
+              !isNaN(Number(condition.value2.value));
+            conditionStr += isNumeric
+              ? ` ${condition.value.value} AND ${condition.value2.value}`
+              : ` '${condition.value.value}' AND '${condition.value2.value}'`;
+          } else if (
+            condition.value &&
+            condition.operator!.value !== "IS NULL" &&
+            condition.operator!.value !== "IS NOT NULL" &&
+            condition.operator!.value !== "BETWEEN"
+          ) {
+            const isLike = condition.operator!.value === "LIKE";
+            conditionStr += isLike
+              ? ` '${condition.value.value}'`
+              : ` '${condition.value.value}'`;
+          }
+          return conditionStr;
+        })
+        .join(` ${whereClause.conditions[0].logicalOperator?.value || "AND"} `);
+    }
+    return query;
+  }, [selectedTable, selectedColumns, whereClause]);
 
   const handleTableSelect = useCallback(
     (newValue: SingleValue<SelectOption>) => {
       setSelectedTable(newValue);
       setSelectedColumns([]);
-      setWhereCondition({
-        column: null,
-        operator: null,
-        value: null,
-        value2: null,
+      setWhereClause({
+        conditions: [
+          {
+            column: null,
+            operator: null,
+            value: null,
+            value2: null,
+            logicalOperator: { value: "AND", label: "AND" },
+          },
+          {
+            column: null,
+            operator: null,
+            value: null,
+            value2: null,
+            logicalOperator: null,
+          },
+        ],
       });
-      setUniqueValues([]);
+      setUniqueValues({ condition1: [], condition2: [] });
       setFetchError(null);
       const query = newValue ? `SELECT * FROM ${newValue.value} ` : "";
       if (editorRef.current) {
@@ -191,13 +285,25 @@ export default function EditorPane({
     (newValue: MultiValue<SelectOption>) => {
       if (!selectedTable) {
         setSelectedColumns([]);
-        setWhereCondition({
-          column: null,
-          operator: null,
-          value: null,
-          value2: null,
+        setWhereClause({
+          conditions: [
+            {
+              column: null,
+              operator: null,
+              value: null,
+              value2: null,
+              logicalOperator: { value: "AND", label: "AND" },
+            },
+            {
+              column: null,
+              operator: null,
+              value: null,
+              value2: null,
+              logicalOperator: null,
+            },
+          ],
         });
-        setUniqueValues([]);
+        setUniqueValues({ condition1: [], condition2: [] });
         setFetchError(null);
         setTimeout(() => onQueryChange(""), 0);
         if (editorRef.current) {
@@ -225,40 +331,7 @@ export default function EditorPane({
       }
 
       setSelectedColumns(columnsToSelect);
-
-      const columns = includesStar
-        ? "*"
-        : columnsToSelect.length > 0
-        ? columnsToSelect.map((opt) => opt.value).join(", ")
-        : "";
-      const baseQuery = columns
-        ? `SELECT ${columns} FROM ${selectedTable.value} `
-        : `SELECT FROM ${selectedTable.value} `;
-
-      const { column, operator, value, value2 } = whereCondition;
-      let query = baseQuery;
-      if (column) {
-        query += `WHERE ${column.value}`;
-        if (operator) {
-          query += ` ${operator.value}`;
-          if (operator.value === "BETWEEN" && value && value2) {
-            const isNumeric =
-              !isNaN(Number(value.value)) && !isNaN(Number(value2.value));
-            query += isNumeric
-              ? ` ${value.value} AND ${value2.value}`
-              : ` '${value.value}' AND '${value2.value}'`;
-          } else if (
-            value &&
-            operator.value !== "IS NULL" &&
-            operator.value !== "IS NOT NULL" &&
-            operator.value !== "BETWEEN"
-          ) {
-            const isLike = operator.value === "LIKE";
-            query += isLike ? ` '${value.value}'` : ` '${value.value}'`;
-          }
-        }
-      }
-
+      const query = buildQuery();
       if (editorRef.current) {
         editorRef.current.dispatch({
           changes: {
@@ -270,64 +343,77 @@ export default function EditorPane({
       }
       setTimeout(() => onQueryChange(query), 0);
     },
-    [selectedTable, tableColumns, whereCondition, onQueryChange]
+    [selectedTable, tableColumns, buildQuery, onQueryChange]
+  );
+
+  const handleLogicalOperatorSelect = useCallback(
+    (newValue: SingleValue<SelectOption>) => {
+      setWhereClause((prev) => {
+        const newConditions = [...prev.conditions];
+        newConditions[0] = { ...newConditions[0], logicalOperator: newValue };
+        const newClause = { conditions: newConditions };
+        const query = buildQuery();
+        if (editorRef.current) {
+          editorRef.current.dispatch({
+            changes: {
+              from: 0,
+              to: editorRef.current.state.doc.length,
+              insert: query,
+            },
+          });
+        }
+        setTimeout(() => onQueryChange(query), 0);
+        return newClause;
+      });
+    },
+    [buildQuery, onQueryChange]
   );
 
   const handleWhereColumnSelect = useCallback(
-    (newValue: SingleValue<SelectOption>) => {
-      setWhereCondition((prev) => {
-        const newCondition = {
-          ...prev,
+    (newValue: SingleValue<SelectOption>, conditionIndex: number) => {
+      setWhereClause((prev) => {
+        const newConditions = [...prev.conditions];
+        newConditions[conditionIndex] = {
+          ...newConditions[conditionIndex],
           column: newValue,
           operator: null,
           value: null,
           value2: null,
         };
-        setUniqueValues([]);
-        setFetchError(null);
-        const baseQuery = selectedColumns.length
-          ? `SELECT ${selectedColumns
-              .map((col) => col.value)
-              .join(", ")} FROM ${selectedTable!.value} `
-          : `SELECT * FROM ${selectedTable!.value} `;
-        const query = newValue
-          ? `${baseQuery}WHERE ${newValue.value} `
-          : baseQuery;
-        if (editorRef.current) {
-          editorRef.current.dispatch({
-            changes: {
-              from: 0,
-              to: editorRef.current.state.doc.length,
-              insert: query,
-            },
-          });
-        }
-        setTimeout(() => onQueryChange(query), 0);
-        return newCondition;
+        return { conditions: newConditions };
       });
+      setUniqueValues((prev) => ({
+        ...prev,
+        [`condition${conditionIndex + 1}`]: [],
+      }));
+      setFetchError(null);
+      const query = buildQuery();
+      if (editorRef.current) {
+        editorRef.current.dispatch({
+          changes: {
+            from: 0,
+            to: editorRef.current.state.doc.length,
+            insert: query,
+          },
+        });
+      }
+      setTimeout(() => onQueryChange(query), 0);
     },
-    [selectedTable, selectedColumns, onQueryChange]
+    [buildQuery, onQueryChange]
   );
 
   const handleOperatorSelect = useCallback(
-    (newValue: SingleValue<SelectOption>) => {
-      setWhereCondition((prev) => {
-        const newCondition = {
-          ...prev,
+    (newValue: SingleValue<SelectOption>, conditionIndex: number) => {
+      setWhereClause((prev) => {
+        const newConditions = [...prev.conditions];
+        newConditions[conditionIndex] = {
+          ...newConditions[conditionIndex],
           operator: newValue,
           value: null,
           value2: null,
         };
-        const baseQuery = selectedColumns.length
-          ? `SELECT ${selectedColumns
-              .map((col) => col.value)
-              .join(", ")} FROM ${selectedTable!.value} `
-          : `SELECT * FROM ${selectedTable!.value} `;
-        const query = prev.column
-          ? `${baseQuery}WHERE ${prev.column.value} ${
-              newValue ? newValue.value : ""
-            } `
-          : baseQuery;
+        const newClause = { conditions: newConditions };
+        const query = buildQuery();
         if (editorRef.current) {
           editorRef.current.dispatch({
             changes: {
@@ -338,25 +424,37 @@ export default function EditorPane({
           });
         }
         setTimeout(() => onQueryChange(query), 0);
-        return newCondition;
+        return newClause;
       });
     },
-    [selectedTable, selectedColumns, onQueryChange]
+    [buildQuery, onQueryChange]
   );
 
   const handleValue1Select = useCallback(
-    (newValue: SingleValue<SelectOption>) => {
-      if (!whereCondition.operator || !whereCondition.column) {
-        setWhereCondition((prev) => ({ ...prev, value: null, value2: null }));
-        const baseQuery = selectedColumns.length
-          ? `SELECT ${selectedColumns
-              .map((col) => col.value)
-              .join(", ")} FROM ${selectedTable!.value}`
-          : `SELECT * FROM ${selectedTable!.value}`;
-        const query =
-          whereCondition.column && whereCondition.operator
-            ? `${baseQuery} WHERE ${whereCondition.column.value} ${whereCondition.operator.value} `
-            : baseQuery;
+    (newValue: SingleValue<SelectOption>, conditionIndex: number) => {
+      setWhereClause((prev) => {
+        const newConditions = [...prev.conditions];
+        if (
+          !newConditions[conditionIndex].operator ||
+          !newConditions[conditionIndex].column
+        ) {
+          newConditions[conditionIndex] = {
+            ...newConditions[conditionIndex],
+            value: null,
+            value2: null,
+          };
+        } else {
+          newConditions[conditionIndex] = {
+            ...newConditions[conditionIndex],
+            value: newValue,
+            value2:
+              newConditions[conditionIndex].operator?.value !== "BETWEEN"
+                ? null
+                : newConditions[conditionIndex].value2,
+          };
+        }
+        const newClause = { conditions: newConditions };
+        const query = buildQuery();
         if (editorRef.current) {
           editorRef.current.dispatch({
             changes: {
@@ -367,89 +465,28 @@ export default function EditorPane({
           });
         }
         setTimeout(() => onQueryChange(query), 0);
-        return;
-      }
-
-      setWhereCondition((prev) => {
-        const newCondition = { ...prev, value: newValue };
-        if (prev.operator?.value !== "BETWEEN") {
-          const baseQuery = selectedColumns.length
-            ? `SELECT ${selectedColumns
-                .map((col) => col.value)
-                .join(", ")} FROM ${selectedTable!.value}`
-            : `SELECT * FROM ${selectedTable!.value}`;
-          const query =
-            prev.column && prev.operator
-              ? `${baseQuery} WHERE ${prev.column.value} ${
-                  prev.operator.value
-                } ${
-                  newValue &&
-                  (prev.operator.value === "LIKE" ||
-                    isNaN(Number(newValue.value)) ||
-                    newValue.value.includes(" "))
-                    ? `'${newValue.value}'`
-                    : newValue
-                    ? newValue.value
-                    : ""
-                }`
-              : baseQuery;
-
-          if (editorRef.current) {
-            editorRef.current.dispatch({
-              changes: {
-                from: 0,
-                to: editorRef.current.state.doc.length,
-                insert: query,
-              },
-            });
-          }
-          setTimeout(() => onQueryChange(query), 0);
-        }
-        return newCondition;
+        return newClause;
       });
     },
-    [selectedTable, selectedColumns, whereCondition, onQueryChange]
+    [buildQuery, onQueryChange]
   );
 
   const handleValue2Select = useCallback(
-    (newValue: SingleValue<SelectOption>) => {
-      if (
-        !whereCondition.operator ||
-        whereCondition.operator.value !== "BETWEEN"
-      ) {
-        return;
-      }
-
-      setWhereCondition((prev) => {
-        const newCondition = { ...prev, value2: newValue };
-        const baseQuery = selectedColumns.length
-          ? `SELECT ${selectedColumns
-              .map((col) => col.value)
-              .join(", ")} FROM ${selectedTable!.value}`
-          : `SELECT * FROM ${selectedTable!.value}`;
-        const query =
-          prev.column && prev.operator && prev.value && newValue
-            ? `${baseQuery} WHERE ${prev.column.value} ${prev.operator.value} ${
-                isNaN(Number(prev.value.value)) ||
-                prev.value.value.includes(" ")
-                  ? `'${prev.value.value}'`
-                  : prev.value.value
-              } AND ${
-                isNaN(Number(newValue.value)) || newValue.value.includes(" ")
-                  ? `'${newValue.value}'`
-                  : newValue.value
-              }`
-            : `${baseQuery} WHERE ${prev.column?.value} ${
-                prev.operator?.value
-              } ${
-                prev.value
-                  ? isNaN(Number(prev.value.value)) ||
-                    prev.value.value.includes(" ")
-                    ? `'${prev.value.value}'`
-                    : prev.value.value
-                  : ""
-              }`;
-
+    (newValue: SingleValue<SelectOption>, conditionIndex: number) => {
+      setWhereClause((prev) => {
+        const newConditions = [...prev.conditions];
+        if (
+          !newConditions[conditionIndex].operator ||
+          newConditions[conditionIndex].operator?.value !== "BETWEEN"
+        ) {
+          return prev;
+        }
+        newConditions[conditionIndex] = {
+          ...newConditions[conditionIndex],
+          value2: newValue,
+        };
+        const newClause = { conditions: newConditions };
+        const query = buildQuery();
         if (editorRef.current) {
           editorRef.current.dispatch({
             changes: {
@@ -460,10 +497,10 @@ export default function EditorPane({
           });
         }
         setTimeout(() => onQueryChange(query), 0);
-        return newCondition;
+        return newClause;
       });
     },
-    [selectedTable, selectedColumns, whereCondition, onQueryChange]
+    [buildQuery, onQueryChange]
   );
 
   const formatQuery = useCallback(() => {
@@ -488,6 +525,104 @@ export default function EditorPane({
     }
   }, [onQueryChange]);
 
+  const updateWhereClause = (query: string): void => {
+    const whereMatch = query.match(
+      /WHERE\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*(IS NULL|IS NOT NULL|BETWEEN|[=!><]=?|LIKE)\s*('[^']*'|[0-9]+(?:\.[0-9]+)?)?(?:\s+AND\s+('[^']*'|[0-9]+(?:\.[0-9]+)?))?\s*(AND|OR)?\s*([a-zA-Z_][a-zA-Z0-9_]*)?\s*(IS NULL|IS NOT NULL|BETWEEN|[=!><]=?|LIKE)?\s*('[^']*'|[0-9]+(?:\.[0-9]+)?)?(?:\s+AND\s+('[^']*'|[0-9]+(?:\.[0-9]+)?))?/i
+    );
+
+    if (whereMatch) {
+      const [
+        ,
+        column1,
+        operator1,
+        value1,
+        value2_1,
+        logicalOp,
+        column2,
+        operator2,
+        value2,
+        value2_2,
+      ] = whereMatch;
+      setWhereClause({
+        conditions: [
+          {
+            column: column1 ? { value: column1, label: column1 } : null,
+            operator:
+              operator1 &&
+              operatorOptions.find((opt) => opt.value === operator1)
+                ? { value: operator1, label: operator1 }
+                : null,
+            value:
+              operator1 === "IS NULL" || operator1 === "IS NOT NULL"
+                ? null
+                : value1
+                ? {
+                    value: value1.replace(/'/g, ""),
+                    label: value1.replace(/'/g, ""),
+                  }
+                : null,
+            value2:
+              operator1 === "BETWEEN" && value2_1
+                ? {
+                    value: value2_1.replace(/'/g, ""),
+                    label: value2_1.replace(/'/g, ""),
+                  }
+                : null,
+            logicalOperator: logicalOp
+              ? { value: logicalOp, label: logicalOp }
+              : { value: "AND", label: "AND" },
+          },
+          {
+            column: column2 ? { value: column2, label: column2 } : null,
+            operator:
+              operator2 &&
+              operatorOptions.find((opt) => opt.value === operator2)
+                ? { value: operator2, label: operator2 }
+                : null,
+            value:
+              operator2 === "IS NULL" || operator2 === "IS NOT NULL"
+                ? null
+                : value2
+                ? {
+                    value: value2.replace(/'/g, ""),
+                    label: value2.replace(/'/g, ""),
+                  }
+                : null,
+            value2:
+              operator2 === "BETWEEN" && value2_2
+                ? {
+                    value: value2_2.replace(/'/g, ""),
+                    label: value2_2.replace(/'/g, ""),
+                  }
+                : null,
+            logicalOperator: null,
+          },
+        ],
+      });
+    } else if (!query.includes("WHERE")) {
+      setWhereClause({
+        conditions: [
+          {
+            column: null,
+            operator: null,
+            value: null,
+            value2: null,
+            logicalOperator: { value: "AND", label: "AND" },
+          },
+          {
+            column: null,
+            operator: null,
+            value: null,
+            value2: null,
+            logicalOperator: null,
+          },
+        ],
+      });
+      setUniqueValues({ condition1: [], condition2: [] });
+      setFetchError(null);
+    }
+  };
+
   useEffect(() => {
     if (!containerRef.current || editorRef.current || metadataLoading) return;
 
@@ -505,7 +640,7 @@ export default function EditorPane({
             }
             updateTableSelection(tableName);
             updateColumnSelection(newQuery, tableName);
-            updateWhereCondition(newQuery);
+            updateWhereClause(newQuery);
           }, 0);
         },
       }),
@@ -526,13 +661,25 @@ export default function EditorPane({
     const resetQueryState = (): void => {
       setSelectedTable(null);
       setSelectedColumns([]);
-      setWhereCondition({
-        column: null,
-        operator: null,
-        value: null,
-        value2: null,
+      setWhereClause({
+        conditions: [
+          {
+            column: null,
+            operator: null,
+            value: null,
+            value2: null,
+            logicalOperator: { value: "AND", label: "AND" },
+          },
+          {
+            column: null,
+            operator: null,
+            value: null,
+            value2: null,
+            logicalOperator: null,
+          },
+        ],
       });
-      setUniqueValues([]);
+      setUniqueValues({ condition1: [], condition2: [] });
       setFetchError(null);
     };
 
@@ -561,49 +708,6 @@ export default function EditorPane({
             label: col,
           })) || []
         );
-      }
-    };
-
-    const updateWhereCondition = (query: string): void => {
-      const whereMatch = query.match(
-        /WHERE\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*(IS NULL|IS NOT NULL|BETWEEN|[=!><]=?|LIKE)\s*('[^']*'|[0-9]+)?(?:\s+AND\s+('[^']*'|[0-9]+))?/i
-      );
-
-      if (whereMatch) {
-        const [column, operator, value1, value2] = whereMatch;
-        setWhereCondition((prev) => ({
-          column:
-            prev.column?.value === column
-              ? prev.column
-              : { value: column, label: column },
-          operator:
-            prev.operator?.value === operator
-              ? prev.operator
-              : operatorOptions.find((opt) => opt.value === operator) || null,
-          value:
-            operator === "IS NULL" || operator === "IS NOT NULL"
-              ? null
-              : prev.value?.value === value1
-              ? prev.value
-              : value1
-              ? { value: value1, label: value1 }
-              : null,
-          value2:
-            operator === "BETWEEN" && value2
-              ? prev.value2?.value === value2
-                ? prev.value2
-                : { value: value2, label: value2 }
-              : null,
-        }));
-      } else if (!query.includes("WHERE")) {
-        setWhereCondition({
-          column: null,
-          operator: null,
-          value: null,
-          value2: null,
-        });
-        setUniqueValues([]);
-        setFetchError(null);
       }
     };
 
@@ -727,26 +831,29 @@ export default function EditorPane({
       boxShadow: state.isFocused ? "0 0 0 1px #3b82f6" : "none",
       "&:hover": { borderColor: "#3b82f6" },
       color: "#f8f9fa",
-      borderRadius: "0.5rem",
-      fontSize: "clamp(12px, 2.5vw, 14px)",
-      minHeight: "36px",
-      padding: "0.25rem",
+      borderRadius: "0.375rem",
+      fontSize: "12px",
+      minHeight: "28px",
+      padding: "0.1rem",
+      lineHeight: "1.25",
+      width: "100%",
     }),
     singleValue: (baseStyles) => ({
       ...baseStyles,
       color: "#f8f9fa",
+      fontSize: "12px",
     }),
     multiValue: (baseStyles) => ({
       ...baseStyles,
       backgroundColor: "#3b82f6",
       borderRadius: "0.25rem",
-      margin: "0.125rem",
+      margin: "0.05rem",
     }),
     multiValueLabel: (baseStyles) => ({
       ...baseStyles,
       color: "#f8f9fa",
-      fontSize: "clamp(12px, 2.5vw, 14px)",
-      padding: "0.125rem 0.25rem",
+      fontSize: "12px",
+      padding: "0.1rem 0.2rem",
     }),
     multiValueRemove: (baseStyles) => ({
       ...baseStyles,
@@ -758,8 +865,8 @@ export default function EditorPane({
       ...baseStyles,
       backgroundColor: "#1e293b",
       border: "1px solid #334155",
-      borderRadius: "0.5rem",
-      marginTop: "0.25rem",
+      borderRadius: "0.375rem",
+      marginTop: "0.1rem",
       zIndex: 20,
       width: "100%",
       overflowY: "auto",
@@ -773,26 +880,30 @@ export default function EditorPane({
         : "#1e293b",
       color: "#f8f9fa",
       "&:active": { backgroundColor: "#2563eb" },
-      padding: "0.5rem 0.75rem",
-      fontSize: "clamp(12px, 2.5vw, 14px)",
+      padding: "0.3rem 0.5rem",
+      fontSize: "12px",
     }),
     placeholder: (baseStyles) => ({
       ...baseStyles,
       color: "#94a3b8",
+      fontSize: "12px",
     }),
     input: (baseStyles) => ({
       ...baseStyles,
       color: "#f8f9fa",
+      fontSize: "12px",
     }),
     dropdownIndicator: (baseStyles) => ({
       ...baseStyles,
       color: "#94a3b8",
       "&:hover": { color: "#3b82f6" },
+      padding: "0.1rem",
     }),
     clearIndicator: (baseStyles) => ({
       ...baseStyles,
       color: "#94a3b8",
       "&:hover": { color: "#3b82f6" },
+      padding: "0.1rem",
     }),
   };
 
@@ -808,21 +919,24 @@ export default function EditorPane({
       boxShadow: state.isFocused ? "0 0 0 1px #3b82f6" : "none",
       "&:hover": { borderColor: "#3b82f6" },
       color: "#f8f9fa",
-      borderRadius: "0.5rem",
-      fontSize: "clamp(12px, 2.5vw, 14px)",
-      minHeight: "36px",
-      padding: "0.25rem",
+      borderRadius: "0.375rem",
+      fontSize: "12px",
+      minHeight: "28px",
+      padding: "0.1rem",
+      lineHeight: "1.25",
+      width: "100%",
     }),
     singleValue: (baseStyles) => ({
       ...baseStyles,
       color: "#f8f9fa",
+      fontSize: "12px",
     }),
     menu: (baseStyles) => ({
       ...baseStyles,
       backgroundColor: "#1e293b",
       border: "1px solid #334155",
-      borderRadius: "0.5rem",
-      marginTop: "0.25rem",
+      borderRadius: "0.375rem",
+      marginTop: "0.1rem",
       zIndex: 20,
       width: "100%",
       overflowY: "auto",
@@ -836,26 +950,30 @@ export default function EditorPane({
         : "#1e293b",
       color: "#f8f9fa",
       "&:active": { backgroundColor: "#2563eb" },
-      padding: "0.5rem 0.75rem",
-      fontSize: "clamp(12px, 2.5vw, 14px)",
+      padding: "0.3rem 0.5rem",
+      fontSize: "12px",
     }),
     placeholder: (baseStyles) => ({
       ...baseStyles,
       color: "#94a3b8",
+      fontSize: "12px",
     }),
     input: (baseStyles) => ({
       ...baseStyles,
       color: "#f8f9fa",
+      fontSize: "12px",
     }),
     dropdownIndicator: (baseStyles) => ({
       ...baseStyles,
       color: "#94a3b8",
       "&:hover": { color: "#3b82f6" },
+      padding: "0.1rem",
     }),
     clearIndicator: (baseStyles) => ({
       ...baseStyles,
       color: "#94a3b8",
       "&:hover": { color: "#3b82f6" },
+      padding: "0.1rem",
     }),
   };
 
@@ -872,15 +990,15 @@ export default function EditorPane({
         onTabClose={onTabClose}
         onTabReorder={onTabReorder}
       />
-      <div className="flex flex-col gap-4 p-4 border-b border-slate-700">
+      <div className="flex flex-col gap-2 p-2 border-b border-slate-700">
         {fetchError && (
-          <div className="flex items-center gap-2 text-red-400 text-sm">
+          <div className="flex items-center gap-2 text-red-400 text-xs">
             <AlertCircle className="w-4 h-4" />
             <span>{fetchError}</span>
           </div>
         )}
-        <div>
-          <label className="text-sm text-[#f8f9fa] mb-1 block">Table</label>
+        <div className="flex flex-col gap-1">
+          <label className="text-xs text-[#f8f9fa] mb-1">Table</label>
           <Select
             options={tableOptions}
             value={selectedTable}
@@ -889,11 +1007,11 @@ export default function EditorPane({
             isClearable
             isDisabled={metadataLoading}
             styles={singleSelectStyles}
-            className="flex-1 min-w-0"
+            className="min-w-0 w-full"
           />
         </div>
-        <div>
-          <label className="text-sm text-[#f8f9fa] mb-1 block">Columns</label>
+        <div className="flex flex-col gap-1">
+          <label className="text-xs text-[#f8f9fa] mb-1">Columns</label>
           <Select
             options={columnOptions}
             value={selectedColumns}
@@ -902,119 +1020,148 @@ export default function EditorPane({
             isMulti
             isDisabled={!selectedTable || metadataLoading}
             styles={selectStyles}
-            className="flex-1 min-w-0"
+            className="min-w-0 w-full"
           />
         </div>
-        <div>
-          <div
-            className={
-              whereCondition.operator?.value === "BETWEEN"
-                ? "grid grid-cols-4 gap-3"
-                : "grid grid-cols-3 gap-3"
-            }
-          >
-            <div className="flex flex-col gap-1">
-              <label className="text-sm text-[#f8f9fa] mb-1 block">Where</label>
-              <Select
-                options={whereColumnOptions}
-                value={whereCondition.column}
-                onChange={handleWhereColumnSelect}
-                placeholder=""
-                isClearable
-                isDisabled={!selectedTable || metadataLoading}
-                styles={singleSelectStyles}
-                className="min-w-0"
-              />
-            </div>
-            <div className="flex flex-col gap-1">
-              <label className="text-sm text-[#f8f9fa] mb-1 block">
-                Operator
-              </label>
-              <Select
-                options={operatorOptions}
-                value={whereCondition.operator}
-                onChange={handleOperatorSelect}
-                placeholder=""
-                isClearable
-                isDisabled={
-                  !selectedTable || !whereCondition.column || metadataLoading
+        <div className="flex flex-col gap-2">
+          {whereClause.conditions.map((condition, index) => (
+            <div
+              key={index}
+              className="flex flex-row items-center gap-2 w-full"
+            >
+              {index === 1 && (
+                <div className="flex flex-col gap-1 w-1/4">
+                  <label className="text-xs text-[#f8f9fa] mb-1">Filter</label>
+                  <Select
+                    options={logicalOperatorOptions}
+                    value={whereClause.conditions[0].logicalOperator}
+                    onChange={handleLogicalOperatorSelect}
+                    placeholder="Filter"
+                    isDisabled={!selectedTable || metadataLoading}
+                    styles={singleSelectStyles}
+                    className="min-w-0 w-full"
+                  />
+                </div>
+              )}
+              <div
+                className={
+                  index === 0
+                    ? "flex flex-col gap-1 w-1/4"
+                    : "flex flex-col gap-1 w-1/4"
                 }
-                styles={singleSelectStyles}
-                className="min-w-0"
-              />
-            </div>
-            {whereCondition.operator?.value === "BETWEEN" ? (
-              <>
-                <div className="flex flex-col gap-1">
-                  <label className="text-sm text-[#f8f9fa] mb-1 block">
-                    Value 1
-                  </label>
-                  <CreatableSelect
-                    options={uniqueValues}
-                    value={whereCondition.value}
-                    onChange={handleValue1Select}
-                    placeholder=""
-                    isClearable
-                    isDisabled={
-                      !selectedTable ||
-                      !whereCondition.column ||
-                      !whereCondition.operator ||
-                      metadataLoading
-                    }
-                    styles={singleSelectStyles}
-                    className="min-w-0"
-                    formatCreateLabel={(inputValue) => inputValue}
-                  />
-                </div>
-                <div className="flex flex-col gap-1">
-                  <label className="text-sm text-[#f8f9fa] mb-1 block">
-                    Value 2
-                  </label>
-                  <CreatableSelect
-                    options={uniqueValues}
-                    value={whereCondition.value2}
-                    onChange={handleValue2Select}
-                    placeholder=""
-                    isClearable
-                    isDisabled={
-                      !selectedTable ||
-                      !whereCondition.column ||
-                      !whereCondition.operator ||
-                      !whereCondition.value ||
-                      metadataLoading
-                    }
-                    styles={singleSelectStyles}
-                    className="min-w-0"
-                    formatCreateLabel={(inputValue) => inputValue}
-                  />
-                </div>
-              </>
-            ) : (
-              <div className="flex flex-col gap-1">
-                <label className="text-sm text-[#f8f9fa] mb-1 block">
-                  Value
+              >
+                <label className="text-xs text-[#f8f9fa] mb-1">
+                  {index === 0 ? "Column (Where)" : "Column (And)"}
                 </label>
-                <CreatableSelect
-                  options={uniqueValues}
-                  value={whereCondition.value}
-                  onChange={handleValue1Select}
-                  placeholder=""
+                <Select
+                  options={whereColumnOptions}
+                  value={condition.column}
+                  onChange={(value) => handleWhereColumnSelect(value, index)}
+                  placeholder="Column"
                   isClearable
-                  isDisabled={
-                    !selectedTable ||
-                    !whereCondition.column ||
-                    !whereCondition.operator ||
-                    whereCondition.operator?.value === "IS NULL" ||
-                    whereCondition.operator?.value === "IS NOT NULL" ||
-                    metadataLoading
-                  }
+                  isDisabled={!selectedTable || metadataLoading}
                   styles={singleSelectStyles}
-                  className="min-w-0"
-                  formatCreateLabel={(inputValue) => inputValue}
+                  className="min-w-0 w-full"
                 />
               </div>
-            )}
-          </div>
+              <div
+                className={
+                  index === 0
+                    ? "flex flex-col gap-1 w-1/4"
+                    : "flex flex-col gap-1 w-1/4"
+                }
+              >
+                <label className="text-xs text-[#f8f9fa] mb-1">Operator</label>
+                <Select
+                  options={operatorOptions}
+                  value={condition.operator}
+                  onChange={(value) => handleOperatorSelect(value, index)}
+                  placeholder="Operator"
+                  isClearable
+                  isDisabled={
+                    !selectedTable || !condition.column || metadataLoading
+                  }
+                  styles={singleSelectStyles}
+                  className="min-w-0 w-full"
+                />
+              </div>
+              {condition.operator?.value === "BETWEEN" ? (
+                <>
+                  <div className="flex flex-col gap-1 w-1/4">
+                    <label className="text-xs text-[#f8f9fa] mb-1">
+                      Value 1
+                    </label>
+                    <CreatableSelect
+                      options={uniqueValues[`condition${index + 1}`]}
+                      value={condition.value}
+                      onChange={(value) => handleValue1Select(value, index)}
+                      placeholder="Value 1"
+                      isClearable
+                      isDisabled={
+                        !selectedTable ||
+                        !condition.column ||
+                        !condition.operator ||
+                        metadataLoading
+                      }
+                      styles={singleSelectStyles}
+                      className="min-w-0 w-full"
+                      formatCreateLabel={(inputValue) => inputValue}
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1 w-1/4">
+                    <label className="text-xs text-[#f8f9fa] mb-1">
+                      Value 2
+                    </label>
+                    <CreatableSelect
+                      options={uniqueValues[`condition${index + 1}`]}
+                      value={condition.value2}
+                      onChange={(value) => handleValue2Select(value, index)}
+                      placeholder="Value 2"
+                      isClearable
+                      isDisabled={
+                        !selectedTable ||
+                        !condition.column ||
+                        !condition.operator ||
+                        !condition.value ||
+                        metadataLoading
+                      }
+                      styles={singleSelectStyles}
+                      className="min-w-0 w-full"
+                      formatCreateLabel={(inputValue) => inputValue}
+                    />
+                  </div>
+                </>
+              ) : (
+                <div
+                  className={
+                    index === 0
+                      ? "flex flex-col gap-1 w-1/2"
+                      : "flex flex-col gap-1 w-1/4"
+                  }
+                >
+                  <label className="text-xs text-[#f8f9fa] mb-1">Value</label>
+                  <CreatableSelect
+                    options={uniqueValues[`condition${index + 1}`]}
+                    value={condition.value}
+                    onChange={(value) => handleValue1Select(value, index)}
+                    placeholder="Value"
+                    isClearable
+                    isDisabled={
+                      !selectedTable ||
+                      !condition.column ||
+                      !condition.operator ||
+                      condition.operator?.value === "IS NULL" ||
+                      condition.operator?.value === "IS NOT NULL" ||
+                      metadataLoading
+                    }
+                    styles={singleSelectStyles}
+                    className="min-w-0 w-full"
+                    formatCreateLabel={(inputValue) => inputValue}
+                  />
+                </div>
+              )}
+            </div>
+          ))}
         </div>
       </div>
       <div ref={containerRef} className="flex-1" />
