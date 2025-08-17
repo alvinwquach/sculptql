@@ -1,18 +1,19 @@
 "use client";
 
 import { useRef, useEffect, useCallback, useState } from "react";
-import Select, { MultiValue } from "react-select";
+import Select, { MultiValue, SingleValue } from "react-select";
+import CreatableSelect from "react-select/creatable";
 import { Button } from "@/components/ui/button";
-import { Maximize2, Minimize2, Wand2 } from "lucide-react";
+import { Maximize2, Minimize2, Wand2, AlertCircle } from "lucide-react";
 import QueryTabs from "./QueryTabs";
-import { Tab, TableColumn } from "@/app/types/query";
-import { EditorView, keymap, drawSelection } from "@codemirror/view";
 import {
-  autocompletion,
-  startCompletion,
-  CompletionContext,
-  CompletionResult,
-} from "@codemirror/autocomplete";
+  SelectOption,
+  Tab,
+  TableColumn,
+  WhereCondition,
+} from "@/app/types/query";
+import { EditorView, keymap, drawSelection } from "@codemirror/view";
+import { autocompletion, startCompletion } from "@codemirror/autocomplete";
 import { indentWithTab, defaultKeymap } from "@codemirror/commands";
 import { sql } from "@codemirror/lang-sql";
 import {
@@ -32,16 +33,11 @@ interface EditorPaneProps {
   onTabClose: (id: number) => void;
   onQueryChange: (query: string) => void;
   onTabReorder: (newTabs: Tab[]) => void;
-  completion: (context: CompletionContext) => CompletionResult | null;
+  completion: (context: any) => any;
   metadataLoading: boolean;
   runQuery: () => void;
   tableNames: string[];
   tableColumns: TableColumn;
-}
-
-interface SelectOption {
-  value: string;
-  label: string;
 }
 
 export default function EditorPane({
@@ -64,6 +60,13 @@ export default function EditorPane({
   const languageCompartment = useRef(new Compartment());
   const [selectedTable, setSelectedTable] = useState<SelectOption | null>(null);
   const [selectedColumns, setSelectedColumns] = useState<SelectOption[]>([]);
+  const [whereCondition, setWhereCondition] = useState<WhereCondition>({
+    column: null,
+    operator: null,
+    value: null,
+  });
+  const [uniqueValues, setUniqueValues] = useState<SelectOption[]>([]);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const isMac =
     typeof navigator !== "undefined" && /Mac/i.test(navigator.platform);
 
@@ -82,11 +85,68 @@ export default function EditorPane({
       ]
     : [];
 
+  const whereColumnOptions: SelectOption[] = selectedTable
+    ? tableColumns[selectedTable.value]?.map((col) => ({
+        value: col,
+        label: col,
+      })) || []
+    : [];
+
+  const operatorOptions: SelectOption[] = [
+    { value: "=", label: "=" },
+    { value: "!=", label: "!=" },
+    { value: ">", label: ">" },
+    { value: "<", label: "<" },
+    { value: ">=", label: ">=" },
+    { value: "<=", label: "<=" },
+  ];
+
+  useEffect(() => {
+    if (!selectedTable || !whereCondition.column) {
+      setUniqueValues([]);
+      setFetchError(null);
+      return;
+    }
+    const fetchUniqueValues = async () => {
+      try {
+        const res = await fetch(
+          `/api/unique-values?table=${encodeURIComponent(
+            selectedTable.value
+          )}&column=${encodeURIComponent(whereCondition.column!.value)}`
+        );
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+        }
+        const contentType = res.headers.get("content-type");
+        if (!contentType || !contentType.includes("application/json")) {
+          throw new Error("Response is not JSON");
+        }
+        const data = await res.json();
+        if (!data.values || !Array.isArray(data.values)) {
+          throw new Error("Invalid response format: 'values' array expected");
+        }
+        setUniqueValues(
+          data.values.map((value: string) => ({ value, label: value }))
+        );
+        setFetchError(null);
+      } catch (e) {
+        const message = (e as Error).message || "Failed to fetch unique values";
+        console.error("Error fetching unique values:", message);
+        setFetchError(message);
+        setUniqueValues([]);
+      }
+    };
+    fetchUniqueValues();
+  }, [selectedTable, whereCondition.column]);
+
   const handleTableSelect = useCallback(
     (option: SelectOption | null) => {
       setSelectedTable(option);
       setSelectedColumns([]);
-      const query = option ? `SELECT * FROM ${option.value}` : "";
+      setWhereCondition({ column: null, operator: null, value: null });
+      setUniqueValues([]);
+      setFetchError(null);
+      const query = option ? `SELECT * FROM ${option.value} ` : "";
       onQueryChange(query);
       if (editorRef.current) {
         editorRef.current.dispatch({
@@ -105,6 +165,9 @@ export default function EditorPane({
     (newValue: MultiValue<SelectOption>) => {
       if (!selectedTable) {
         setSelectedColumns([]);
+        setWhereCondition({ column: null, operator: null, value: null });
+        setUniqueValues([]);
+        setFetchError(null);
         onQueryChange("");
         if (editorRef.current) {
           editorRef.current.dispatch({
@@ -137,9 +200,24 @@ export default function EditorPane({
         : columnsToSelect.length > 0
         ? columnsToSelect.map((opt) => opt.value).join(", ")
         : "";
-      const query = columns
-        ? `SELECT ${columns} FROM ${selectedTable.value}`
-        : `SELECT FROM ${selectedTable.value}`;
+      const baseQuery = columns
+        ? `SELECT ${columns} FROM ${selectedTable.value} `
+        : `SELECT FROM ${selectedTable.value} `;
+
+      const { column, operator, value } = whereCondition;
+      let query = baseQuery;
+      if (column) {
+        query += `WHERE ${column.value}`;
+        if (operator) {
+          query += ` ${operator.value}`;
+          if (value) {
+            const isNumeric =
+              !isNaN(Number(value.value)) && !value.value.includes(" ");
+            query += isNumeric ? ` ${value.value}` : ` '${value.value}'`;
+          }
+        }
+      }
+
       onQueryChange(query);
       if (editorRef.current) {
         editorRef.current.dispatch({
@@ -151,7 +229,130 @@ export default function EditorPane({
         });
       }
     },
-    [selectedTable, onQueryChange, tableColumns]
+    [selectedTable, tableColumns, onQueryChange, whereCondition]
+  );
+
+  const handleWhereColumnSelect = useCallback(
+    (option: SingleValue<SelectOption>) => {
+      setWhereCondition((prev) => {
+        const newCondition = {
+          ...prev,
+          column: option,
+          operator: null,
+          value: null,
+        };
+        setUniqueValues([]);
+        setFetchError(null);
+        const baseQuery = selectedColumns.length
+          ? `SELECT ${selectedColumns
+              .map((col) => col.value)
+              .join(", ")} FROM ${selectedTable!.value} `
+          : `SELECT * FROM ${selectedTable!.value} `;
+        const query = option ? `${baseQuery}WHERE ${option.value} ` : baseQuery;
+        onQueryChange(query);
+        if (editorRef.current) {
+          editorRef.current.dispatch({
+            changes: {
+              from: 0,
+              to: editorRef.current.state.doc.length,
+              insert: query,
+            },
+          });
+        }
+        return newCondition;
+      });
+    },
+    [selectedTable, selectedColumns, onQueryChange]
+  );
+
+  const handleOperatorSelect = useCallback(
+    (option: SingleValue<SelectOption>) => {
+      setWhereCondition((prev) => {
+        const newCondition = { ...prev, operator: option, value: null };
+        const baseQuery = selectedColumns.length
+          ? `SELECT ${selectedColumns
+              .map((col) => col.value)
+              .join(", ")} FROM ${selectedTable!.value} `
+          : `SELECT * FROM ${selectedTable!.value} `;
+        const query = prev.column
+          ? `${baseQuery}WHERE ${prev.column.value} ${
+              option ? option.value : ""
+            } `
+          : baseQuery;
+        onQueryChange(query);
+        if (editorRef.current) {
+          editorRef.current.dispatch({
+            changes: {
+              from: 0,
+              to: editorRef.current.state.doc.length,
+              insert: query,
+            },
+          });
+        }
+        return newCondition;
+      });
+    },
+    [selectedTable, selectedColumns, onQueryChange]
+  );
+
+  const handleValueSelect = useCallback(
+    (option: SingleValue<SelectOption>) => {
+      if (!option) {
+        setWhereCondition((prev) => ({ ...prev, value: null }));
+        const baseQuery = selectedColumns.length
+          ? `SELECT ${selectedColumns
+              .map((col) => col.value)
+              .join(", ")} FROM ${selectedTable!.value}`
+          : `SELECT * FROM ${selectedTable!.value}`;
+        onQueryChange(baseQuery);
+        if (editorRef.current) {
+          editorRef.current.dispatch({
+            changes: {
+              from: 0,
+              to: editorRef.current.state.doc.length,
+              insert: baseQuery,
+            },
+          });
+        }
+        return;
+      }
+
+      const selectedOption: SelectOption = {
+        value: option.value,
+        label: option.label || option.value,
+      };
+
+      setWhereCondition((prev) => {
+        const newCondition = { ...prev, value: selectedOption };
+        const baseQuery = selectedColumns.length
+          ? `SELECT ${selectedColumns
+              .map((col) => col.value)
+              .join(", ")} FROM ${selectedTable!.value}`
+          : `SELECT * FROM ${selectedTable!.value}`;
+        const query =
+          prev.column && prev.operator
+            ? `${baseQuery} WHERE ${prev.column.value} ${prev.operator.value} ${
+                !isNaN(Number(selectedOption.value)) &&
+                !selectedOption.value.includes(" ")
+                  ? selectedOption.value
+                  : `'${selectedOption.value}'`
+              }`
+            : baseQuery;
+
+        onQueryChange(query);
+        if (editorRef.current) {
+          editorRef.current.dispatch({
+            changes: {
+              from: 0,
+              to: editorRef.current.state.doc.length,
+              insert: query,
+            },
+          });
+        }
+        return newCondition;
+      });
+    },
+    [selectedTable, selectedColumns, onQueryChange]
   );
 
   const formatQuery = useCallback(() => {
@@ -183,40 +384,78 @@ export default function EditorPane({
       update: (update) => {
         if (!update.docChanged) return;
         const newQuery = update.state.doc.toString();
-        onQueryChange(newQuery);
-        const match = newQuery.match(/FROM\s+([a-zA-Z_][a-zA-Z0-9_]*)/i);
-        if (match && match[1]) {
-          const tableName = match[1];
-          if (tableNames.includes(tableName)) {
-            setSelectedTable({ value: tableName, label: tableName });
-            const columnMatch = newQuery.match(/SELECT\s+(.+?)\s+FROM/i);
-            if (columnMatch && columnMatch[1]) {
-              const columns = columnMatch[1]
-                .split(",")
-                .map((col) => col.trim())
-                .filter((col) => col !== "*");
-              if (columns.length > 0) {
-                setSelectedColumns(
-                  columns.map((col) => ({ value: col, label: col }))
-                );
-              } else if (columnMatch[1] === "*") {
-                setSelectedColumns(
-                  tableColumns[tableName]?.map((col) => ({
-                    value: col,
-                    label: col,
-                  })) || []
-                );
+        setTimeout(() => {
+          onQueryChange(newQuery);
+          const tableMatch = newQuery.match(/FROM\s+([a-zA-Z_][a-zA-Z0-9_]*)/i);
+          if (tableMatch && tableMatch[1]) {
+            const tableName = tableMatch[1];
+            if (tableNames.includes(tableName)) {
+              setSelectedTable((prev) =>
+                prev?.value === tableName
+                  ? prev
+                  : { value: tableName, label: tableName }
+              );
+              const columnMatch = newQuery.match(/SELECT\s+(.+?)\s+FROM/i);
+              if (columnMatch && columnMatch[1]) {
+                const columns = columnMatch[1]
+                  .split(",")
+                  .map((col) => col.trim())
+                  .filter((col) => col !== "*");
+                if (columns.length > 0) {
+                  setSelectedColumns(
+                    columns.map((col) => ({ value: col, label: col }))
+                  );
+                } else if (columnMatch[1] === "*") {
+                  setSelectedColumns(
+                    tableColumns[tableName]?.map((col) => ({
+                      value: col,
+                      label: col,
+                    })) || []
+                  );
+                } else {
+                  setSelectedColumns([]);
+                }
               } else {
                 setSelectedColumns([]);
               }
-            } else {
-              setSelectedColumns([]);
+              const whereMatch = newQuery.match(
+                /WHERE\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*([=!><]=?)\s*['"]?([^'";\s]+)['"]?/i
+              );
+              if (whereMatch) {
+                const [, column, operator, value] = whereMatch;
+                setWhereCondition((prev) => ({
+                  column:
+                    prev.column?.value === column
+                      ? prev.column
+                      : { value: column, label: column },
+                  operator:
+                    prev.operator?.value === operator
+                      ? prev.operator
+                      : operatorOptions.find((opt) => opt.value === operator) ||
+                        null,
+                  value:
+                    prev.value?.value === value
+                      ? prev.value
+                      : { value, label: value },
+                }));
+              } else if (!newQuery.includes("WHERE")) {
+                setWhereCondition({
+                  column: null,
+                  operator: null,
+                  value: null,
+                });
+                setUniqueValues([]);
+                setFetchError(null);
+              }
             }
+          } else {
+            setSelectedTable(null);
+            setSelectedColumns([]);
+            setWhereCondition({ column: null, operator: null, value: null });
+            setUniqueValues([]);
+            setFetchError(null);
           }
-        } else {
-          setSelectedTable(null);
-          setSelectedColumns([]);
-        }
+        }, 0);
       },
     }));
 
@@ -257,7 +496,7 @@ export default function EditorPane({
           color: "#22c55e",
           border: "none",
         },
-        ".cm-gutter": { backgroundColor: "#0f172a", border: "none" },
+        ".cm-gutter": { background: "#0f172a", border: "none" },
         ".cm-active-line": { backgroundColor: "rgba(34, 197, 94, 0.05)" },
       },
       { dark: true }
@@ -303,7 +542,6 @@ export default function EditorPane({
       editorRef.current = null;
     };
   }, [
-    completion,
     runQuery,
     metadataLoading,
     activeTab,
@@ -313,6 +551,7 @@ export default function EditorPane({
     isMac,
     tableNames,
     tableColumns,
+    completion,
   ]);
 
   useEffect(() => {
@@ -332,6 +571,83 @@ export default function EditorPane({
     }
   }, [activeTab, queryTabs]);
 
+  const selectStyles = {
+    control: (base: any, state: any) => ({
+      ...base,
+      backgroundColor: "#1e293b",
+      borderColor: state.isFocused ? "#3b82f6" : "#334155",
+      boxShadow: state.isFocused ? "0 0 0 1px #3b82f6" : "none",
+      "&:hover": { borderColor: "#3b82f6" },
+      color: "#f8f9fa",
+      borderRadius: "0.5rem",
+      fontSize: "clamp(12px, 2.5vw, 14px)",
+      minHeight: "36px",
+      padding: "0.25rem",
+    }),
+    singleValue: (base: any) => ({
+      ...base,
+      color: "#f8f9fa",
+    }),
+    multiValue: (base: any) => ({
+      ...base,
+      backgroundColor: "#3b82f6",
+      borderRadius: "0.25rem",
+      margin: "0.125rem",
+    }),
+    multiValueLabel: (base: any) => ({
+      ...base,
+      color: "#f8f9fa",
+      fontSize: "clamp(12px, 2.5vw, 14px)",
+      padding: "0.125rem 0.25rem",
+    }),
+    multiValueRemove: (base: any) => ({
+      ...base,
+      color: "#f8f9fa",
+      borderRadius: "0.25rem",
+      "&:hover": { backgroundColor: "#2563eb", color: "#fff" },
+    }),
+    menu: (base: any) => ({
+      ...base,
+      backgroundColor: "#1e293b",
+      border: "1px solid #334155",
+      borderRadius: "0.5rem",
+      marginTop: "0.25rem",
+      zIndex: 20,
+      width: "100%",
+      overflowY: "auto",
+    }),
+    option: (base: any, state: any) => ({
+      ...base,
+      backgroundColor: state.isSelected
+        ? "#3b82f6"
+        : state.isFocused
+        ? "#334155"
+        : "#1e293b",
+      color: "#f8f9fa",
+      "&:active": { backgroundColor: "#2563eb" },
+      padding: "0.5rem 0.75rem",
+      fontSize: "clamp(12px, 2.5vw, 14px)",
+    }),
+    placeholder: (base: any) => ({
+      ...base,
+      color: "#94a3b8",
+    }),
+    input: (base: any) => ({
+      ...base,
+      color: "#f8f9fa",
+    }),
+    dropdownIndicator: (base: any) => ({
+      ...base,
+      color: "#94a3b8",
+      "&:hover": { color: "#3b82f6" },
+    }),
+    clearIndicator: (base: any) => ({
+      ...base,
+      color: "#94a3b8",
+      "&:hover": { color: "#3b82f6" },
+    }),
+  };
+
   return (
     <div
       className={`flex-1 ${
@@ -345,178 +661,94 @@ export default function EditorPane({
         onTabClose={onTabClose}
         onTabReorder={onTabReorder}
       />
-
-      <div className="flex flex-col gap-3 p-3 sm:p-4 border-b border-slate-700">
-        <Select
-          options={tableOptions}
-          value={selectedTable}
-          onChange={handleTableSelect}
-          placeholder="Select a table..."
-          className="flex-1 min-w-0"
-          isClearable
-          isDisabled={metadataLoading}
-          styles={{
-            control: (base, state) => ({
-              ...base,
-              backgroundColor: "#1e293b",
-              borderColor: state.isFocused ? "#3b82f6" : "#334155",
-              boxShadow: state.isFocused ? "0 0 0 1px #3b82f6" : "none",
-              "&:hover": {
-                borderColor: "#3b82f6",
-              },
-              color: "#f8f9fa",
-              borderRadius: "0.5rem",
-              fontSize: "clamp(12px, 2.5vw, 14px)",
-              minHeight: "36px",
-              padding: "0.25rem",
-            }),
-            singleValue: (base) => ({
-              ...base,
-              color: "#f8f9fa",
-            }),
-            menu: (base) => ({
-              ...base,
-              backgroundColor: "#1e293b",
-              border: "1px solid #334155",
-              borderRadius: "0.5rem",
-              marginTop: "0.25rem",
-              zIndex: 20,
-              width: "100%",
-              maxHeight: "200px",
-            }),
-            option: (base, state) => ({
-              ...base,
-              backgroundColor: state.isSelected
-                ? "#3b82f6"
-                : state.isFocused
-                ? "#334155"
-                : "#1e293b",
-              color: "#f8f9fa",
-              "&:active": {
-                backgroundColor: "#2563eb",
-              },
-              padding: "0.5rem 0.75rem",
-              fontSize: "clamp(12px, 2.5vw, 14px)",
-            }),
-            placeholder: (base) => ({
-              ...base,
-              color: "#94a3b8",
-            }),
-            input: (base) => ({
-              ...base,
-              color: "#f8f9fa",
-            }),
-            dropdownIndicator: (base) => ({
-              ...base,
-              color: "#94a3b8",
-              "&:hover": {
-                color: "#3b82f6",
-              },
-            }),
-            clearIndicator: (base) => ({
-              ...base,
-              color: "#94a3b8",
-              "&:hover": {
-                color: "#3b82f6",
-              },
-            }),
-          }}
-        />
-
-        <Select
-          options={columnOptions}
-          value={selectedColumns}
-          onChange={handleColumnSelect}
-          placeholder="Select columns..."
-          isMulti
-          isDisabled={!selectedTable || metadataLoading}
-          className="flex-1 min-w-0"
-          styles={{
-            control: (base, state) => ({
-              ...base,
-              backgroundColor: "#1e293b",
-              borderColor: state.isFocused ? "#3b82f6" : "#334155",
-              boxShadow: state.isFocused ? "0 0 0 1px #3b82f6" : "none",
-              "&:hover": {
-                borderColor: "#3b82f6",
-              },
-              color: "#f8f9fa",
-              borderRadius: "0.5rem",
-              fontSize: "clamp(12px, 2.5vw, 14px)",
-              minHeight: "36px",
-              padding: "0.25rem",
-            }),
-            multiValue: (base) => ({
-              ...base,
-              backgroundColor: "#3b82f6",
-              borderRadius: "0.25rem",
-              margin: "0.125rem",
-            }),
-            multiValueLabel: (base) => ({
-              ...base,
-              color: "#f8f9fa",
-              fontSize: "clamp(12px, 2.5vw, 14px)",
-              padding: "0.125rem 0.25rem",
-            }),
-            multiValueRemove: (base) => ({
-              ...base,
-              color: "#f8f9fa",
-              borderRadius: "0.25rem",
-              "&:hover": {
-                backgroundColor: "#2563eb",
-                color: "#fff",
-              },
-            }),
-            menu: (base) => ({
-              ...base,
-              backgroundColor: "#1e293b",
-              border: "1px solid #334155",
-              borderRadius: "0.5rem",
-              marginTop: "0.25rem",
-              zIndex: 20,
-              width: "100%",
-              overflowY: "auto",
-            }),
-            option: (base, state) => ({
-              ...base,
-              backgroundColor: state.isSelected
-                ? "#3b82f6"
-                : state.isFocused
-                ? "#334155"
-                : "#1e293b",
-              color: "#f8f9fa",
-              "&:active": {
-                backgroundColor: "#2563eb",
-              },
-              padding: "0.5rem 0.75rem",
-              fontSize: "clamp(12px, 2.5vw, 14px)",
-            }),
-            placeholder: (base) => ({
-              ...base,
-              color: "#94a3b8",
-            }),
-            input: (base) => ({
-              ...base,
-              color: "#f8f9fa",
-            }),
-            dropdownIndicator: (base) => ({
-              ...base,
-              color: "#94a3b8",
-              "&:hover": {
-                color: "#3b82f6",
-              },
-            }),
-            clearIndicator: (base) => ({
-              ...base,
-              color: "#94a3b8",
-              "&:hover": {
-                color: "#3b82f6",
-              },
-            }),
-          }}
-        />
+      <div className="flex flex-col gap-4 p-4 border-b border-slate-700">
+        {fetchError && (
+          <div className="flex items-center gap-2 text-red-400 text-sm">
+            <AlertCircle className="w-4 h-4" />
+            <span>{fetchError}</span>
+          </div>
+        )}
+        <div>
+          <label className="text-sm text-[#f8f9fa] mb-1 block">Table</label>
+          <Select
+            options={tableOptions}
+            value={selectedTable}
+            onChange={handleTableSelect}
+            placeholder="Select a table"
+            isClearable
+            isDisabled={metadataLoading}
+            styles={selectStyles}
+            className="flex-1 min-w-0"
+          />
+        </div>
+        <div>
+          <label className="text-sm text-[#f8f9fa] mb-1 block">Columns</label>
+          <Select
+            options={columnOptions}
+            value={selectedColumns}
+            onChange={handleColumnSelect}
+            placeholder="Select columns"
+            isMulti
+            isDisabled={!selectedTable || metadataLoading}
+            styles={selectStyles}
+            className="flex-1 min-w-0"
+          />
+        </div>
+        <div>
+          <div className="grid grid-cols-3 gap-3">
+            <div className="flex flex-col gap-1">
+              <label className="text-sm text-[#f8f9fa] mb-1 block">Where</label>
+              <Select
+                options={whereColumnOptions}
+                value={whereCondition.column}
+                onChange={handleWhereColumnSelect}
+                placeholder=""
+                isClearable
+                isDisabled={!selectedTable || metadataLoading}
+                styles={selectStyles}
+                className="min-w-0"
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-sm text-[#f8f9fa] mb-1 block">
+                Operator
+              </label>
+              <Select
+                options={operatorOptions}
+                value={whereCondition.operator}
+                onChange={handleOperatorSelect}
+                placeholder=""
+                isClearable
+                isDisabled={
+                  !selectedTable || !whereCondition.column || metadataLoading
+                }
+                styles={selectStyles}
+                className="min-w-0"
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-sm text-[#f8f9fa] mb-1 block">Value</label>
+              <CreatableSelect
+                options={uniqueValues}
+                value={whereCondition.value}
+                onChange={handleValueSelect}
+                placeholder=""
+                isClearable
+                isDisabled={
+                  !selectedTable ||
+                  !whereCondition.column ||
+                  !whereCondition.operator ||
+                  metadataLoading
+                }
+                styles={selectStyles}
+                className="min-w-0"
+                formatCreateLabel={(inputValue) => inputValue}
+              />
+            </div>
+          </div>
+        </div>
       </div>
-      <div ref={containerRef} />
+      <div ref={containerRef} className="flex-1" />
       <div className="absolute top-10 -right-2 z-50 flex flex-col gap-2">
         <div className="relative group">
           <Button

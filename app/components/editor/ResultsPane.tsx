@@ -489,7 +489,7 @@ export default function ResultsPane({
             !loading && (
               <div className="flex flex-col items-center justify-center h-full text-gray-300 bg-[#1e293b] p-4 sm:p-6 rounded-xl shadow-lg border border-slate-700/50">
                 <Database className="w-12 h-12 mb-4 text-green-400" />
-                <p className="text-lg font-medium">
+                <p className="text-xxs font-medium sm:text-lg">
                   The results of your query will appear here.
                 </p>
               </div>

@@ -10,8 +10,8 @@ import { getValidTables } from "../utils/sqlCompletion/getValidTables";
 import { suggestAsOrFromKeyword } from "../utils/sqlCompletion/suggestions/suggestAsOrFromKeyword";
 import { suggestColumnsAfterSelect } from "../utils/sqlCompletion/suggestions/suggestColumnsAfterSelect";
 import { suggestSelect } from "../utils/sqlCompletion/suggestions/suggestSelect";
-import { suggestSemicolonCompletion } from "../utils/sqlCompletion/suggestions/suggestSemicolonCompletion";
 import { suggestTablesAfterFrom } from "../utils/sqlCompletion/suggestions/suggestTablesAfterFrom";
+import { suggestWhereClause } from "../utils/sqlCompletion/suggestions/suggestWhereClause";
 
 /**
  * Hook: useSqlCompletion
@@ -96,7 +96,16 @@ export const useSqlCompletion = (
           needsQuotes,
           ast
         ) ||
-        suggestSemicolonCompletion(pos, tableColumns, stripQuotes, ast)
+        suggestWhereClause(
+          docText,
+          currentWord,
+          pos,
+          word,
+          tableColumns,
+          stripQuotes,
+          needsQuotes,
+          ast
+        )
       );
     },
 

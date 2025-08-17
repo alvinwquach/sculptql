@@ -562,10 +562,6 @@ export default function SqlEditor() {
     return [];
   }, [result]);
 
-  useEffect(() => {
-    loadHistory();
-    fetchTableNames();
-  }, [loadHistory, fetchTableNames]);
   const statsChartData: ChartDataItem[] = useMemo(
     () =>
       result
@@ -583,6 +579,11 @@ export default function SqlEditor() {
     [result]
   );
 
+  useEffect(() => {
+    loadHistory();
+    fetchTableNames();
+  }, [loadHistory, fetchTableNames]);
+
   return (
     <div
       className={`flex flex-col bg-[#0f172a] text-white ${
@@ -590,15 +591,14 @@ export default function SqlEditor() {
       }`}
     >
       {metadataLoading && (
-        <div className="flex items-center justify-center h-full text-gray-400 animate-pulse">
+        <div className="flex flex-col items-center justify-center h-full text-gray-400 animate-pulse">
           <Loader2 className="w-12 h-12 mb-4 animate-spin text-green-400" />
           <p className="text-lg">Loading metadata...</p>
         </div>
       )}
       {!metadataLoading && (
         <>
-          <div className="flex justify-between items-center gap-4 px-4 sm:px-6 pt-12 pb-6 border-b border-slate-700 bg-[#0f172a] shadow-sm">
-            {/* Logo section */}
+          <div className="flex justify-between items-center gap-4 px-4 sm:px-6 pt-12 pb-6 border-b border-slate-700 bg-[#0f172a] shadow-sm max-w-full">
             <div className="flex items-center space-x-3 min-w-[120px]">
               <Database className="w-5 h-5 text-green-400" />
               <h1 className="text-xl font-mono font-bold tracking-wide text-green-300 whitespace-nowrap">
@@ -658,27 +658,27 @@ export default function SqlEditor() {
             </div>
           </div>
           <div
-            className={`flex flex-1 flex-col lg:flex-row overflow-hidden ${
+            className={`flex flex-1 w-full min-w-0 overflow-hidden ${
               fullScreenEditor ? "h-full" : ""
             }`}
           >
-            <div className="flex flex-1 min-w-0">
-              <QueryHistory
-                showHistory={showHistory}
-                history={history}
-                pinnedQueries={pinnedQueries}
-                bookmarkedQueries={bookmarkedQueries}
-                labeledQueries={labeledQueries}
-                clearHistory={clearHistory}
-                loadQueryFromHistory={loadQueryFromHistory}
-                runQueryFromHistory={runQueryFromHistory}
-                addPinnedQuery={addPinnedQuery}
-                removePinnedQuery={removePinnedQuery}
-                addBookmarkedQuery={addBookmarkedQuery}
-                removeBookmarkedQuery={removeBookmarkedQuery}
-                addLabeledQuery={addLabeledQuery}
-                removeLabeledQuery={removeLabeledQuery}
-              />
+            <QueryHistory
+              showHistory={showHistory}
+              history={history}
+              pinnedQueries={pinnedQueries}
+              bookmarkedQueries={bookmarkedQueries}
+              labeledQueries={labeledQueries}
+              clearHistory={clearHistory}
+              loadQueryFromHistory={loadQueryFromHistory}
+              runQueryFromHistory={runQueryFromHistory}
+              addPinnedQuery={addPinnedQuery}
+              removePinnedQuery={removePinnedQuery}
+              addBookmarkedQuery={addBookmarkedQuery}
+              removeBookmarkedQuery={removeBookmarkedQuery}
+              addLabeledQuery={addLabeledQuery}
+              removeLabeledQuery={removeLabeledQuery}
+            />
+            <div className="flex flex-1 flex-col lg:flex-row w-full min-w-0">
               <EditorPane
                 queryTabs={queryTabs}
                 activeTab={activeTab}
@@ -694,31 +694,31 @@ export default function SqlEditor() {
                 tableNames={tableNames}
                 tableColumns={tableColumns}
               />
-            </div>
-            <div
-              className={`flex flex-1 lg:w-1/2 p-4 overflow-auto ${
-                fullScreenEditor ? "hidden" : "h-1/2 lg:h-full"
-              } space-y-4 sm:space-y-6`}
-            >
-              <ResultsPane
-                error={error}
-                loading={loading}
-                result={result}
-                viewMode={viewMode}
-                selectedTable={selectedTable}
-                table={table}
-                tableDescription={tableDescription}
-                chartData={statsChartData}
-                resultChartData={resultChartData}
-                onViewModeChange={handleViewModeChange}
-                onExportToCsv={exportToCsv}
-                onExportToJson={exportToJson}
-                fullScreenEditor={fullScreenEditor}
-                currentPage={currentPage}
-                pageSize={pageSize}
-                onPageChange={handlePageChange}
-                onPageSizeChange={handlePageSizeChange}
-              />
+              <div
+                className={`flex flex-1 w-full min-w-0 p-4 overflow-y-auto ${
+                  fullScreenEditor ? "hidden" : "block h-1/2 lg:h-full"
+                } space-y-4 sm:space-y-6`}
+              >
+                <ResultsPane
+                  error={error}
+                  loading={loading}
+                  result={result}
+                  viewMode={viewMode}
+                  selectedTable={selectedTable}
+                  table={table}
+                  tableDescription={tableDescription}
+                  chartData={statsChartData}
+                  resultChartData={resultChartData}
+                  onViewModeChange={handleViewModeChange}
+                  onExportToCsv={exportToCsv}
+                  onExportToJson={exportToJson}
+                  fullScreenEditor={fullScreenEditor}
+                  currentPage={currentPage}
+                  pageSize={pageSize}
+                  onPageChange={handlePageChange}
+                  onPageSizeChange={handlePageSizeChange}
+                />
+              </div>
             </div>
           </div>
         </>
