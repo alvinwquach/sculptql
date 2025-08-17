@@ -1,7 +1,13 @@
 "use client";
 
 import { useRef, useEffect, useCallback, useState } from "react";
-import Select, { MultiValue, SingleValue } from "react-select";
+import Select, {
+  MultiValue,
+  SingleValue,
+  StylesConfig,
+  ClearIndicatorProps,
+  GroupBase,
+} from "react-select";
 import CreatableSelect from "react-select/creatable";
 import { Button } from "@/components/ui/button";
 import { Maximize2, Minimize2, Wand2, AlertCircle } from "lucide-react";
@@ -140,13 +146,13 @@ export default function EditorPane({
   }, [selectedTable, whereCondition.column]);
 
   const handleTableSelect = useCallback(
-    (option: SelectOption | null) => {
-      setSelectedTable(option);
+    (newValue: SingleValue<SelectOption>) => {
+      setSelectedTable(newValue);
       setSelectedColumns([]);
       setWhereCondition({ column: null, operator: null, value: null });
       setUniqueValues([]);
       setFetchError(null);
-      const query = option ? `SELECT * FROM ${option.value} ` : "";
+      const query = newValue ? `SELECT * FROM ${newValue.value} ` : "";
       onQueryChange(query);
       if (editorRef.current) {
         editorRef.current.dispatch({
@@ -233,11 +239,11 @@ export default function EditorPane({
   );
 
   const handleWhereColumnSelect = useCallback(
-    (option: SingleValue<SelectOption>) => {
+    (newValue: SingleValue<SelectOption>) => {
       setWhereCondition((prev) => {
         const newCondition = {
           ...prev,
-          column: option,
+          column: newValue,
           operator: null,
           value: null,
         };
@@ -248,7 +254,9 @@ export default function EditorPane({
               .map((col) => col.value)
               .join(", ")} FROM ${selectedTable!.value} `
           : `SELECT * FROM ${selectedTable!.value} `;
-        const query = option ? `${baseQuery}WHERE ${option.value} ` : baseQuery;
+        const query = newValue
+          ? `${baseQuery}WHERE ${newValue.value} `
+          : baseQuery;
         onQueryChange(query);
         if (editorRef.current) {
           editorRef.current.dispatch({
@@ -266,9 +274,9 @@ export default function EditorPane({
   );
 
   const handleOperatorSelect = useCallback(
-    (option: SingleValue<SelectOption>) => {
+    (newValue: SingleValue<SelectOption>) => {
       setWhereCondition((prev) => {
-        const newCondition = { ...prev, operator: option, value: null };
+        const newCondition = { ...prev, operator: newValue, value: null };
         const baseQuery = selectedColumns.length
           ? `SELECT ${selectedColumns
               .map((col) => col.value)
@@ -276,7 +284,7 @@ export default function EditorPane({
           : `SELECT * FROM ${selectedTable!.value} `;
         const query = prev.column
           ? `${baseQuery}WHERE ${prev.column.value} ${
-              option ? option.value : ""
+              newValue ? newValue.value : ""
             } `
           : baseQuery;
         onQueryChange(query);
@@ -296,8 +304,8 @@ export default function EditorPane({
   );
 
   const handleValueSelect = useCallback(
-    (option: SingleValue<SelectOption>) => {
-      if (!option) {
+    (newValue: SingleValue<SelectOption>) => {
+      if (!newValue) {
         setWhereCondition((prev) => ({ ...prev, value: null }));
         const baseQuery = selectedColumns.length
           ? `SELECT ${selectedColumns
@@ -318,8 +326,8 @@ export default function EditorPane({
       }
 
       const selectedOption: SelectOption = {
-        value: option.value,
-        label: option.label || option.value,
+        value: newValue.value,
+        label: newValue.label || newValue.value,
       };
 
       setWhereCondition((prev) => {
@@ -383,81 +391,93 @@ export default function EditorPane({
     const updateQueryOnChange = ViewPlugin.define(() => ({
       update: (update) => {
         if (!update.docChanged) return;
-        const newQuery = update.state.doc.toString();
+
+        const newQuery: string = update.state.doc.toString();
+
         setTimeout(() => {
           onQueryChange(newQuery);
-          const tableMatch = newQuery.match(/FROM\s+([a-zA-Z_][a-zA-Z0-9_]*)/i);
-          if (tableMatch && tableMatch[1]) {
-            const tableName = tableMatch[1];
-            if (tableNames.includes(tableName)) {
-              setSelectedTable((prev) =>
-                prev?.value === tableName
-                  ? prev
-                  : { value: tableName, label: tableName }
-              );
-              const columnMatch = newQuery.match(/SELECT\s+(.+?)\s+FROM/i);
-              if (columnMatch && columnMatch[1]) {
-                const columns = columnMatch[1]
-                  .split(",")
-                  .map((col) => col.trim())
-                  .filter((col) => col !== "*");
-                if (columns.length > 0) {
-                  setSelectedColumns(
-                    columns.map((col) => ({ value: col, label: col }))
-                  );
-                } else if (columnMatch[1] === "*") {
-                  setSelectedColumns(
-                    tableColumns[tableName]?.map((col) => ({
-                      value: col,
-                      label: col,
-                    })) || []
-                  );
-                } else {
-                  setSelectedColumns([]);
-                }
-              } else {
-                setSelectedColumns([]);
-              }
-              const whereMatch = newQuery.match(
-                /WHERE\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*([=!><]=?)\s*['"]?([^'";\s]+)['"]?/i
-              );
-              if (whereMatch) {
-                const [, column, operator, value] = whereMatch;
-                setWhereCondition((prev) => ({
-                  column:
-                    prev.column?.value === column
-                      ? prev.column
-                      : { value: column, label: column },
-                  operator:
-                    prev.operator?.value === operator
-                      ? prev.operator
-                      : operatorOptions.find((opt) => opt.value === operator) ||
-                        null,
-                  value:
-                    prev.value?.value === value
-                      ? prev.value
-                      : { value, label: value },
-                }));
-              } else if (!newQuery.includes("WHERE")) {
-                setWhereCondition({
-                  column: null,
-                  operator: null,
-                  value: null,
-                });
-                setUniqueValues([]);
-                setFetchError(null);
-              }
-            }
-          } else {
-            setSelectedTable(null);
-            setSelectedColumns([]);
-            setWhereCondition({ column: null, operator: null, value: null });
-            setUniqueValues([]);
-            setFetchError(null);
+
+          const tableName: string | null = extractTableName(newQuery);
+          if (!tableName || !tableNames.includes(tableName)) {
+            resetQueryState();
+            return;
           }
+
+          updateTableSelection(tableName);
+
+          updateColumnSelection(newQuery, tableName);
+
+          updateWhereCondition(newQuery);
         }, 0);
       },
     }));
+
+    const extractTableName = (query: string): string | null => {
+      const tableMatch = query.match(/FROM\s+([a-zA-Z_][a-zA-Z0-9_]*)/i);
+      return tableMatch ? tableMatch[1] : null;
+    };
+
+    const resetQueryState = (): void => {
+      setSelectedTable(null);
+      setSelectedColumns([]);
+      setWhereCondition({ column: null, operator: null, value: null });
+      setUniqueValues([]);
+      setFetchError(null);
+    };
+
+    const updateTableSelection = (tableName: string): void => {
+      setSelectedTable((prev) =>
+        prev?.value === tableName
+          ? prev
+          : { value: tableName, label: tableName }
+      );
+    };
+
+    const updateColumnSelection = (query: string, tableName: string): void => {
+      const columnMatch = query.match(/SELECT\s+(.+?)\s+FROM/i);
+      const columns: string[] = columnMatch
+        ? columnMatch[1].split(",").map((col) => col.trim())
+        : [];
+
+      if (columns.length > 0 && columns[0] !== "*") {
+        setSelectedColumns(
+          columns.map((col: string) => ({ value: col, label: col }))
+        );
+      } else {
+        setSelectedColumns(
+          tableColumns[tableName]?.map((col: string) => ({
+            value: col,
+            label: col,
+          })) || []
+        );
+      }
+    };
+
+    const updateWhereCondition = (query: string): void => {
+      const whereMatch = query.match(
+        /WHERE\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*([=!><]=?)\s*['"]?([^'";\s]+)['"]?/i
+      );
+
+      if (whereMatch) {
+        const [, column, operator, value] = whereMatch;
+        setWhereCondition((prev) => ({
+          column:
+            prev.column?.value === column
+              ? prev.column
+              : { value: column, label: column },
+          operator:
+            prev.operator?.value === operator
+              ? prev.operator
+              : operatorOptions.find((opt) => opt.value === operator) || null,
+          value:
+            prev.value?.value === value ? prev.value : { value, label: value },
+        }));
+      } else if (!query.includes("WHERE")) {
+        setWhereCondition({ column: null, operator: null, value: null });
+        setUniqueValues([]);
+        setFetchError(null);
+      }
+    };
 
     const customTheme = EditorView.theme(
       {
@@ -472,9 +492,7 @@ export default function EditorPane({
           paddingRight: "1.5rem",
           minHeight: "150px",
         },
-        ".cm-line": {
-          backgroundColor: "transparent",
-        },
+        ".cm-line": { backgroundColor: "transparent" },
         ".cm-keyword": { color: "#f8f9fa !important" },
         ".cm-operator": { color: "#f8f9fa !important" },
         ".cm-variableName": { color: "#f8f9fa !important" },
@@ -552,6 +570,7 @@ export default function EditorPane({
     tableNames,
     tableColumns,
     completion,
+    operatorOptions,
   ]);
 
   useEffect(() => {
@@ -571,9 +590,9 @@ export default function EditorPane({
     }
   }, [activeTab, queryTabs]);
 
-  const selectStyles = {
-    control: (base: any, state: any) => ({
-      ...base,
+  const selectStyles: StylesConfig<SelectOption, true> = {
+    control: (baseStyles, state) => ({
+      ...baseStyles,
       backgroundColor: "#1e293b",
       borderColor: state.isFocused ? "#3b82f6" : "#334155",
       boxShadow: state.isFocused ? "0 0 0 1px #3b82f6" : "none",
@@ -584,30 +603,30 @@ export default function EditorPane({
       minHeight: "36px",
       padding: "0.25rem",
     }),
-    singleValue: (base: any) => ({
-      ...base,
+    singleValue: (baseStyles) => ({
+      ...baseStyles,
       color: "#f8f9fa",
     }),
-    multiValue: (base: any) => ({
-      ...base,
+    multiValue: (baseStyles) => ({
+      ...baseStyles,
       backgroundColor: "#3b82f6",
       borderRadius: "0.25rem",
       margin: "0.125rem",
     }),
-    multiValueLabel: (base: any) => ({
-      ...base,
+    multiValueLabel: (baseStyles) => ({
+      ...baseStyles,
       color: "#f8f9fa",
       fontSize: "clamp(12px, 2.5vw, 14px)",
       padding: "0.125rem 0.25rem",
     }),
-    multiValueRemove: (base: any) => ({
-      ...base,
+    multiValueRemove: (baseStyles) => ({
+      ...baseStyles,
       color: "#f8f9fa",
       borderRadius: "0.25rem",
       "&:hover": { backgroundColor: "#2563eb", color: "#fff" },
     }),
-    menu: (base: any) => ({
-      ...base,
+    menu: (baseStyles) => ({
+      ...baseStyles,
       backgroundColor: "#1e293b",
       border: "1px solid #334155",
       borderRadius: "0.5rem",
@@ -616,8 +635,8 @@ export default function EditorPane({
       width: "100%",
       overflowY: "auto",
     }),
-    option: (base: any, state: any) => ({
-      ...base,
+    option: (baseStyles, state) => ({
+      ...baseStyles,
       backgroundColor: state.isSelected
         ? "#3b82f6"
         : state.isFocused
@@ -628,21 +647,87 @@ export default function EditorPane({
       padding: "0.5rem 0.75rem",
       fontSize: "clamp(12px, 2.5vw, 14px)",
     }),
-    placeholder: (base: any) => ({
-      ...base,
+    placeholder: (baseStyles) => ({
+      ...baseStyles,
       color: "#94a3b8",
     }),
-    input: (base: any) => ({
-      ...base,
+    input: (baseStyles) => ({
+      ...baseStyles,
       color: "#f8f9fa",
     }),
-    dropdownIndicator: (base: any) => ({
-      ...base,
+    dropdownIndicator: (baseStyles) => ({
+      ...baseStyles,
       color: "#94a3b8",
       "&:hover": { color: "#3b82f6" },
     }),
-    clearIndicator: (base: any) => ({
-      ...base,
+    clearIndicator: (baseStyles) => ({
+      ...baseStyles,
+      color: "#94a3b8",
+      "&:hover": { color: "#3b82f6" },
+    }),
+  };
+
+  const singleSelectStyles: StylesConfig<
+    SelectOption,
+    false,
+    GroupBase<SelectOption>
+  > = {
+    control: (baseStyles, state) => ({
+      ...baseStyles,
+      backgroundColor: "#1e293b",
+      borderColor: state.isFocused ? "#3b82f6" : "#334155",
+      boxShadow: state.isFocused ? "0 0 0 1px #3b82f6" : "none",
+      "&:hover": { borderColor: "#3b82f6" },
+      color: "#f8f9fa",
+      borderRadius: "0.5rem",
+      fontSize: "clamp(12px, 2.5vw, 14px)",
+      minHeight: "36px",
+      padding: "0.25rem",
+    }),
+    singleValue: (baseStyles) => ({
+      ...baseStyles,
+      color: "#f8f9fa",
+    }),
+    menu: (baseStyles) => ({
+      ...baseStyles,
+      backgroundColor: "#1e293b",
+      border: "1px solid #334155",
+      borderRadius: "0.5rem",
+      marginTop: "0.25rem",
+      zIndex: 20,
+      width: "100%",
+      overflowY: "auto",
+    }),
+    option: (baseStyles, state) => ({
+      ...baseStyles,
+      backgroundColor: state.isSelected
+        ? "#3b82f6"
+        : state.isFocused
+        ? "#334155"
+        : "#1e293b",
+      color: "#f8f9fa",
+      "&:active": { backgroundColor: "#2563eb" },
+      padding: "0.5rem 0.75rem",
+      fontSize: "clamp(12px, 2.5vw, 14px)",
+    }),
+    placeholder: (baseStyles) => ({
+      ...baseStyles,
+      color: "#94a3b8",
+    }),
+    input: (baseStyles) => ({
+      ...baseStyles,
+      color: "#f8f9fa",
+    }),
+    dropdownIndicator: (baseStyles) => ({
+      ...baseStyles,
+      color: "#94a3b8",
+      "&:hover": { color: "#3b82f6" },
+    }),
+    clearIndicator: (
+      baseStyles,
+      props: ClearIndicatorProps<SelectOption, false, GroupBase<SelectOption>>
+    ) => ({
+      ...baseStyles,
       color: "#94a3b8",
       "&:hover": { color: "#3b82f6" },
     }),
@@ -677,7 +762,7 @@ export default function EditorPane({
             placeholder="Select a table"
             isClearable
             isDisabled={metadataLoading}
-            styles={selectStyles}
+            styles={singleSelectStyles}
             className="flex-1 min-w-0"
           />
         </div>
@@ -705,7 +790,7 @@ export default function EditorPane({
                 placeholder=""
                 isClearable
                 isDisabled={!selectedTable || metadataLoading}
-                styles={selectStyles}
+                styles={singleSelectStyles}
                 className="min-w-0"
               />
             </div>
@@ -722,7 +807,7 @@ export default function EditorPane({
                 isDisabled={
                   !selectedTable || !whereCondition.column || metadataLoading
                 }
-                styles={selectStyles}
+                styles={singleSelectStyles}
                 className="min-w-0"
               />
             </div>
@@ -740,7 +825,7 @@ export default function EditorPane({
                   !whereCondition.operator ||
                   metadataLoading
                 }
-                styles={selectStyles}
+                styles={singleSelectStyles}
                 className="min-w-0"
                 formatCreateLabel={(inputValue) => inputValue}
               />

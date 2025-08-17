@@ -170,3 +170,8 @@ export interface WhereCondition {
   operator: SelectOption | null;
   value: SelectOption | null;
 }
+
+export type OptionType = {
+  value: string;
+  label: string;
+};

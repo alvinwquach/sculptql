@@ -109,7 +109,7 @@ export const suggestWhereClause = (
   const afterOperatorRegex =
     /\bWHERE\s+((?:"[\w]+"|'[\w]+'|[\w_]+))\s*([=!><]=?)\s*(\w*)$/i;
   if (afterOperatorRegex.test(docText)) {
-    const [, column, , value] = docText.match(afterOperatorRegex)!;
+    const [column] = docText.match(afterOperatorRegex)!;
     const strippedColumn = stripQuotes(column);
     if (
       tableColumns[selectedTable].some(

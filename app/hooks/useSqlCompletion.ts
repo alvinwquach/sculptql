@@ -64,7 +64,7 @@ export const useSqlCompletion = (
         } else {
           ast = isSelectNode(parsedAst) ? parsedAst : null;
         }
-      } catch (e) {
+      } catch {
         // If parsing fails (e.g., incomplete or invalid SQL), we continue without AST
         ast = null;
       }
@@ -111,7 +111,7 @@ export const useSqlCompletion = (
 
     // === STEP 5: Dependencies for useCallback ===
     // Ensures the completion function updates when any inputs change
-    [allColumns, tableNames, tableColumns, stripQuotes, needsQuotes]
+    [allColumns, tableNames, tableColumns, stripQuotes, needsQuotes, parser]
   );
 
   // === STEP 6: Return the completion function to be used by the editor ===
