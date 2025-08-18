@@ -10,6 +10,7 @@ import {
   PieChart,
   LineChart,
   Download,
+  Key,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import ViewToggle from "../view/ViewToggle";
@@ -215,48 +216,125 @@ export default function ResultsPane({
               </div>
               <p className="text-gray-400 mb-4 text-sm">
                 Shows the structure of the queried table, including column
-                names, data types, nullability, and default values.
+                names, data types, nullability, default values, and constraints.
               </p>
-              <div className="overflow-x-auto max-w-full">
-                <table className="w-full text-left text-sm">
-                  <thead className="bg-[#111827] text-green-400 sticky top-0 z-10">
-                    <tr>
-                      <th className="px-4 py-3 font-semibold border-b border-slate-600">
-                        Column
-                      </th>
-                      <th className="px-4 py-3 font-semibold border-b border-slate-600">
-                        Type
-                      </th>
-                      <th className="px-4 py-3 font-semibold border-b border-slate-600">
-                        Nullable
-                      </th>
-                      <th className="px-4 py-3 font-semibold border-b border-slate-600">
-                        Default
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {tableDescription.columns.map((col, i) => (
-                      <tr
-                        key={i}
-                        className="border-b border-slate-600 hover:bg-slate-700/50 transition-colors duration-200"
-                      >
-                        <td className="px-4 py-3 text-green-300">
-                          {col.column_name}
-                        </td>
-                        <td className="px-4 py-3 text-green-300">
-                          {col.data_type}
-                        </td>
-                        <td className="px-4 py-3 text-green-300">
-                          {col.is_nullable}
-                        </td>
-                        <td className="px-4 py-3 text-green-300">
-                          {col.column_default ?? "null"}
-                        </td>
+              <div className="space-y-8">
+                {/* Columns Table */}
+                <div className="overflow-x-auto max-w-full">
+                  <h3 className="text-lg font-semibold text-green-300 mb-2 flex items-center">
+                    <Table className="w-5 h-5 text-green-400 mr-2" />
+                    Columns
+                  </h3>
+                  <table className="w-full text-left text-sm">
+                    <thead className="bg-[#111827] text-green-400 sticky top-0 z-10">
+                      <tr>
+                        <th className="px-4 py-3 font-semibold border-b border-slate-600">
+                          Column
+                        </th>
+                        <th className="px-4 py-3 font-semibold border-b border-slate-600">
+                          Type
+                        </th>
+                        <th className="px-4 py-3 font-semibold border-b border-slate-600">
+                          Nullable
+                        </th>
+                        <th className="px-4 py-3 font-semibold border-b border-slate-600">
+                          Default
+                        </th>
+                        <th className="px-4 py-3 font-semibold border-b border-slate-600">
+                          Primary Key
+                        </th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {tableDescription.columns.map((col, i) => (
+                        <tr
+                          key={i}
+                          className="border-b border-slate-600 hover:bg-slate-700/50 transition-colors duration-200"
+                        >
+                          <td className="px-4 py-3 text-green-300">
+                            {col.column_name}
+                          </td>
+                          <td className="px-4 py-3 text-green-300">
+                            {col.data_type}
+                          </td>
+                          <td className="px-4 py-3 text-green-300">
+                            {col.is_nullable}
+                          </td>
+                          <td className="px-4 py-3 text-green-300">
+                            {col.column_default ?? "null"}
+                          </td>
+                          <td className="px-4 py-3 text-green-300">
+                            {col.is_primary_key ? (
+                              <Key className="w-4 h-4 text-green-400 inline" />
+                            ) : (
+                              "-"
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                {tableDescription.primary_keys &&
+                  tableDescription.primary_keys.length > 0 && (
+                    <div>
+                      <h3 className="text-lg font-semibold text-green-300 mb-2 flex items-center">
+                        <Key className="w-5 h-5 text-green-400 mr-2" />
+                        Primary Keys
+                      </h3>
+                      <p className="text-gray-400 text-sm">
+                        {tableDescription.primary_keys.join(", ")}
+                      </p>
+                    </div>
+                  )}
+                {tableDescription.foreign_keys &&
+                  tableDescription.foreign_keys.length > 0 && (
+                    <div className="overflow-x-auto max-w-full">
+                      <h3 className="text-lg font-semibold text-green-300 mb-2 flex items-center">
+                        <Key className="w-5 h-5 text-green-400 mr-2" />
+                        Foreign Keys
+                      </h3>
+                      <table className="w-full text-left text-sm">
+                        <thead className="bg-[#111827] text-green-400 sticky top-0 z-10">
+                          <tr>
+                            <th className="px-4 py-3 font-semibold border-b border-slate-600">
+                              Column
+                            </th>
+                            <th className="px-4 py-3 font-semibold border-b border-slate-600">
+                              Referenced Table
+                            </th>
+                            <th className="px-4 py-3 font-semibold border-b border-slate-600">
+                              Referenced Column
+                            </th>
+                            <th className="px-4 py-3 font-semibold border-b border-slate-600">
+                              Constraint Name
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {tableDescription.foreign_keys.map((fk, i) => (
+                            <tr
+                              key={i}
+                              className="border-b border-slate-600 hover:bg-slate-700/50 transition-colors duration-200"
+                            >
+                              <td className="px-4 py-3 text-green-300">
+                                {fk.column_name}
+                              </td>
+                              <td className="px-4 py-3 text-green-300">
+                                {fk.referenced_table}
+                              </td>
+                              <td className="px-4 py-3 text-green-300">
+                                {fk.referenced_column}
+                              </td>
+                              <td className="px-4 py-3 text-green-300">
+                                {fk.constraint_name}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
               </div>
             </div>
           )}
@@ -489,7 +567,7 @@ export default function ResultsPane({
             !loading && (
               <div className="flex flex-col items-center justify-center h-full text-gray-300 bg-[#1e293b] p-4 sm:p-6 rounded-xl shadow-lg border border-slate-700/50">
                 <Database className="w-12 h-12 mb-4 text-green-400" />
-                <p className="text-xxs font-medium sm:text-lg">
+                <p className="text-xs sm:text-lg font-medium">
                   The results of your query will appear here.
                 </p>
               </div>
