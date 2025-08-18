@@ -11,6 +11,7 @@ import { suggestColumnsAfterSelect } from "../utils/sqlCompletion/suggestions/su
 import { suggestSelect } from "../utils/sqlCompletion/suggestions/suggestSelect";
 import { suggestTablesAfterFrom } from "../utils/sqlCompletion/suggestions/suggestTablesAfterFrom";
 import { suggestWhereClause } from "../utils/sqlCompletion/suggestions/suggestWhereClause";
+import { suggestOrderByClause } from "../utils/sqlCompletion/suggestions/suggestOrderByClause";
 
 /**
  * Hook: useSqlCompletion
@@ -94,6 +95,16 @@ export const useSqlCompletion = (
           ast
         ) ||
         suggestWhereClause(
+          docText,
+          currentWord,
+          pos,
+          word,
+          tableColumns,
+          stripQuotes,
+          needsQuotes,
+          ast
+        ) ||
+        suggestOrderByClause(
           docText,
           currentWord,
           pos,
