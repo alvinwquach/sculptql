@@ -19,7 +19,11 @@ import {
   OrderByClause,
 } from "@/app/types/query";
 import { EditorView, keymap, drawSelection } from "@codemirror/view";
-import { autocompletion, startCompletion } from "@codemirror/autocomplete";
+import {
+  autocompletion,
+  startCompletion,
+  CompletionSource,
+} from "@codemirror/autocomplete";
 import { indentWithTab, defaultKeymap } from "@codemirror/commands";
 import { sql } from "@codemirror/lang-sql";
 import {
@@ -39,7 +43,7 @@ interface EditorPaneProps {
   onTabClose: (id: number) => void;
   onQueryChange: (query: string) => void;
   onTabReorder: (newTabs: Tab[]) => void;
-  completion: (context: any) => any; // Simplified for brevity; use actual CompletionSource type
+  completion: CompletionSource;
   metadataLoading: boolean;
   runQuery: () => void;
   tableNames: string[];
