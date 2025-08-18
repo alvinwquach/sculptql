@@ -93,6 +93,7 @@ export const useSqlCompletion = (
             getValidTables(tableNames, tableColumns, selectedColumn),
           stripQuotes,
           needsQuotes,
+          tableColumns,
           ast
         ) ||
         suggestWhereClause(
