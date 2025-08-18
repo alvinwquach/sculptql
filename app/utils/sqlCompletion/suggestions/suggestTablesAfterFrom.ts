@@ -9,10 +9,10 @@ export const suggestTablesAfterFrom = (
   word: { from: number } | null, // Word range (used for determining where to insert suggestion)
   getValidTables: (selectedColumn: string | null) => string[], // Function to get valid tables, optionally based on a selected column
   stripQuotes: (s: string) => string, // Utility to remove quotes from identifiers
-  needsQuotes: (id: string) => boolean, // Utility to check if a table name needs quotes  ast: Select | Select[] | null // Parsed SQL Abstract Syntax Tree (AST)
+  needsQuotes: (id: string) => boolean, // Utility to check if a table name needs quotes
   ast: Select | Select[] | null // Parsed SQL Abstract Syntax Tree (AST)
 ): CompletionResult | null => {
-  // === STEP 1: Define regex to match SELECT [DISTINCT] column_name FROM or SELECT [DISTINCT] * FROM ===
+  // === STEP 1: Define helper functions ===
   const isSelectNode = (node: unknown): node is Select =>
     !!node &&
     typeof node === "object" &&
@@ -26,12 +26,25 @@ export const suggestTablesAfterFrom = (
     (expr as { type: unknown }).type === "column_ref" &&
     "column" in expr;
 
+  const isAggrFuncExpr = (
+    expr: unknown
+  ): expr is { type: string; name: string } =>
+    !!expr &&
+    typeof expr === "object" &&
+    "type" in expr &&
+    (expr as { type: unknown }).type === "aggr_func" &&
+    "name" in expr;
+
+  // === STEP 2: Define regex patterns ===
+  // Matches: SELECT [DISTINCT] column_name FROM, SELECT [DISTINCT] * FROM, or SELECT COUNT(*) FROM
   const selectFromTableRegex =
-    /\bSELECT\s+(DISTINCT\s+)?((?:"[\w]+"|'[\w]+'|[\w_]+)|\*)\s+FROM\s*(\w*)$/i;
+    /\bSELECT\s+(DISTINCT\s+)?((?:"[\w]+"|'[\w]+'|[\w_]+)|\*|COUNT\(\*\))\s+FROM\s*(\w*)$/i;
 
+  // Matches: SELECT [DISTINCT] column_name FROM table_name or SELECT COUNT(*) FROM table_name
   const afterTableRegex =
-    /\bSELECT\s+(DISTINCT\s+)?((?:"[\w]+"|'[\w]+'|[\w_]+)|\*)\s+FROM\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*$/i;
+    /\bSELECT\s+(DISTINCT\s+)?((?:"[\w]+"|'[\w]+'|[\w_]+)|\*|COUNT\(\*\))\s+FROM\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*$/i;
 
+  // === STEP 3: Handle suggestions after FROM with a valid table ===
   if (afterTableRegex.test(docText)) {
     const tableName = docText.match(afterTableRegex)![3];
     const filteredTables = getValidTables(null).filter(
@@ -61,14 +74,16 @@ export const suggestTablesAfterFrom = (
     }
   }
 
-  // === STEP 2: Check if the query matches the expected pattern ===
+  // === STEP 4: Handle table suggestions after FROM ===
   if (selectFromTableRegex.test(docText)) {
-    // Extract the column name from the regex match
+    // Extract the column or aggregate function from the regex match
     const match = docText.match(selectFromTableRegex);
     let selectedColumn =
-      match && match[2] !== "*" ? stripQuotes(match[2]) : null;
-    // === STEP 3: Fallback to AST if regex-based column extraction is ambiguous ===
+      match && match[2] !== "*" && match[2] !== "COUNT(*)"
+        ? stripQuotes(match[2])
+        : null;
 
+    // === STEP 5: Fallback to AST for column or aggregate function ===
     if (!selectedColumn && ast) {
       const selectNode = Array.isArray(ast)
         ? ast.find((node: Select) => isSelectNode(node))
@@ -76,15 +91,21 @@ export const suggestTablesAfterFrom = (
         ? ast
         : null;
       // Extract the last valid column from the AST, if available
+
       if (selectNode && selectNode.columns && selectNode.columns.length > 0) {
         const lastColumn = selectNode.columns[selectNode.columns.length - 1];
         if (isColumnRefExpr(lastColumn.expr)) {
           selectedColumn = stripQuotes(lastColumn.expr.column);
+        } else if (
+          isAggrFuncExpr(lastColumn.expr) &&
+          lastColumn.expr.name.toUpperCase() === "COUNT"
+        ) {
+          selectedColumn = null; // COUNT(*) doesn't reference a specific column
         }
       }
     }
 
-    // === STEP 4: Get valid tables based on the selected column ===
+    // === STEP 6: Get valid tables based on the selected column (or none for COUNT(*)) ===
     const filteredTables = getValidTables(selectedColumn).filter((tableName) =>
       currentWord
         ? tableName
@@ -93,7 +114,7 @@ export const suggestTablesAfterFrom = (
         : true
     );
 
-    // === STEP 5: Return table suggestions if any valid tables exist ===
+    // === STEP 7: Return table suggestions ===
     if (filteredTables.length > 0) {
       return {
         from: word ? word.from : pos,

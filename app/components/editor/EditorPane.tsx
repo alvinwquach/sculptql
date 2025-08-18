@@ -70,6 +70,8 @@ export default function EditorPane({
   const languageCompartment = useRef(new Compartment());
   const [selectedTable, setSelectedTable] = useState<SelectOption | null>(null);
   const [selectedColumns, setSelectedColumns] = useState<SelectOption[]>([]);
+  const [selectedAggregate, setSelectedAggregate] =
+    useState<SelectOption | null>(null);
   const [whereClause, setWhereClause] = useState<WhereClause>({
     conditions: [
       {
@@ -116,6 +118,10 @@ export default function EditorPane({
       ]
     : [];
 
+  const aggregateOptions: SelectOption[] = [
+    { value: "COUNT(*)", label: "COUNT(*)", aggregate: true },
+  ];
+
   const whereColumnOptions: SelectOption[] = selectedTable
     ? tableColumns[selectedTable.value]?.map((col) => ({
         value: col,
@@ -145,8 +151,8 @@ export default function EditorPane({
     { value: "100", label: "100" },
   ];
 
-  const operatorOptions = useMemo(() => {
-    return [
+  const operatorOptions = useMemo(
+    () => [
       { value: "=", label: "=" },
       { value: "!=", label: "!=" },
       { value: ">", label: ">" },
@@ -157,15 +163,17 @@ export default function EditorPane({
       { value: "IS NULL", label: "IS NULL" },
       { value: "IS NOT NULL", label: "IS NOT NULL" },
       { value: "BETWEEN", label: "BETWEEN" },
-    ];
-  }, []);
+    ],
+    []
+  );
 
-  const logicalOperatorOptions = useMemo(() => {
-    return [
+  const logicalOperatorOptions = useMemo(
+    () => [
       { value: "AND", label: "AND" },
       { value: "OR", label: "OR" },
-    ];
-  }, []);
+    ],
+    []
+  );
 
   useEffect(() => {
     if (!selectedTable) {
@@ -188,17 +196,13 @@ export default function EditorPane({
             selectedTable.value
           )}&column=${encodeURIComponent(condition.column!.value)}`
         );
-        if (!res.ok) {
-          throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-        }
+        if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
         const contentType = res.headers.get("content-type");
-        if (!contentType || !contentType.includes("application/json")) {
+        if (!contentType || !contentType.includes("application/json"))
           throw new Error("Response is not JSON");
-        }
         const data = await res.json();
-        if (!data.values || !Array.isArray(data.values)) {
+        if (!data.values || !Array.isArray(data.values))
           throw new Error("Invalid response format: 'values' array expected");
-        }
         const values =
           condition.operator?.value === "LIKE" ||
           condition.operator?.value === "IS NULL" ||
@@ -227,10 +231,19 @@ export default function EditorPane({
     fetchUniqueValues(1);
   }, [selectedTable, whereClause.conditions]);
 
+  const needsQuotes = (id: string): boolean =>
+    !/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(id);
+
+  const stripQuotes = (s: string): string => s.replace(/^['"]|['"]$/g, "");
+
   const buildQuery = useCallback(() => {
-    const columns = selectedColumns.length
+    let columns = selectedColumns.length
       ? selectedColumns.map((col) => col.value).join(", ")
       : "*";
+    if (selectedAggregate) {
+      columns =
+        selectedAggregate.value + (columns !== "*" ? ", " + columns : "");
+    }
     let query = selectedTable
       ? `SELECT ${columns} FROM ${selectedTable.value} `
       : "";
@@ -290,12 +303,20 @@ export default function EditorPane({
       query += ` LIMIT ${limit.value}`;
     }
     return query;
-  }, [selectedTable, selectedColumns, whereClause, orderByClause, limit]);
+  }, [
+    selectedTable,
+    selectedColumns,
+    selectedAggregate,
+    whereClause,
+    orderByClause,
+    limit,
+  ]);
 
   const handleTableSelect = useCallback(
     (newValue: SingleValue<SelectOption>) => {
       setSelectedTable(newValue);
       setSelectedColumns([]);
+      setSelectedAggregate(null);
       setWhereClause({
         conditions: [
           {
@@ -337,6 +358,7 @@ export default function EditorPane({
     (newValue: MultiValue<SelectOption>) => {
       if (!selectedTable) {
         setSelectedColumns([]);
+        setSelectedAggregate(null);
         setWhereClause({
           conditions: [
             {
@@ -398,6 +420,24 @@ export default function EditorPane({
       setTimeout(() => onQueryChange(query), 0);
     },
     [selectedTable, tableColumns, buildQuery, onQueryChange]
+  );
+
+  const handleAggregateSelect = useCallback(
+    (newValue: SingleValue<SelectOption>) => {
+      setSelectedAggregate(newValue);
+      const query = buildQuery();
+      if (editorRef.current) {
+        editorRef.current.dispatch({
+          changes: {
+            from: 0,
+            to: editorRef.current.state.doc.length,
+            insert: query,
+          },
+        });
+      }
+      setTimeout(() => onQueryChange(query), 0);
+    },
+    [buildQuery, onQueryChange]
   );
 
   const handleLogicalOperatorSelect = useCallback(
@@ -649,14 +689,6 @@ export default function EditorPane({
     }
   }, [onQueryChange]);
 
-  const needsQuotes = (id: string): boolean => {
-    return !/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(id);
-  };
-
-  const stripQuotes = (s: string): string => {
-    return s.replace(/^['"]|['"]$/g, "");
-  };
-
   const updateWhereClause = (query: string): void => {
     const whereMatch = query.match(
       /WHERE\s+((?:"[\w]+"|'[\w]+'|[\w_]+))\s*(IS NULL|IS NOT NULL|BETWEEN|[=!><]=?|LIKE)\s*('[^']*'|[0-9]+(?:\.[0-9]+)?)?(?:\s+AND\s+('[^']*'|[0-9]+(?:\.[0-9]+)?))?\s*(AND|OR)?\s*((?:"[\w]+"|'[\w]+'|[\w_]+))?\s*(IS NULL|IS NOT NULL|BETWEEN|[=!><]=?|LIKE)?\s*('[^']*'|[0-9]+(?:\.[0-9]+)?)?(?:\s+AND\s+('[^']*'|[0-9]+(?:\.[0-9]+)?))?/i
@@ -766,7 +798,7 @@ export default function EditorPane({
       /\bORDER\s+BY\s+((?:"[\w]+"|'[\w]+'|[\w_]+))\s*(ASC|DESC)?\s*(?:LIMIT\s+(\d+))?/i
     );
     if (orderByMatch) {
-      const [column, direction, limitValue] = orderByMatch;
+      const [, column, direction, limitValue] = orderByMatch;
       setOrderByClause({
         column: column
           ? { value: stripQuotes(column), label: stripQuotes(column) }
@@ -792,6 +824,41 @@ export default function EditorPane({
     }
   };
 
+  const updateColumnAndAggregateSelection = (
+    query: string,
+    tableName: string
+  ): void => {
+    const columnMatch = query.match(/SELECT\s+(.+?)\s+FROM/i);
+    const columns: string[] = columnMatch
+      ? columnMatch[1].split(",").map((col) => stripQuotes(col.trim()))
+      : [];
+
+    const aggregate = columns.find((col) => col === "COUNT(*)");
+    if (aggregate) {
+      setSelectedAggregate({
+        value: "COUNT(*)",
+        label: "COUNT(*)",
+        aggregate: true,
+      });
+      columns.splice(columns.indexOf("COUNT(*)"), 1);
+    } else {
+      setSelectedAggregate(null);
+    }
+
+    if (columns.length > 0 && columns[0] !== "*") {
+      setSelectedColumns(
+        columns.map((col: string) => ({ value: col, label: col }))
+      );
+    } else {
+      setSelectedColumns(
+        tableColumns[tableName]?.map((col: string) => ({
+          value: col,
+          label: col,
+        })) || []
+      );
+    }
+  };
+
   useEffect(() => {
     if (!containerRef.current || editorRef.current || metadataLoading) return;
 
@@ -808,7 +875,7 @@ export default function EditorPane({
               return;
             }
             updateTableSelection(tableName);
-            updateColumnSelection(newQuery, tableName);
+            updateColumnAndAggregateSelection(newQuery, tableName);
             updateWhereClause(newQuery);
             updateOrderByClause(newQuery);
           }, 0);
@@ -831,6 +898,7 @@ export default function EditorPane({
     const resetQueryState = (): void => {
       setSelectedTable(null);
       setSelectedColumns([]);
+      setSelectedAggregate(null);
       setWhereClause({
         conditions: [
           {
@@ -861,26 +929,6 @@ export default function EditorPane({
           ? prev
           : { value: tableName, label: tableName }
       );
-    };
-
-    const updateColumnSelection = (query: string, tableName: string): void => {
-      const columnMatch = query.match(/SELECT\s+(.+?)\s+FROM/i);
-      const columns: string[] = columnMatch
-        ? columnMatch[1].split(",").map((col) => stripQuotes(col.trim()))
-        : [];
-
-      if (columns.length > 0 && columns[0] !== "*") {
-        setSelectedColumns(
-          columns.map((col: string) => ({ value: col, label: col }))
-        );
-      } else {
-        setSelectedColumns(
-          tableColumns[tableName]?.map((col: string) => ({
-            value: col,
-            label: col,
-          })) || []
-        );
-      }
     };
 
     const customTheme = EditorView.theme(
@@ -1178,6 +1226,21 @@ export default function EditorPane({
             placeholder="Select a table"
             isClearable
             isDisabled={metadataLoading}
+            styles={singleSelectStyles}
+            className="min-w-0 w-full"
+          />
+        </div>
+        <div className="flex flex-col gap-1">
+          <label className="text-xs text-[#f8f9fa] mb-1">
+            Aggregate Function
+          </label>
+          <Select
+            options={aggregateOptions}
+            value={selectedAggregate}
+            onChange={handleAggregateSelect}
+            placeholder="Select aggregate function"
+            isClearable
+            isDisabled={!selectedTable || metadataLoading}
             styles={singleSelectStyles}
             className="min-w-0 w-full"
           />
