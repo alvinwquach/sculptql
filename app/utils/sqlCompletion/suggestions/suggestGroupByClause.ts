@@ -46,13 +46,25 @@ export const suggestGroupByClause = (
       }
     }
   } else {
-    const fromMatch = docText.match(/\bFROM\s+(\w+)/i);
+    const fromMatch = docText.match(/\bFROM\s+([a-zA-Z_][a-zA-Z0-9_]*)/i);
     selectedTable = fromMatch ? fromMatch[1] : null;
   }
 
   if (!selectedTable || !tableColumns[selectedTable]) {
     return null;
   }
+
+  // Get selected columns from SELECT clause
+  const selectMatch = docText.match(/SELECT\s+(.+?)\s+FROM/i);
+  const selectColumns = selectMatch
+    ? selectMatch[1]
+        .split(",")
+        .map((col) => stripQuotes(col.trim()))
+        .filter((col) => col)
+        .map((col) =>
+          col.replace(/^(SUM|MAX|MIN|AVG|ROUND|COUNT)\((.*?)\)$/i, "$1($2)")
+        )
+    : [];
 
   // Check if GROUP BY already exists in the query
   const hasGroupBy = /\bGROUP\s+BY\b/i.test(docText);
@@ -67,7 +79,7 @@ export const suggestGroupByClause = (
           label: "GROUP BY",
           type: "keyword",
           apply: "GROUP BY ",
-          detail: "Group results by column",
+          detail: "Group results by column or column number",
         },
       ],
       filter: true,
@@ -75,61 +87,112 @@ export const suggestGroupByClause = (
     };
   }
 
-  // Suggest columns after GROUP BY
-  const afterGroupByRegex = /\bGROUP\s+BY\s*(\w*)$/i;
+  // Suggest columns or column numbers after GROUP BY
+  const afterGroupByRegex = /\bGROUP\s+BY\s*([^;]*)$/i;
   if (afterGroupByRegex.test(docText)) {
-    const columns = tableColumns[selectedTable].filter((column) =>
-      currentWord
-        ? stripQuotes(column)
-            .toLowerCase()
-            .startsWith(stripQuotes(currentWord).toLowerCase())
-        : true
-    );
+    const groupByText = afterGroupByRegex.exec(docText)![1].trim();
+    const lastCharIsComma = groupByText.endsWith(",");
+    const currentGroupByItems = groupByText
+      ? groupByText
+          .split(",")
+          .map((item) => item.trim())
+          .filter((item) => item)
+      : [];
 
-    if (columns.length > 0) {
-      return {
-        from: word ? word.from : pos,
-        options: columns.map((column) => ({
+    // If the last character is a comma or GROUP BY is empty, suggest columns and numbers
+    if (lastCharIsComma || groupByText === "") {
+      const columns = tableColumns[selectedTable].filter(
+        (column) =>
+          !currentGroupByItems.includes(column) &&
+          !currentGroupByItems.includes(
+            selectColumns.findIndex((col) => col === column).toString()
+          ) &&
+          (currentWord
+            ? stripQuotes(column)
+                .toLowerCase()
+                .startsWith(stripQuotes(currentWord).toLowerCase())
+            : true)
+      );
+
+      const columnNumberOptions = selectColumns
+        .map((_, index) => index + 1)
+        .filter(
+          (num) =>
+            !currentGroupByItems.includes(num.toString()) &&
+            (currentWord ? num.toString().startsWith(currentWord) : true)
+        );
+
+      const options = [
+        ...columns.map((column) => ({
           label: column,
           type: "field",
-          apply: needsQuotes(column) ? `"${column}" ` : `${column} `,
-          detail: "Column name",
+          apply: needsQuotes(column)
+            ? `"${column}"${lastCharIsComma ? "" : ", "}`
+            : `${column}${lastCharIsComma ? "" : ", "}`,
+          detail: `Column name (Position ${selectColumns.indexOf(column) + 1})`,
         })),
-        filter: true,
-        validFor: /^["'\w]*$/,
-      };
+        ...columnNumberOptions.map((num) => ({
+          label: num.toString(),
+          type: "text",
+          apply: `${num}${lastCharIsComma ? "" : ", "}`,
+          detail: `Column number (${selectColumns[num - 1] || "N/A"})`,
+        })),
+      ];
+
+      if (options.length > 0) {
+        return {
+          from: word ? word.from : pos,
+          options,
+          filter: true,
+          validFor: /^["'\w\d]*$/,
+        };
+      }
     }
   }
 
-  // Suggest ORDER BY or ; after a valid GROUP BY column
-  const afterGroupByColumnRegex =
-    /\bGROUP\s+BY\s+((?:"[\w]+"|'[\w]+'|[\w_]+))\s*(\w*)$/i;
-  const match = docText.match(afterGroupByColumnRegex);
+  // Suggest comma, ORDER BY, or ; after a valid GROUP BY item
+  const afterGroupByItemRegex = /\bGROUP\s+BY\s+([^;]+?)(?:(,\s*)?(\w*))?$/i;
+  const match = docText.match(afterGroupByItemRegex);
   if (match) {
-    const column = stripQuotes(match[1]);
-    if (
+    const groupByItems = match[1]
+      .split(",")
+      .map((item) => item.trim())
+      .filter((item) => item);
+    const lastItem = groupByItems[groupByItems.length - 1];
+    const isValidItem =
+      !isNaN(parseInt(lastItem)) ||
       tableColumns[selectedTable].some(
-        (c) => stripQuotes(c).toLowerCase() === column.toLowerCase()
-      )
-    ) {
+        (c) =>
+          stripQuotes(c).toLowerCase() === stripQuotes(lastItem).toLowerCase()
+      );
+
+    if (isValidItem) {
+      const options = [
+        {
+          label: ",",
+          type: "text",
+          apply: ", ",
+          detail: "Add another GROUP BY column",
+        },
+        {
+          label: "ORDER BY",
+          type: "keyword",
+          apply: "ORDER BY ",
+          detail: "Sort results",
+        },
+        {
+          label: ";",
+          type: "text",
+          apply: ";",
+          detail: "Complete query",
+        },
+      ];
+
       return {
         from: word ? word.from : pos,
-        options: [
-          {
-            label: "ORDER BY",
-            type: "keyword",
-            apply: "ORDER BY ",
-            detail: "Sort results",
-          },
-          {
-            label: ";",
-            type: "text",
-            apply: ";",
-            detail: "Complete query",
-          },
-        ],
+        options,
         filter: true,
-        validFor: /^(ORDER\s+BY|;)$/i,
+        validFor: /^(,|ORDER\s+BY|;)$/i,
       };
     }
   }

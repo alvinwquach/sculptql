@@ -171,9 +171,9 @@ export default function ResultsPane({
                     </tr>
                   </thead>
                   <tbody>
-                    {table.map((table, i) => (
+                    {table.map((table, index) => (
                       <tr
-                        key={i}
+                        key={`table-${index}`}
                         className="border-b border-slate-600 hover:bg-slate-700/50 transition-colors duration-200"
                       >
                         <td className="px-4 py-3 text-green-300">
@@ -246,9 +246,9 @@ export default function ResultsPane({
                       </tr>
                     </thead>
                     <tbody>
-                      {tableDescription.columns.map((col, i) => (
+                      {tableDescription.columns.map((col, index) => (
                         <tr
-                          key={i}
+                          key={`column-${index}`}
                           className="border-b border-slate-600 hover:bg-slate-700/50 transition-colors duration-200"
                         >
                           <td className="px-4 py-3 text-green-300">
@@ -312,9 +312,9 @@ export default function ResultsPane({
                           </tr>
                         </thead>
                         <tbody>
-                          {tableDescription.foreign_keys.map((fk, i) => (
+                          {tableDescription.foreign_keys.map((fk, index) => (
                             <tr
-                              key={i}
+                              key={`foreign-key-${index}`}
                               className="border-b border-slate-600 hover:bg-slate-700/50 transition-colors duration-200"
                             >
                               <td className="px-4 py-3 text-green-300">
@@ -428,9 +428,9 @@ export default function ResultsPane({
                 <table className="w-full text-left text-sm">
                   <thead className="bg-[#111827] text-green-400 sticky top-0 z-10">
                     <tr>
-                      {result.fields.map((field) => (
+                      {result.fields.map((field, index) => (
                         <th
-                          key={field}
+                          key={`field-${field}-${index}`}
                           className="px-3 sm:px-4 py-2 sm:py-3 font-semibold border-b border-slate-600 whitespace-nowrap"
                         >
                           {field}
@@ -449,14 +449,14 @@ export default function ResultsPane({
                         </td>
                       </tr>
                     ) : (
-                      paginatedRows.map((row, i) => (
+                      paginatedRows.map((row, rowIndex) => (
                         <tr
-                          key={i}
+                          key={`row-${rowIndex}`}
                           className="border-b border-slate-600 hover:bg-slate-700/50 transition-colors duration-200"
                         >
-                          {result.fields.map((field) => (
+                          {result.fields.map((field, fieldIndex) => (
                             <td
-                              key={field}
+                              key={`cell-${field}-${fieldIndex}`}
                               className="px-3 sm:px-4 py-2 sm:py-3 text-green-300 break-words max-w-[150px] sm:max-w-xs"
                             >
                               {row[field] !== null
@@ -483,7 +483,7 @@ export default function ResultsPane({
                       <SelectContent className="bg-slate-800 text-green-300 border-slate-600">
                         {[5, 10, 20].map((size) => (
                           <SelectItem
-                            key={size}
+                            key={`page-size-${size}`}
                             value={size.toString()}
                             className="text-xs sm:text-sm"
                           >
@@ -508,7 +508,7 @@ export default function ResultsPane({
                     </Button>
                     {getPageNumbers().map((page) => (
                       <Button
-                        key={page}
+                        key={`page-${page}`}
                         variant={page === currentPage ? "default" : "outline"}
                         size="sm"
                         onClick={() => onPageChange(page)}

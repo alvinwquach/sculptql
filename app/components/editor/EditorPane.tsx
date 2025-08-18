@@ -100,7 +100,7 @@ export default function EditorPane({
     column: null,
     direction: null,
   });
-  const [groupByColumn, setGroupByColumn] = useState<SelectOption | null>(null);
+  const [groupByColumns, setGroupByColumns] = useState<SelectOption[]>([]);
   const [limit, setLimit] = useState<SelectOption | null>(null);
   const [uniqueValues, setUniqueValues] = useState<
     Record<string, SelectOption[]>
@@ -354,12 +354,39 @@ export default function EditorPane({
         })
         .join(` ${whereClause.conditions[0].logicalOperator?.value || "AND"} `);
     }
-    if (groupByColumn) {
-      query += ` GROUP BY ${
-        needsQuotes(groupByColumn.value)
-          ? `"${groupByColumn.value}"`
-          : groupByColumn.value
-      }`;
+    if (groupByColumns.length > 0) {
+      const selectColumnNames = selectedColumns
+        .filter((col) => col.value !== "*")
+        .map((col) => col.value);
+      const aggregateColumnName = selectedAggregate
+        ? selectedAggregate.value === "COUNT(*)"
+          ? selectedAggregate.value
+          : `${selectedAggregate.value}(${aggregateColumn?.value || ""}${
+              selectedAggregate.value === "ROUND" && decimalPlaces
+                ? `, ${decimalPlaces.value}`
+                : ""
+            })`
+        : null;
+      const allSelectColumns = aggregateColumnName
+        ? [aggregateColumnName, ...selectColumnNames]
+        : selectColumnNames;
+      const groupByClause = groupByColumns
+        .map((col) => {
+          const selectIndex =
+            allSelectColumns.findIndex(
+              (selCol) =>
+                selCol === col.value ||
+                selCol.includes(`(${col.value})`) ||
+                selCol.includes(`(${col.value},`)
+            ) + 1;
+          return selectIndex > 0
+            ? selectIndex.toString()
+            : needsQuotes(col.value)
+            ? `"${col.value}"`
+            : col.value;
+        })
+        .join(", ");
+      query += ` GROUP BY ${groupByClause}`;
     }
     if (orderByClause.column && orderByClause.direction) {
       const column = needsQuotes(orderByClause.column.value)
@@ -384,7 +411,7 @@ export default function EditorPane({
     decimalPlaces,
     whereClause,
     orderByClause,
-    groupByColumn,
+    groupByColumns,
     limit,
   ]);
 
@@ -414,7 +441,7 @@ export default function EditorPane({
         ],
       });
       setOrderByClause({ column: null, direction: null });
-      setGroupByColumn(null);
+      setGroupByColumns([]);
       setLimit(null);
       setUniqueValues({ condition1: [], condition2: [] });
       setFetchError(null);
@@ -463,7 +490,7 @@ export default function EditorPane({
           ],
         });
         setOrderByClause({ column: null, direction: null });
-        setGroupByColumn(null);
+        setGroupByColumns([]);
         setLimit(null);
         setUniqueValues({ condition1: [], condition2: [] });
         setFetchError(null);
@@ -570,9 +597,9 @@ export default function EditorPane({
     [buildQuery, onQueryChange]
   );
 
-  const handleGroupByColumnSelect = useCallback(
-    (newValue: SingleValue<SelectOption>) => {
-      setGroupByColumn(newValue);
+  const handleGroupByColumnsSelect = useCallback(
+    (newValue: MultiValue<SelectOption>) => {
+      setGroupByColumns(newValue as SelectOption[]);
       const query = buildQuery();
       if (editorRef.current) {
         editorRef.current.dispatch({
@@ -839,17 +866,55 @@ export default function EditorPane({
   }, [onQueryChange]);
 
   const updateGroupByClause = (query: string): void => {
-    const groupByMatch = query.match(
-      /\bGROUP\s+BY\s+((?:"[\w]+"|'[\w]+'|[\w_]+))/i
-    );
-    if (groupByMatch) {
-      const [, column] = groupByMatch;
-      setGroupByColumn({
-        value: stripQuotes(column),
-        label: stripQuotes(column),
-      });
+    const groupByMatch = query.match(/\bGROUP\s+BY\s+([^;]+)/i);
+    if (groupByMatch && selectedTable) {
+      const groupByItems = groupByMatch[1]
+        .split(",")
+        .map((item) => item.trim())
+        .filter((item) => item);
+      const selectMatch = query.match(/SELECT\s+(.+?)\s+FROM/i);
+      const selectColumns = selectMatch
+        ? selectMatch[1]
+            .split(",")
+            .map((col) => stripQuotes(col.trim()))
+            .filter((col) => col)
+            .map((col) =>
+              col.replace(
+                /^(SUM|MAX|MIN|AVG|ROUND|COUNT)\((.*?)(?:,\s*\d+)?\)$/i,
+                "$1($2)"
+              )
+            )
+        : [];
+
+      const groupByColumns: SelectOption[] = groupByItems
+        .map((item) => {
+          const isNumber = !isNaN(parseInt(item));
+          if (isNumber) {
+            const index = parseInt(item) - 1;
+            if (index >= 0 && selectColumns[index]) {
+              let columnName = selectColumns[index];
+              const aggregateMatch = columnName.match(
+                /^(SUM|MAX|MIN|AVG|ROUND|COUNT)\((.*?)\)$/i
+              );
+              if (aggregateMatch) {
+                columnName = stripQuotes(aggregateMatch[2]);
+              }
+              return tableColumns[selectedTable.value].includes(columnName)
+                ? { value: columnName, label: columnName }
+                : null;
+            }
+            return null;
+          }
+          const cleanItem = stripQuotes(item);
+          return tableColumns[selectedTable.value].includes(cleanItem)
+            ? { value: cleanItem, label: cleanItem }
+            : null;
+        })
+        .filter((item): item is SelectOption => item !== null);
+
+      setGroupByColumns(groupByColumns);
     } else {
-      setGroupByColumn(null);
+      setGroupByColumns([]);
     }
   };
 
@@ -1138,7 +1203,7 @@ export default function EditorPane({
         ],
       });
       setOrderByClause({ column: null, direction: null });
-      setGroupByColumn(null);
+      setGroupByColumns([]);
       setLimit(null);
       setUniqueValues({ condition1: [], condition2: [] });
       setFetchError(null);
@@ -1523,12 +1588,13 @@ export default function EditorPane({
           <label className="text-xs text-[#f8f9fa] mb-1">Group By</label>
           <Select
             options={groupByColumnOptions}
-            value={groupByColumn}
-            onChange={handleGroupByColumnSelect}
-            placeholder="Select column to group by"
+            value={groupByColumns}
+            onChange={handleGroupByColumnsSelect}
+            placeholder="Select columns to group by"
+            isMulti
             isClearable
             isDisabled={!selectedTable || metadataLoading}
-            styles={singleSelectStyles}
+            styles={selectStyles}
             className="min-w-0 w-full"
           />
         </div>
