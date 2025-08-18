@@ -11,7 +11,13 @@ import CreatableSelect from "react-select/creatable";
 import { Button } from "@/components/ui/button";
 import { Maximize2, Minimize2, Wand2, AlertCircle } from "lucide-react";
 import QueryTabs from "./QueryTabs";
-import { SelectOption, Tab, TableColumn, WhereClause } from "@/app/types/query";
+import {
+  SelectOption,
+  Tab,
+  TableColumn,
+  WhereClause,
+  OrderByClause,
+} from "@/app/types/query";
 import { EditorView, keymap, drawSelection } from "@codemirror/view";
 import {
   autocompletion,
@@ -82,6 +88,10 @@ export default function EditorPane({
       },
     ],
   });
+  const [orderByClause, setOrderByClause] = useState<OrderByClause>({
+    column: null,
+    direction: null,
+  });
   const [uniqueValues, setUniqueValues] = useState<
     Record<string, SelectOption[]>
   >({ condition1: [], condition2: [] });
@@ -111,6 +121,18 @@ export default function EditorPane({
         label: col,
       })) || []
     : [];
+
+  const orderByColumnOptions: SelectOption[] = selectedTable
+    ? tableColumns[selectedTable.value]?.map((col) => ({
+        value: col,
+        label: col,
+      })) || []
+    : [];
+
+  const directionOptions: SelectOption[] = [
+    { value: "ASC", label: "Ascending (A-Z, low-high)" },
+    { value: "DESC", label: "Descending (Z-A, high-low)" },
+  ];
 
   const operatorOptions = useMemo(() => {
     return [
@@ -207,19 +229,22 @@ export default function EditorPane({
         c.operator &&
         (c.operator.value === "IS NULL" ||
           c.operator.value === "IS NOT NULL" ||
-          c.value)
+          (c.value && c.value.value.trim() !== ""))
     );
     if (validConditions.length > 0) {
       query += "WHERE ";
       query += validConditions
         .map((condition) => {
-          let conditionStr = `${condition.column!.value} ${
-            condition.operator!.value
-          }`;
+          const column = needsQuotes(condition.column!.value)
+            ? `"${condition.column!.value}"`
+            : condition.column!.value;
+          let conditionStr = `${column} ${condition.operator!.value}`;
           if (
             condition.operator!.value === "BETWEEN" &&
             condition.value &&
-            condition.value2
+            condition.value2 &&
+            condition.value.value.trim() !== "" &&
+            condition.value2.value.trim() !== ""
           ) {
             const isNumeric =
               !isNaN(Number(condition.value.value)) &&
@@ -233,17 +258,20 @@ export default function EditorPane({
             condition.operator!.value !== "IS NOT NULL" &&
             condition.operator!.value !== "BETWEEN"
           ) {
-            const isLike = condition.operator!.value === "LIKE";
-            conditionStr += isLike
-              ? ` '${condition.value.value}'`
-              : ` '${condition.value.value}'`;
+            conditionStr += ` '${condition.value.value}'`;
           }
           return conditionStr;
         })
         .join(` ${whereClause.conditions[0].logicalOperator?.value || "AND"} `);
     }
+    if (orderByClause.column && orderByClause.direction) {
+      const column = needsQuotes(orderByClause.column.value)
+        ? `"${orderByClause.column.value}"`
+        : orderByClause.column.value;
+      query += ` ORDER BY ${column} ${orderByClause.direction.value}`;
+    }
     return query;
-  }, [selectedTable, selectedColumns, whereClause]);
+  }, [selectedTable, selectedColumns, whereClause, orderByClause]);
 
   const handleTableSelect = useCallback(
     (newValue: SingleValue<SelectOption>) => {
@@ -267,6 +295,7 @@ export default function EditorPane({
           },
         ],
       });
+      setOrderByClause({ column: null, direction: null });
       setUniqueValues({ condition1: [], condition2: [] });
       setFetchError(null);
       const query = newValue ? `SELECT * FROM ${newValue.value} ` : "";
@@ -306,6 +335,7 @@ export default function EditorPane({
             },
           ],
         });
+        setOrderByClause({ column: null, direction: null });
         setUniqueValues({ condition1: [], condition2: [] });
         setFetchError(null);
         setTimeout(() => onQueryChange(""), 0);
@@ -439,7 +469,8 @@ export default function EditorPane({
         const newConditions = [...prev.conditions];
         if (
           !newConditions[conditionIndex].operator ||
-          !newConditions[conditionIndex].column
+          !newConditions[conditionIndex].column ||
+          (newValue && newValue.value.trim() === "")
         ) {
           newConditions[conditionIndex] = {
             ...newConditions[conditionIndex],
@@ -480,7 +511,8 @@ export default function EditorPane({
         const newConditions = [...prev.conditions];
         if (
           !newConditions[conditionIndex].operator ||
-          newConditions[conditionIndex].operator?.value !== "BETWEEN"
+          newConditions[conditionIndex].operator?.value !== "BETWEEN" ||
+          (newValue && newValue.value.trim() === "")
         ) {
           return prev;
         }
@@ -489,6 +521,52 @@ export default function EditorPane({
           value2: newValue,
         };
         const newClause = { conditions: newConditions };
+        const query = buildQuery();
+        if (editorRef.current) {
+          editorRef.current.dispatch({
+            changes: {
+              from: 0,
+              to: editorRef.current.state.doc.length,
+              insert: query,
+            },
+          });
+        }
+        setTimeout(() => onQueryChange(query), 0);
+        return newClause;
+      });
+    },
+    [buildQuery, onQueryChange]
+  );
+
+  const handleOrderByColumnSelect = useCallback(
+    (newValue: SingleValue<SelectOption>) => {
+      setOrderByClause((prev) => {
+        const newClause = {
+          ...prev,
+          column: newValue,
+          direction: prev.direction || directionOptions[0],
+        };
+        const query = buildQuery();
+        if (editorRef.current) {
+          editorRef.current.dispatch({
+            changes: {
+              from: 0,
+              to: editorRef.current.state.doc.length,
+              insert: query,
+            },
+          });
+        }
+        setTimeout(() => onQueryChange(query), 0);
+        return newClause;
+      });
+    },
+    [buildQuery, onQueryChange, directionOptions]
+  );
+
+  const handleOrderByDirectionSelect = useCallback(
+    (newValue: SingleValue<SelectOption>) => {
+      setOrderByClause((prev) => {
+        const newClause = { ...prev, direction: newValue };
         const query = buildQuery();
         if (editorRef.current) {
           editorRef.current.dispatch({
@@ -528,9 +606,17 @@ export default function EditorPane({
     }
   }, [onQueryChange]);
 
+  const needsQuotes = (id: string): boolean => {
+    return !/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(id);
+  };
+
+  const stripQuotes = (s: string): string => {
+    return s.replace(/^['"]|['"]$/g, "");
+  };
+
   const updateWhereClause = (query: string): void => {
     const whereMatch = query.match(
-      /WHERE\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*(IS NULL|IS NOT NULL|BETWEEN|[=!><]=?|LIKE)\s*('[^']*'|[0-9]+(?:\.[0-9]+)?)?(?:\s+AND\s+('[^']*'|[0-9]+(?:\.[0-9]+)?))?\s*(AND|OR)?\s*([a-zA-Z_][a-zA-Z0-9_]*)?\s*(IS NULL|IS NOT NULL|BETWEEN|[=!><]=?|LIKE)?\s*('[^']*'|[0-9]+(?:\.[0-9]+)?)?(?:\s+AND\s+('[^']*'|[0-9]+(?:\.[0-9]+)?))?/i
+      /WHERE\s+((?:"[\w]+"|'[\w]+'|[\w_]+))\s*(IS NULL|IS NOT NULL|BETWEEN|[=!><]=?|LIKE)\s*('[^']*'|[0-9]+(?:\.[0-9]+)?)?(?:\s+AND\s+('[^']*'|[0-9]+(?:\.[0-9]+)?))?\s*(AND|OR)?\s*((?:"[\w]+"|'[\w]+'|[\w_]+))?\s*(IS NULL|IS NOT NULL|BETWEEN|[=!><]=?|LIKE)?\s*('[^']*'|[0-9]+(?:\.[0-9]+)?)?(?:\s+AND\s+('[^']*'|[0-9]+(?:\.[0-9]+)?))?/i
     );
 
     if (whereMatch) {
@@ -549,26 +635,29 @@ export default function EditorPane({
       setWhereClause({
         conditions: [
           {
-            column: column1 ? { value: column1, label: column1 } : null,
+            column: column1
+              ? { value: stripQuotes(column1), label: stripQuotes(column1) }
+              : null,
             operator:
               operator1 &&
               operatorOptions.find((opt) => opt.value === operator1)
                 ? { value: operator1, label: operator1 }
                 : null,
             value:
-              operator1 === "IS NULL" || operator1 === "IS NOT NULL"
+              operator1 === "IS NULL" ||
+              operator1 === "IS NOT NULL" ||
+              !value1 ||
+              value1 === "''"
                 ? null
-                : value1
-                ? {
-                    value: value1.replace(/'/g, ""),
-                    label: value1.replace(/'/g, ""),
-                  }
-                : null,
+                : {
+                    value: stripQuotes(value1),
+                    label: stripQuotes(value1),
+                  },
             value2:
-              operator1 === "BETWEEN" && value2_1
+              operator1 === "BETWEEN" && value2_1 && value2_1 !== "''"
                 ? {
-                    value: value2_1.replace(/'/g, ""),
-                    label: value2_1.replace(/'/g, ""),
+                    value: stripQuotes(value2_1),
+                    label: stripQuotes(value2_1),
                   }
                 : null,
             logicalOperator: logicalOp
@@ -576,33 +665,36 @@ export default function EditorPane({
               : { value: "AND", label: "AND" },
           },
           {
-            column: column2 ? { value: column2, label: column2 } : null,
+            column: column2
+              ? { value: stripQuotes(column2), label: stripQuotes(column2) }
+              : null,
             operator:
               operator2 &&
               operatorOptions.find((opt) => opt.value === operator2)
                 ? { value: operator2, label: operator2 }
                 : null,
             value:
-              operator2 === "IS NULL" || operator2 === "IS NOT NULL"
+              operator2 === "IS NULL" ||
+              operator2 === "IS NOT NULL" ||
+              !value2 ||
+              value2 === "''"
                 ? null
-                : value2
-                ? {
-                    value: value2.replace(/'/g, ""),
-                    label: value2.replace(/'/g, ""),
-                  }
-                : null,
+                : {
+                    value: stripQuotes(value2),
+                    label: stripQuotes(value2),
+                  },
             value2:
-              operator2 === "BETWEEN" && value2_2
+              operator2 === "BETWEEN" && value2_2 && value2_2 !== "''"
                 ? {
-                    value: value2_2.replace(/'/g, ""),
-                    label: value2_2.replace(/'/g, ""),
+                    value: stripQuotes(value2_2),
+                    label: stripQuotes(value2_2),
                   }
                 : null,
             logicalOperator: null,
           },
         ],
       });
-    } else if (!query.includes("WHERE")) {
+    } else {
       setWhereClause({
         conditions: [
           {
@@ -626,6 +718,31 @@ export default function EditorPane({
     }
   };
 
+  const updateOrderByClause = (query: string): void => {
+    const orderByMatch = query.match(
+      /\bORDER\s+BY\s+((?:"[\w]+"|'[\w]+'|[\w_]+))\s*(ASC|DESC)?/i
+    );
+    if (orderByMatch) {
+      const [, column, direction] = orderByMatch;
+      setOrderByClause({
+        column: column
+          ? { value: stripQuotes(column), label: stripQuotes(column) }
+          : null,
+        direction: direction
+          ? {
+              value: direction,
+              label:
+                direction === "ASC"
+                  ? "Ascending (A-Z, low-high)"
+                  : "Descending (Z-A, high-low)",
+            }
+          : null,
+      });
+    } else {
+      setOrderByClause({ column: null, direction: null });
+    }
+  };
+
   useEffect(() => {
     if (!containerRef.current || editorRef.current || metadataLoading) return;
 
@@ -644,6 +761,7 @@ export default function EditorPane({
             updateTableSelection(tableName);
             updateColumnSelection(newQuery, tableName);
             updateWhereClause(newQuery);
+            updateOrderByClause(newQuery);
           }, 0);
         },
       }),
@@ -682,6 +800,7 @@ export default function EditorPane({
           },
         ],
       });
+      setOrderByClause({ column: null, direction: null });
       setUniqueValues({ condition1: [], condition2: [] });
       setFetchError(null);
     };
@@ -697,7 +816,7 @@ export default function EditorPane({
     const updateColumnSelection = (query: string, tableName: string): void => {
       const columnMatch = query.match(/SELECT\s+(.+?)\s+FROM/i);
       const columns: string[] = columnMatch
-        ? columnMatch[1].split(",").map((col) => col.trim())
+        ? columnMatch[1].split(",").map((col) => stripQuotes(col.trim()))
         : [];
 
       if (columns.length > 0 && columns[0] !== "*") {
@@ -1165,6 +1284,40 @@ export default function EditorPane({
               )}
             </div>
           ))}
+        </div>
+        <div className="flex flex-col gap-2">
+          <div className="flex flex-row items-center gap-2 w-full">
+            <div className="flex flex-col gap-1 w-1/2">
+              <label className="text-xs text-[#f8f9fa] mb-1">
+                Column (Order By)
+              </label>
+              <Select
+                options={orderByColumnOptions}
+                value={orderByClause.column}
+                onChange={handleOrderByColumnSelect}
+                placeholder="Select column to order by"
+                isClearable
+                isDisabled={!selectedTable || metadataLoading}
+                styles={singleSelectStyles}
+                className="min-w-0 w-full"
+              />
+            </div>
+            <div className="flex flex-col gap-1 w-1/2">
+              <label className="text-xs text-[#f8f9fa] mb-1">Direction</label>
+              <Select
+                options={directionOptions}
+                value={orderByClause.direction}
+                onChange={handleOrderByDirectionSelect}
+                placeholder="Select direction"
+                isClearable
+                isDisabled={
+                  !selectedTable || !orderByClause.column || metadataLoading
+                }
+                styles={singleSelectStyles}
+                className="min-w-0 w-full"
+              />
+            </div>
+          </div>
         </div>
       </div>
       <div ref={containerRef} className="flex-1" />

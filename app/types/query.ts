@@ -177,6 +177,11 @@ export interface WhereClause {
   conditions: WhereCondition[];
 }
 
+export interface OrderByClause {
+  column: SelectOption | null;
+  direction: SelectOption | null;
+}
+
 export interface UniqueValues {
   condition1: SelectOption[];
   condition2: SelectOption[];

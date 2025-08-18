@@ -3,14 +3,14 @@ import { Select } from "node-sql-parser";
 import { TableColumn } from "@/app/types/query";
 
 export const suggestWhereClause = (
-  docText: string, // Full SQL query text
-  currentWord: string, // Word currently being typed at the cursor
-  pos: number, // Cursor position
-  word: { from: number } | null, // Word range (used for determining where to insert suggestion)
-  tableColumns: TableColumn, // Mapping of table names to their columns
-  stripQuotes: (s: string) => string, // Utility to remove quotes from identifiers
-  needsQuotes: (id: string) => boolean, // Utility to check if a name needs quotes
-  ast: Select | Select[] | null // Parsed SQL Abstract Syntax Tree (AST)
+  docText: string,
+  currentWord: string,
+  pos: number,
+  word: { from: number } | null,
+  tableColumns: TableColumn,
+  stripQuotes: (s: string) => string,
+  needsQuotes: (id: string) => boolean,
+  ast: Select | Select[] | null
 ): CompletionResult | null => {
   // Type guard for Select node
   const isSelectNode = (node: unknown): node is Select =>
@@ -54,7 +54,7 @@ export const suggestWhereClause = (
     return null;
   }
 
-  // Suggest columns if immediately after WHERE or AND/OR
+  // Suggest columns if immediately after WHERE, AND, or OR
   const afterWhereOrAndRegex = /\b(WHERE|AND|OR)\s*(\w*)$/i;
   if (afterWhereOrAndRegex.test(docText)) {
     const columns = tableColumns[selectedTable].filter((column) =>
@@ -80,7 +80,7 @@ export const suggestWhereClause = (
     }
   }
 
-  // Suggest comparison operators and LIKE after a valid column
+  // Suggest comparison operators after a valid column
   const afterColumnRegex =
     /\b(WHERE|AND|OR)\s+((?:"[\w]+"|'[\w]+'|[\w_]+))\s*(\w*)$/i;
   const match = docText.match(afterColumnRegex);
@@ -117,12 +117,12 @@ export const suggestWhereClause = (
     }
   }
 
-  // Suggest pattern-based values or unique values after an operator
+  // Suggest values after an operator
   const afterOperatorRegex =
-    /\b(WHERE|AND|OR)\s+((?:"[\w]+"|'[\w]+'|[\w_]+))\s*([=!><]=?|LIKE|BETWEEN)\s*('[^']*'|[0-9]+)?$/i;
+    /\b(WHERE|AND|OR)\s+((?:"[\w]+"|'[\w]+'|[\w_]+))\s*([=!><]=?|LIKE|BETWEEN|IS NULL|IS NOT NULL)\s*$/i;
   const operatorMatch = docText.match(afterOperatorRegex);
   if (operatorMatch) {
-    const [column, operator, partialValue] = operatorMatch;
+    const [, , column, operator] = operatorMatch;
     const strippedColumn = stripQuotes(column);
 
     if (
@@ -146,7 +146,7 @@ export const suggestWhereClause = (
         ];
 
         return {
-          from: partialValue ? word?.from || pos : pos,
+          from: word ? word.from : pos,
           options: patternSuggestions.map((pattern) => ({
             label: pattern.label,
             type: "text",
@@ -160,30 +160,128 @@ export const suggestWhereClause = (
         operator.toUpperCase() === "IS NULL" ||
         operator.toUpperCase() === "IS NOT NULL"
       ) {
-        return null;
-      } else if (operator.toUpperCase() === "BETWEEN") {
+        // Suggest AND, OR, or ORDER BY after IS NULL or IS NOT NULL
         return {
-          from: partialValue ? word?.from || pos : pos,
-          options: [],
+          from: word ? word.from : pos,
+          options: [
+            {
+              label: "AND",
+              type: "keyword",
+              apply: "AND ",
+              detail: "Add another condition (all must be true)",
+            },
+            {
+              label: "OR",
+              type: "keyword",
+              apply: "OR ",
+              detail: "Add another condition (any can be true)",
+            },
+            {
+              label: "ORDER BY",
+              type: "keyword",
+              apply: "ORDER BY ",
+              detail: "Sort results",
+            },
+          ],
+          filter: true,
+          validFor: /^(AND|OR|ORDER\s+BY)$/i,
+        };
+      } else if (operator.toUpperCase() === "BETWEEN") {
+        // Suggest first value for BETWEEN
+        return {
+          from: word ? word.from : pos,
+          options: [
+            {
+              label: "'value'",
+              type: "text",
+              apply: "'value' ",
+              detail: "Enter first value",
+            },
+            {
+              label: "0",
+              type: "text",
+              apply: "0 ",
+              detail: "Numeric value",
+            },
+          ],
           filter: true,
           validFor: /^['"\d]*$/,
         };
       } else {
-        return null;
+        // Suggest single value for =, !=, >, <, >=, <=
+        return {
+          from: word ? word.from : pos,
+          options: [
+            {
+              label: "'value'",
+              type: "text",
+              apply: "'value' ",
+              detail: "Enter a string value",
+            },
+            {
+              label: "0",
+              type: "text",
+              apply: "0 ",
+              detail: "Numeric value",
+            },
+          ],
+          filter: true,
+          validFor: /^['"\d]*$/,
+        };
       }
     }
   }
 
-  // Suggest AND or OR after a complete condition, but not if the last condition ends with AND or OR
+  // Suggest AND for BETWEEN second value
+  const afterBetweenFirstValueRegex =
+    /\b(WHERE|AND|OR)\s+((?:"[\w]+"|'[\w]+'|[\w_]+))\s*BETWEEN\s*('[^']*'|[0-9]+(?:\.[0-9]+)?)\s*$/i;
+  if (afterBetweenFirstValueRegex.test(docText)) {
+    return {
+      from: word ? word.from : pos,
+      options: [
+        {
+          label: "AND",
+          type: "keyword",
+          apply: "AND ",
+          detail: "Specify second value for BETWEEN",
+        },
+      ],
+      filter: true,
+      validFor: /^AND$/i,
+    };
+  }
+
+  // Suggest second value for BETWEEN
+  const afterBetweenAndRegex =
+    /\b(WHERE|AND|OR)\s+((?:"[\w]+"|'[\w]+'|[\w_]+))\s*BETWEEN\s*('[^']*'|[0-9]+(?:\.[0-9]+)?)\s*AND\s*$/i;
+  if (afterBetweenAndRegex.test(docText)) {
+    return {
+      from: word ? word.from : pos,
+      options: [
+        {
+          label: "'value'",
+          type: "text",
+          apply: "'value' ",
+          detail: "Enter second value",
+        },
+        {
+          label: "0",
+          type: "text",
+          apply: "0 ",
+          detail: "Numeric value",
+        },
+      ],
+      filter: true,
+      validFor: /^['"\d]*$/,
+    };
+  }
+
+  // Suggest AND, OR, or ORDER BY after a complete condition
   const afterConditionRegex =
-    /\b(WHERE|AND|OR)\s+((?:"[\w]+"|'[\w]+'|[\w_]+))\s*([=!><]=?|LIKE|IS NULL|IS NOT NULL)\s*('[^']*'|[0-9]+)\s*(\w*)$/i;
+    /\b(WHERE|AND|OR)\s+((?:"[\w]+"|'[\w]+'|[\w_]+))\s*([=!><]=?|LIKE|IS NULL|IS NOT NULL)\s*('[^']*'|[0-9]+(?:\.[0-9]+)?)\s*$/i;
   const afterBetweenRegex =
-    /\b(WHERE|AND|OR)\s+((?:"[\w]+"|'[\w]+'|[\w_]+))\s*BETWEEN\s*('[^']*'|[0-9]+)\s*AND\s*('[^']*'|[0-9]+)\s*(\w*)$/i;
-  if (
-    (afterConditionRegex.test(docText) || afterBetweenRegex.test(docText)) &&
-    !docText.trim().endsWith("AND") &&
-    !docText.trim().endsWith("OR")
-  ) {
+    /\b(WHERE|AND|OR)\s+((?:"[\w]+"|'[\w]+'|[\w_]+))\s*BETWEEN\s*('[^']*'|[0-9]+(?:\.[0-9]+)?)\s*AND\s*('[^']*'|[0-9]+(?:\.[0-9]+)?)\s*$/i;
+  if (afterConditionRegex.test(docText) || afterBetweenRegex.test(docText)) {
     return {
       from: word ? word.from : pos,
       options: [
@@ -199,10 +297,43 @@ export const suggestWhereClause = (
           apply: "OR ",
           detail: "Add another condition (any can be true)",
         },
+        {
+          label: "ORDER BY",
+          type: "keyword",
+          apply: "ORDER BY ",
+          detail: "Sort results",
+        },
       ],
       filter: true,
-      validFor: /^(AND|OR)$/i,
+      validFor: /^(AND|OR|ORDER\s+BY)$/i,
     };
+  }
+
+  // Suggest column names after AND or OR
+  const afterAndOrRegex =
+    /\b(WHERE|AND|OR)\s+((?:"[\w]+"|'[\w]+'|[\w_]+))\s*([=!><]=?|LIKE)\s*('[^']*')\s*(AND|OR)\s*$/i;
+  if (afterAndOrRegex.test(docText)) {
+    const columns = tableColumns[selectedTable].filter((column) =>
+      currentWord
+        ? stripQuotes(column)
+            .toLowerCase()
+            .startsWith(stripQuotes(currentWord).toLowerCase())
+        : true
+    );
+
+    if (columns.length > 0) {
+      return {
+        from: word ? word.from : pos,
+        options: columns.map((column) => ({
+          label: column,
+          type: "field",
+          apply: needsQuotes(column) ? `"${column}" ` : `${column} `,
+          detail: "Column name",
+        })),
+        filter: true,
+        validFor: /^["'\w]*$/,
+      };
+    }
   }
 
   return null;
