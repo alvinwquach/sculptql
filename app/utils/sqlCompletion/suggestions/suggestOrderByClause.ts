@@ -101,7 +101,7 @@ export const suggestOrderByClause = (
     }
   }
 
-  // Suggest ASC or DESC after a valid column
+  // Suggest ASC, DESC, or LIMIT after a valid column
   const afterOrderByColumnRegex =
     /\bORDER\s+BY\s+((?:"[\w]+"|'[\w]+'|[\w_]+))\s*(\w*)$/i;
   const match = docText.match(afterOrderByColumnRegex);
@@ -118,18 +118,24 @@ export const suggestOrderByClause = (
           {
             label: "ASC",
             type: "keyword",
-            apply: "ASC",
+            apply: "ASC ",
             detail: "Sort in ascending order (A-Z, low-high)",
           },
           {
             label: "DESC",
             type: "keyword",
-            apply: "DESC",
+            apply: "DESC ",
             detail: "Sort in descending order (Z-A, high-low)",
+          },
+          {
+            label: "LIMIT",
+            type: "keyword",
+            apply: "LIMIT ",
+            detail: "Limit the number of rows returned",
           },
         ],
         filter: true,
-        validFor: /^(ASC|DESC)$/i,
+        validFor: /^(ASC|DESC|LIMIT)$/i,
       };
     }
   }
