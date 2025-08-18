@@ -77,6 +77,7 @@ export default function EditorPane({
   const [aggregateColumn, setAggregateColumn] = useState<SelectOption | null>(
     null
   );
+  const [decimalPlaces, setDecimalPlaces] = useState<SelectOption | null>(null);
   const [whereClause, setWhereClause] = useState<WhereClause>({
     conditions: [
       {
@@ -123,24 +124,29 @@ export default function EditorPane({
       ]
     : [];
 
-    const aggregateOptions: SelectOption[] = [
-      {
-        value: "COUNT(*)",
-        label: "COUNT(*) – Count all rows",
-        aggregate: true,
-      },
-      { value: "SUM", label: "SUM() – Total of values", aggregate: true },
-      { value: "MAX", label: "MAX() – Largest value", aggregate: true },
-      { value: "MIN", label: "MIN() – Smallest value", aggregate: true },
-      { value: "AVG", label: "AVG() – Average value", aggregate: true },
-    ];
-    
+  const aggregateOptions: SelectOption[] = [
+    { value: "COUNT(*)", label: "COUNT(*) – Count all rows", aggregate: true },
+    { value: "SUM", label: "SUM() – Total of values", aggregate: true },
+    { value: "MAX", label: "MAX() – Largest value", aggregate: true },
+    { value: "MIN", label: "MIN() – Smallest value", aggregate: true },
+    { value: "AVG", label: "AVG() – Average value", aggregate: true },
+    { value: "ROUND", label: "ROUND() – Round values", aggregate: true },
+  ];
+
   const aggregateColumnOptions: SelectOption[] = selectedTable
     ? tableColumns[selectedTable.value]?.map((col) => ({
         value: col,
         label: col,
       })) || []
     : [];
+
+  const decimalPlacesOptions: SelectOption[] = [
+    { value: "0", label: "0" },
+    { value: "1", label: "1" },
+    { value: "2", label: "2" },
+    { value: "3", label: "3" },
+    { value: "4", label: "4" },
+  ];
 
   const whereColumnOptions: SelectOption[] = selectedTable
     ? tableColumns[selectedTable.value]?.map((col) => ({
@@ -265,6 +271,17 @@ export default function EditorPane({
             ? `"${aggregateColumn.value}"`
             : aggregateColumn.value
         })`;
+      } else if (
+        selectedAggregate.value === "ROUND" &&
+        aggregateColumn &&
+        decimalPlaces &&
+        !isNaN(Number(decimalPlaces.value))
+      ) {
+        columns = `ROUND(${
+          needsQuotes(aggregateColumn.value)
+            ? `"${aggregateColumn.value}"`
+            : aggregateColumn.value
+        }, ${decimalPlaces.value})`;
       } else {
         columns = "*";
       }
@@ -349,6 +366,7 @@ export default function EditorPane({
     selectedColumns,
     selectedAggregate,
     aggregateColumn,
+    decimalPlaces,
     whereClause,
     orderByClause,
     limit,
@@ -360,6 +378,7 @@ export default function EditorPane({
       setSelectedColumns([]);
       setSelectedAggregate(null);
       setAggregateColumn(null);
+      setDecimalPlaces(null);
       setWhereClause({
         conditions: [
           {
@@ -407,6 +426,7 @@ export default function EditorPane({
         setSelectedColumns([]);
         setSelectedAggregate(null);
         setAggregateColumn(null);
+        setDecimalPlaces(null);
         setWhereClause({
           conditions: [
             {
@@ -473,9 +493,8 @@ export default function EditorPane({
   const handleAggregateSelect = useCallback(
     (newValue: SingleValue<SelectOption>) => {
       setSelectedAggregate(newValue);
-      if (!newValue || newValue.value === "COUNT(*)") {
-        setAggregateColumn(null);
-      }
+      setAggregateColumn(null);
+      setDecimalPlaces(null);
       const query = buildQuery();
       if (editorRef.current) {
         editorRef.current.dispatch({
@@ -494,6 +513,30 @@ export default function EditorPane({
   const handleAggregateColumnSelect = useCallback(
     (newValue: SingleValue<SelectOption>) => {
       setAggregateColumn(newValue);
+      const query = buildQuery();
+      if (editorRef.current) {
+        editorRef.current.dispatch({
+          changes: {
+            from: 0,
+            to: editorRef.current.state.doc.length,
+            insert: query,
+          },
+        });
+      }
+      setTimeout(() => onQueryChange(query), 0);
+    },
+    [buildQuery, onQueryChange]
+  );
+
+  const handleDecimalPlacesSelect = useCallback(
+    (newValue: SingleValue<SelectOption>) => {
+      setDecimalPlaces(
+        newValue &&
+          !isNaN(Number(newValue.value)) &&
+          Number(newValue.value) >= 0
+          ? newValue
+          : null
+      );
       const query = buildQuery();
       if (editorRef.current) {
         editorRef.current.dispatch({
@@ -902,6 +945,7 @@ export default function EditorPane({
     if (!columnMatch) {
       setSelectedAggregate(null);
       setAggregateColumn(null);
+      setDecimalPlaces(null);
       setSelectedColumns([]);
       return;
     }
@@ -916,7 +960,8 @@ export default function EditorPane({
         col.match(/^SUM\(.+\)$/i) ||
         col.match(/^MAX\(.+\)$/i) ||
         col.match(/^MIN\(.+\)$/i) ||
-        col.match(/^AVG\(.+\)$/i) 
+        col.match(/^AVG\(.+\)$/i) ||
+        col.match(/^ROUND\(.+,\s*\d+\)$/i)
     );
     if (aggregateMatch) {
       if (aggregateMatch.toUpperCase() === "COUNT(*)") {
@@ -926,10 +971,13 @@ export default function EditorPane({
           aggregate: true,
         });
         setAggregateColumn(null);
-      } else if (aggregateMatch.match(/^(SUM|MAX|MIN|AVG)\((.+)\)$/i)) {
+        setDecimalPlaces(null);
+      } else if (
+        aggregateMatch.match(/^(SUM|MAX|MIN|AVG)\((.+)\)$/i)
+      ) {
         const [aggFunc, column] = aggregateMatch.match(
           /^(SUM|MAX|MIN|AVG)\((.+)\)$/i
-        )!;
+        )!.slice(1);
         setSelectedAggregate({
           value: aggFunc,
           label: `${aggFunc}()`,
@@ -939,11 +987,30 @@ export default function EditorPane({
           value: stripQuotes(column),
           label: stripQuotes(column),
         });
+        setDecimalPlaces(null);
+      } else if (aggregateMatch.match(/^ROUND\((.+),\s*(\d+)\)$/i)) {
+        const [, column, decimals] = aggregateMatch.match(
+          /^ROUND\((.+),\s*(\d+)\)$/i
+        )!;
+        setSelectedAggregate({
+          value: "ROUND",
+          label: "ROUND()",
+          aggregate: true,
+        });
+        setAggregateColumn({
+          value: stripQuotes(column),
+          label: stripQuotes(column),
+        });
+        setDecimalPlaces({
+          value: decimals,
+          label: decimals,
+        });
       }
       columns.splice(columns.indexOf(aggregateMatch), 1);
     } else {
       setSelectedAggregate(null);
       setAggregateColumn(null);
+      setDecimalPlaces(null);
     }
 
     if (columns.length > 0 && columns[0] !== "*") {
@@ -1001,6 +1068,7 @@ export default function EditorPane({
       setSelectedColumns([]);
       setSelectedAggregate(null);
       setAggregateColumn(null);
+      setDecimalPlaces(null);
       setWhereClause({
         conditions: [
           {
@@ -1332,7 +1400,7 @@ export default function EditorPane({
           />
         </div>
         <div className="flex flex-row items-center gap-2 w-full">
-          <div className="flex flex-col gap-1 w-1/2">
+          <div className="flex flex-col gap-1 flex-1">
             <label className="text-xs text-[#f8f9fa] mb-1">
               Aggregate Function
             </label>
@@ -1347,10 +1415,10 @@ export default function EditorPane({
               className="min-w-0 w-full"
             />
           </div>
-          {["SUM", "MAX", "MIN", "AVG"].includes(
+          {["SUM", "MAX", "MIN", "AVG", "ROUND"].includes(
             selectedAggregate?.value || ""
           ) && (
-            <div className="flex flex-col gap-1 w-1/2">
+            <div className="flex flex-col gap-1 flex-1">
               <label className="text-xs text-[#f8f9fa] mb-1">
                 Aggregate Column
               </label>
@@ -1363,6 +1431,24 @@ export default function EditorPane({
                 isDisabled={!selectedTable || metadataLoading}
                 styles={singleSelectStyles}
                 className="min-w-0 w-full"
+              />
+            </div>
+          )}
+          {selectedAggregate?.value === "ROUND" && aggregateColumn && (
+            <div className="flex flex-col gap-1 flex-1">
+              <label className="text-xs text-[#f8f9fa] mb-1">
+                Decimal Places
+              </label>
+              <CreatableSelect
+                options={decimalPlacesOptions}
+                value={decimalPlaces}
+                onChange={handleDecimalPlacesSelect}
+                placeholder="Select or enter decimal places"
+                isClearable
+                isDisabled={!selectedTable || !aggregateColumn || metadataLoading}
+                styles={singleSelectStyles}
+                className="min-w-0 w-full"
+                formatCreateLabel={(inputValue) => inputValue}
               />
             </div>
           )}

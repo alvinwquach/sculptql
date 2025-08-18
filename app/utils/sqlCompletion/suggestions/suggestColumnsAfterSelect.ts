@@ -4,7 +4,7 @@ import { stripQuotes } from "../stripQuotes";
 
 // This function provides autocomplete suggestions for DISTINCT, *, aggregate functions,
 // and column names immediately after the `SELECT` or `SELECT DISTINCT` keywords in a SQL query,
-// or within the parentheses of an aggregate function (e.g., MAX(), SUM(), MIN(), AVG()).
+// or within the parentheses of an aggregate function (e.g., MAX(), SUM(), MIN(), AVG(), ROUND()).
 export const suggestColumnsAfterSelect = (
   docText: string, // The full text of the current SQL document
   currentWord: string, // The current word being typed at the cursor
@@ -18,9 +18,13 @@ export const suggestColumnsAfterSelect = (
   const selectRegex = /^SELECT\s*(DISTINCT\s*)?$/i;
   // Regex to match inside an aggregate function (e.g., SELECT AVG(, SELECT AVG(d)
   const aggrFuncRegex =
-    /\bSELECT\s+(DISTINCT\s+)?(?:SUM|MAX|MIN|AVG)\(\s*([a-zA-Z_][a-zA-Z0-9_"]*)?\s*$/i;
+    /\bSELECT\s+(DISTINCT\s+)?(?:SUM|MAX|MIN|AVG|ROUND)\(\s*([a-zA-Z_][a-zA-Z0-9_"]*)?\s*$/i;
+  // Regex to match after ROUND(column, (e.g., SELECT ROUND(price,
+  const roundDecimalRegex =
+    /\bSELECT\s+(DISTINCT\s+)?ROUND\(\s*(?:"[\w]+"|'[\w]+'|[\w_]+)\s*,\s*(\d*)?\s*$/i;
 
   const aggrMatch = docText.match(aggrFuncRegex);
+  const roundDecimalMatch = docText.match(roundDecimalRegex);
   const isInSelectClause =
     selectRegex.test(docText.trim()) ||
     (ast &&
@@ -32,8 +36,7 @@ export const suggestColumnsAfterSelect = (
           )
         : ast.type === "select" && (!ast.columns || ast.columns.length === 0)));
 
-  // === STEP 2: Check if DISTINCT is present ===
-  // Regex to match `SELECT` or `SELECT DISTINCT` with no columns yet typed
+  // Check if DISTINCT is present
   const isDistinctPresent =
     /^SELECT\s+DISTINCT\s*$/i.test(docText.trim()) ||
     (ast &&
@@ -41,9 +44,29 @@ export const suggestColumnsAfterSelect = (
         ? ast.some((node: Select) => node.type === "select" && node.distinct)
         : ast.type === "select" && ast.distinct));
 
-  // === STEP 3: Handle suggestions inside aggregate function parentheses
+  // === STEP 3: Handle suggestions for decimal places in ROUND(column, ...)
+  if (roundDecimalMatch) {
+    const partialNumber = roundDecimalMatch[2] || "";
+    const decimalOptions = ["0", "1", "2", "3", "4"].filter((num) =>
+      partialNumber ? num.startsWith(partialNumber) : true
+    );
+    return {
+      from: word ? word.from : pos,
+      options: decimalOptions.map((num) => ({
+        label: num,
+        type: "number",
+        apply: `${num}) `,
+        detail: "Decimal places",
+      })),
+      filter: true,
+      validFor: /^\d*$/,
+    };
+  }
+
+  // Handle suggestions inside aggregate function parentheses
   if (aggrMatch) {
     const partialColumn = aggrMatch[2] ? stripQuotes(aggrMatch[2]) : "";
+    const isRoundFunction = aggrMatch[0].toUpperCase().includes("ROUND(");
     const filteredColumns = allColumns.filter((column) =>
       partialColumn
         ? column.toLowerCase().startsWith(partialColumn.toLowerCase())
@@ -56,7 +79,13 @@ export const suggestColumnsAfterSelect = (
         options: filteredColumns.map((column) => ({
           label: column,
           type: "field",
-          apply: needsQuotes(column) ? `"${column}") ` : `${column}) `,
+          apply: needsQuotes(column)
+            ? isRoundFunction
+              ? `"${column}", `
+              : `"${column}") `
+            : isRoundFunction
+            ? `${column}, `
+            : `${column}) `,
           detail: "Column name",
         })),
         filter: true,
@@ -115,6 +144,12 @@ export const suggestColumnsAfterSelect = (
               type: "function",
               apply: "AVG(",
               detail: "Average of column values",
+            },
+            {
+              label: "ROUND(",
+              type: "function",
+              apply: "ROUND(",
+              detail: "Round column values",
             },
           ]
         : []),

@@ -5,7 +5,7 @@ import { TableColumn } from "@/app/types/query";
 interface AggrFuncExpr {
   type: "aggr_func";
   name: string;
-  args: { expr: ColumnRefExpr };
+  args: { expr: ColumnRefExpr } | { expr: ColumnRefExpr; decimals: number };
 }
 
 // This function suggests table names after the "FROM" keyword in a SQL query.
@@ -39,24 +39,24 @@ export const suggestTablesAfterFrom = (
     (expr as { type: unknown }).type === "column_ref" &&
     "column" in expr;
 
-  // Check if an expression is an aggregate function (COUNT, SUM, MAX, MIN, AVG)
+  // Check if an expression is an aggregate function (COUNT, SUM, MAX, MIN, AVG, ROUND)
   const isAggrFuncExpr = (expr: unknown): expr is AggrFuncExpr =>
     !!expr &&
     typeof expr === "object" &&
     "type" in expr &&
     (expr as { type: unknown }).type === "aggr_func" &&
     "name" in expr &&
-    ["COUNT", "SUM", "MAX", "MIN", "AVG"].includes(
+    ["COUNT", "SUM", "MAX", "MIN", "AVG", "ROUND"].includes(
       (expr as { name: string }).name.toUpperCase()
     );
 
-  // Matches: SELECT [DISTINCT] column_name, *, COUNT(*), SUM(column), MAX(column), MIN(column), AVG(column)
+  // Matches: SELECT [DISTINCT] column_name, *, COUNT(*), SUM(column), MAX(column), MIN(column), AVG(column), ROUND(column, number)
   const selectColumnRegex =
-    /\bSELECT\s+(?:(?:DISTINCT\s+)?(?:COUNT\(\*\)|(?:SUM|MAX|MIN|AVG)\(\s*(["'\w][^)]*?)\s*\)|(["'\w][^,]*?))\s*(?:,\s*(?:COUNT\(\*\)|(?:SUM|MAX|MIN|AVG)\(\s*(["'\w][^)]*?)\s*\)|(["'\w][^,]*?)))*)?$/i;
+    /\bSELECT\s+(?:(?:DISTINCT\s+)?(?:COUNT\(\*\)|(?:SUM|MAX|MIN|AVG)\(\s*(["'\w][^)]*?)\s*\)|ROUND\(\s*(["'\w][^,)]*?)\s*(?:,\s*(\d+))?\s*\)|(["'\w][^,]*?))\s*(?:,\s*(?:COUNT\(\*\)|(?:SUM|MAX|MIN|AVG)\(\s*(["'\w][^)]*?)\s*\)|ROUND\(\s*(["'\w][^,)]*?)\s*(?:,\s*(\d+))?\s*\)|(["'\w][^,]*?)))*)?$/i;
 
   // Matches: SELECT [DISTINCT] column_name FROM table_name, etc.
   const afterTableRegex =
-    /\bSELECT\s+(DISTINCT\s+)?((?:"[\w]+"|'[\w]+'|[\w_]+)|\*|COUNT\(\*\)|(?:SUM|MAX|MIN|AVG)\((?:"[\w]+"|'[\w]+'|[\w_]+)\))\s+FROM\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*$/i;
+    /\bSELECT\s+(DISTINCT\s+)?((?:"[\w]+"|'[\w]+'|[\w_]+)|\*|COUNT\(\*\)|(?:SUM|MAX|MIN|AVG)\((?:"[\w]+"|'[\w]+'|[\w_]+)\)|ROUND\((?:"[\w]+"|'[\w]+'|[\w_]+),\s*\d+\))\s+FROM\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*$/i;
 
   // === STEP 3: Handle suggestions after FROM with a valid table ===
   // Suggest WHERE or ; if a valid table name is already provided after FROM
