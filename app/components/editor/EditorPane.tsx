@@ -128,7 +128,10 @@ export default function EditorPane({
   }, []);
 
   const logicalOperatorOptions = useMemo(() => {
-    return [{ value: "AND", label: "AND" }];
+    return [
+      { value: "AND", label: "AND" },
+      { value: "OR", label: "OR" },
+    ];
   }, []);
 
   useEffect(() => {
