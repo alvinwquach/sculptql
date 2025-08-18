@@ -100,6 +100,7 @@ export default function EditorPane({
     column: null,
     direction: null,
   });
+  const [groupByColumn, setGroupByColumn] = useState<SelectOption | null>(null);
   const [limit, setLimit] = useState<SelectOption | null>(null);
   const [uniqueValues, setUniqueValues] = useState<
     Record<string, SelectOption[]>
@@ -134,6 +135,13 @@ export default function EditorPane({
   ];
 
   const aggregateColumnOptions: SelectOption[] = selectedTable
+    ? tableColumns[selectedTable.value]?.map((col) => ({
+        value: col,
+        label: col,
+      })) || []
+    : [];
+
+  const groupByColumnOptions: SelectOption[] = selectedTable
     ? tableColumns[selectedTable.value]?.map((col) => ({
         value: col,
         label: col,
@@ -346,6 +354,13 @@ export default function EditorPane({
         })
         .join(` ${whereClause.conditions[0].logicalOperator?.value || "AND"} `);
     }
+    if (groupByColumn) {
+      query += ` GROUP BY ${
+        needsQuotes(groupByColumn.value)
+          ? `"${groupByColumn.value}"`
+          : groupByColumn.value
+      }`;
+    }
     if (orderByClause.column && orderByClause.direction) {
       const column = needsQuotes(orderByClause.column.value)
         ? `"${orderByClause.column.value}"`
@@ -369,6 +384,7 @@ export default function EditorPane({
     decimalPlaces,
     whereClause,
     orderByClause,
+    groupByColumn,
     limit,
   ]);
 
@@ -398,6 +414,7 @@ export default function EditorPane({
         ],
       });
       setOrderByClause({ column: null, direction: null });
+      setGroupByColumn(null);
       setLimit(null);
       setUniqueValues({ condition1: [], condition2: [] });
       setFetchError(null);
@@ -446,6 +463,7 @@ export default function EditorPane({
           ],
         });
         setOrderByClause({ column: null, direction: null });
+        setGroupByColumn(null);
         setLimit(null);
         setUniqueValues({ condition1: [], condition2: [] });
         setFetchError(null);
@@ -537,6 +555,24 @@ export default function EditorPane({
           ? newValue
           : null
       );
+      const query = buildQuery();
+      if (editorRef.current) {
+        editorRef.current.dispatch({
+          changes: {
+            from: 0,
+            to: editorRef.current.state.doc.length,
+            insert: query,
+          },
+        });
+      }
+      setTimeout(() => onQueryChange(query), 0);
+    },
+    [buildQuery, onQueryChange]
+  );
+
+  const handleGroupByColumnSelect = useCallback(
+    (newValue: SingleValue<SelectOption>) => {
+      setGroupByColumn(newValue);
       const query = buildQuery();
       if (editorRef.current) {
         editorRef.current.dispatch({
@@ -802,6 +838,21 @@ export default function EditorPane({
     }
   }, [onQueryChange]);
 
+  const updateGroupByClause = (query: string): void => {
+    const groupByMatch = query.match(
+      /\bGROUP\s+BY\s+((?:"[\w]+"|'[\w]+'|[\w_]+))/i
+    );
+    if (groupByMatch) {
+      const [, column] = groupByMatch;
+      setGroupByColumn({
+        value: stripQuotes(column),
+        label: stripQuotes(column),
+      });
+    } else {
+      setGroupByColumn(null);
+    }
+  };
+
   const updateWhereClause = (query: string): void => {
     const whereMatch = query.match(
       /WHERE\s+((?:"[\w]+"|'[\w]+'|[\w_]+))\s*(IS NULL|IS NOT NULL|BETWEEN|[=!><]=?|LIKE)\s*('[^']*'|[0-9]+(?:\.[0-9]+)?)?(?:\s+AND\s+('[^']*'|[0-9]+(?:\.[0-9]+)?))?\s*(AND|OR)?\s*((?:"[\w]+"|'[\w]+'|[\w_]+))?\s*(IS NULL|IS NOT NULL|BETWEEN|[=!><]=?|LIKE)?\s*('[^']*'|[0-9]+(?:\.[0-9]+)?)?(?:\s+AND\s+('[^']*'|[0-9]+(?:\.[0-9]+)?))?/i
@@ -972,12 +1023,10 @@ export default function EditorPane({
         });
         setAggregateColumn(null);
         setDecimalPlaces(null);
-      } else if (
-        aggregateMatch.match(/^(SUM|MAX|MIN|AVG)\((.+)\)$/i)
-      ) {
-        const [aggFunc, column] = aggregateMatch.match(
-          /^(SUM|MAX|MIN|AVG)\((.+)\)$/i
-        )!.slice(1);
+      } else if (aggregateMatch.match(/^(SUM|MAX|MIN|AVG)\((.+)\)$/i)) {
+        const [aggFunc, column] = aggregateMatch
+          .match(/^(SUM|MAX|MIN|AVG)\((.+)\)$/i)!
+          .slice(1);
         setSelectedAggregate({
           value: aggFunc,
           label: `${aggFunc}()`,
@@ -1046,6 +1095,7 @@ export default function EditorPane({
           updateTableSelection(tableName);
           updateColumnAndAggregateSelection(newQuery, tableName);
           updateWhereClause(newQuery);
+          updateGroupByClause(newQuery);
           updateOrderByClause(newQuery);
         },
       }),
@@ -1088,6 +1138,7 @@ export default function EditorPane({
         ],
       });
       setOrderByClause({ column: null, direction: null });
+      setGroupByColumn(null);
       setLimit(null);
       setUniqueValues({ condition1: [], condition2: [] });
       setFetchError(null);
@@ -1445,7 +1496,9 @@ export default function EditorPane({
                 onChange={handleDecimalPlacesSelect}
                 placeholder="Select or enter decimal places"
                 isClearable
-                isDisabled={!selectedTable || !aggregateColumn || metadataLoading}
+                isDisabled={
+                  !selectedTable || !aggregateColumn || metadataLoading
+                }
                 styles={singleSelectStyles}
                 className="min-w-0 w-full"
                 formatCreateLabel={(inputValue) => inputValue}
@@ -1463,6 +1516,19 @@ export default function EditorPane({
             isMulti
             isDisabled={!selectedTable || metadataLoading}
             styles={selectStyles}
+            className="min-w-0 w-full"
+          />
+        </div>
+        <div className="flex flex-col gap-1">
+          <label className="text-xs text-[#f8f9fa] mb-1">Group By</label>
+          <Select
+            options={groupByColumnOptions}
+            value={groupByColumn}
+            onChange={handleGroupByColumnSelect}
+            placeholder="Select column to group by"
+            isClearable
+            isDisabled={!selectedTable || metadataLoading}
+            styles={singleSelectStyles}
             className="min-w-0 w-full"
           />
         </div>
