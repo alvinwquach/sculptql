@@ -54,8 +54,8 @@ export const suggestWhereClause = (
     return null;
   }
 
-  // Suggest columns if immediately after WHERE or AND
-  const afterWhereOrAndRegex = /\b(WHERE|AND)\s*(\w*)$/i;
+  // Suggest columns if immediately after WHERE or AND/OR
+  const afterWhereOrAndRegex = /\b(WHERE|AND|OR)\s*(\w*)$/i;
   if (afterWhereOrAndRegex.test(docText)) {
     const columns = tableColumns[selectedTable].filter((column) =>
       currentWord
@@ -82,7 +82,7 @@ export const suggestWhereClause = (
 
   // Suggest comparison operators and LIKE after a valid column
   const afterColumnRegex =
-    /\b(WHERE|AND)\s+((?:"[\w]+"|'[\w]+'|[\w_]+))\s*(\w*)$/i;
+    /\b(WHERE|AND|OR)\s+((?:"[\w]+"|'[\w]+'|[\w_]+))\s*(\w*)$/i;
   const match = docText.match(afterColumnRegex);
   if (match) {
     const column = stripQuotes(match[2]);
@@ -119,7 +119,7 @@ export const suggestWhereClause = (
 
   // Suggest pattern-based values or unique values after an operator
   const afterOperatorRegex =
-    /\b(WHERE|AND)\s+((?:"[\w]+"|'[\w]+'|[\w_]+))\s*([=!><]=?|LIKE|BETWEEN)\s*('[^']*'|[0-9]+)?$/i;
+    /\b(WHERE|AND|OR)\s+((?:"[\w]+"|'[\w]+'|[\w_]+))\s*([=!><]=?|LIKE|BETWEEN)\s*('[^']*'|[0-9]+)?$/i;
   const operatorMatch = docText.match(afterOperatorRegex);
   if (operatorMatch) {
     const [column, operator, partialValue] = operatorMatch;
@@ -132,7 +132,6 @@ export const suggestWhereClause = (
     ) {
       if (operator.toUpperCase() === "LIKE") {
         // Suggest common LIKE patterns
-
         const patternSuggestions = [
           { label: "'%value%'", detail: "Contains value" },
           { label: "'value%'", detail: "Starts with value" },
@@ -175,14 +174,15 @@ export const suggestWhereClause = (
     }
   }
 
-  // Suggest AND after a complete condition, but not if the last condition ends with AND
+  // Suggest AND or OR after a complete condition, but not if the last condition ends with AND or OR
   const afterConditionRegex =
-    /\b(WHERE|AND)\s+((?:"[\w]+"|'[\w]+'|[\w_]+))\s*([=!><]=?|LIKE|IS NULL|IS NOT NULL)\s*('[^']*'|[0-9]+)\s*(\w*)$/i;
+    /\b(WHERE|AND|OR)\s+((?:"[\w]+"|'[\w]+'|[\w_]+))\s*([=!><]=?|LIKE|IS NULL|IS NOT NULL)\s*('[^']*'|[0-9]+)\s*(\w*)$/i;
   const afterBetweenRegex =
-    /\b(WHERE|AND)\s+((?:"[\w]+"|'[\w]+'|[\w_]+))\s*BETWEEN\s*('[^']*'|[0-9]+)\s*AND\s*('[^']*'|[0-9]+)\s*(\w*)$/i;
+    /\b(WHERE|AND|OR)\s+((?:"[\w]+"|'[\w]+'|[\w_]+))\s*BETWEEN\s*('[^']*'|[0-9]+)\s*AND\s*('[^']*'|[0-9]+)\s*(\w*)$/i;
   if (
     (afterConditionRegex.test(docText) || afterBetweenRegex.test(docText)) &&
-    !docText.trim().endsWith("AND")
+    !docText.trim().endsWith("AND") &&
+    !docText.trim().endsWith("OR")
   ) {
     return {
       from: word ? word.from : pos,
@@ -191,11 +191,17 @@ export const suggestWhereClause = (
           label: "AND",
           type: "keyword",
           apply: "AND ",
-          detail: "Add another condition",
+          detail: "Add another condition (all must be true)",
+        },
+        {
+          label: "OR",
+          type: "keyword",
+          apply: "OR ",
+          detail: "Add another condition (any can be true)",
         },
       ],
       filter: true,
-      validFor: /^AND$/i,
+      validFor: /^(AND|OR)$/i,
     };
   }
 
@@ -222,6 +228,8 @@ const getOperatorDetail = (operator: string): string => {
       return "Checks if the value is NULL";
     case "IS NOT NULL":
       return "Checks if the value is not NULL";
+    case "BETWEEN":
+      return "Checks if value is within a range";
     default:
       return "";
   }
