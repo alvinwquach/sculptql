@@ -1,3 +1,4 @@
+import { ColumnSchema, TableDescription } from "@/app/types/query";
 import { NextResponse } from "next/server";
 import { Pool } from "pg";
 
@@ -13,18 +14,6 @@ const pool = new Pool({
   connectionTimeoutMillis: 2000,
   application_name: "sculptql-api",
 });
-
-interface ColumnSchema {
-  column_name: string;
-  data_type: string;
-  is_nullable: string;
-  column_default: string | null;
-}
-
-interface TableDescription {
-  table_name: string;
-  columns: ColumnSchema[];
-}
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
@@ -59,9 +48,49 @@ export async function GET(req: Request) {
         );
       }
 
+      const primaryKeyQuery = `
+        SELECT 
+          kcu.column_name
+        FROM information_schema.table_constraints tc
+        JOIN information_schema.key_column_usage kcu
+          ON tc.constraint_name = kcu.constraint_name
+          AND tc.table_schema = kcu.table_schema
+        WHERE tc.constraint_type = 'PRIMARY KEY'
+          AND tc.table_schema = 'public'
+          AND tc.table_name = $1;
+      `;
+      const primaryKeyResult = await client.query(primaryKeyQuery, [tableName]);
+      const primaryKeys = primaryKeyResult.rows.map((row) => row.column_name);
+
+      const foreignKeyQuery = `
+        SELECT 
+          kcu.column_name,
+          ccu.table_name AS referenced_table,
+          ccu.column_name AS referenced_column,
+          tc.constraint_name
+        FROM information_schema.table_constraints tc
+        JOIN information_schema.key_column_usage kcu
+          ON tc.constraint_name = kcu.constraint_name
+          AND tc.table_schema = kcu.table_schema
+        JOIN information_schema.constraint_column_usage ccu
+          ON tc.constraint_name = ccu.constraint_name
+          AND tc.table_schema = ccu.table_schema
+        WHERE tc.constraint_type = 'FOREIGN KEY'
+          AND tc.table_schema = 'public'
+          AND tc.table_name = $1;
+      `;
+      const foreignKeyResult = await client.query(foreignKeyQuery, [tableName]);
+
+      const columns: ColumnSchema[] = columnsResult.rows.map((column) => ({
+        ...column,
+        is_primary_key: primaryKeys.includes(column.column_name),
+      }));
+
       const schema: TableDescription = {
         table_name: tableName,
-        columns: columnsResult.rows,
+        columns,
+        primary_keys: primaryKeys,
+        foreign_keys: foreignKeyResult.rows,
       };
 
       return NextResponse.json(schema);

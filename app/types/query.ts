@@ -77,6 +77,14 @@ export interface ColumnSchema {
   data_type: string;
   is_nullable: string;
   column_default: string | null;
+  is_primary_key?: boolean;
+}
+
+export interface ForeignKeySchema {
+  column_name: string;
+  referenced_table: string;
+  referenced_column: string;
+  constraint_name: string;
 }
 
 export interface TableSchema {
@@ -90,6 +98,8 @@ export interface TableSchema {
 export interface TableDescription {
   table_name: string;
   columns: ColumnSchema[];
+  primary_keys: string[];
+  foreign_keys: ForeignKeySchema[];
 }
 
 export interface Column {
@@ -193,3 +203,4 @@ export type OptionType = {
   value: string;
   label: string;
 };
+
