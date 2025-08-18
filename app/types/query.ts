@@ -178,10 +178,10 @@ export interface SelectOption {
 }
 
 export interface WhereCondition {
-  logicalOperator: SelectOption | null;
-  column: SelectOption | null;
-  operator: SelectOption | null;
-  value: SelectOption | null;
+  logicalOperator?: SelectOption | null;
+  column?: SelectOption | null;
+  operator?: SelectOption | null;
+  value?: SelectOption | null;
   value2?: SelectOption | null;
 }
 
@@ -190,8 +190,8 @@ export interface WhereClause {
 }
 
 export interface OrderByClause {
-  column: SelectOption | null;
-  direction: SelectOption | null;
+  column?: SelectOption | null;
+  direction?: SelectOption | null;
 }
 
 export interface UniqueValues {
@@ -204,3 +204,7 @@ export type OptionType = {
   label: string;
 };
 
+export interface JsonFilter {
+  field?: string;
+  value?: string;
+}
