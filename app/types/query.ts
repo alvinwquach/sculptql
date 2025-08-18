@@ -163,6 +163,7 @@ export interface TableReference {
 export interface SelectOption {
   value: string;
   label: string;
+  aggregate?: boolean;
 }
 
 export interface WhereCondition {

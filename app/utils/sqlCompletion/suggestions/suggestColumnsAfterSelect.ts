@@ -61,6 +61,12 @@ export const suggestColumnsAfterSelect = (
               apply: "DISTINCT ",
               detail: "Select unique values",
             },
+            {
+              label: "COUNT(*)",
+              type: "function",
+              apply: "COUNT(*) ",
+              detail: "Count all rows",
+            },
           ]
         : []),
       // Only include '*' if DISTINCT is not present
@@ -69,7 +75,7 @@ export const suggestColumnsAfterSelect = (
             {
               label: "*",
               type: "field",
-              apply: "* ", 
+              apply: "* ",
               detail: "All columns",
             },
           ]
@@ -78,7 +84,7 @@ export const suggestColumnsAfterSelect = (
       ...filteredColumns.map((column) => ({
         label: column,
         type: "field",
-        apply: needsQuotes(column) ? `"${column}" ` : `${column} `, 
+        apply: needsQuotes(column) ? `"${column}" ` : `${column} `,
         detail: "Column name",
       })),
     ];
