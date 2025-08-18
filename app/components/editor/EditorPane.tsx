@@ -92,6 +92,7 @@ export default function EditorPane({
     column: null,
     direction: null,
   });
+  const [limit, setLimit] = useState<SelectOption | null>(null);
   const [uniqueValues, setUniqueValues] = useState<
     Record<string, SelectOption[]>
   >({ condition1: [], condition2: [] });
@@ -132,6 +133,16 @@ export default function EditorPane({
   const directionOptions: SelectOption[] = [
     { value: "ASC", label: "Ascending (A-Z, low-high)" },
     { value: "DESC", label: "Descending (Z-A, high-low)" },
+  ];
+
+  const limitOptions: SelectOption[] = [
+    { value: "1", label: "1" },
+    { value: "3", label: "3" },
+    { value: "5", label: "5" },
+    { value: "10", label: "10" },
+    { value: "25", label: "25" },
+    { value: "50", label: "50" },
+    { value: "100", label: "100" },
   ];
 
   const operatorOptions = useMemo(() => {
@@ -270,8 +281,16 @@ export default function EditorPane({
         : orderByClause.column.value;
       query += ` ORDER BY ${column} ${orderByClause.direction.value}`;
     }
+    if (
+      limit &&
+      limit.value.trim() !== "" &&
+      !isNaN(Number(limit.value)) &&
+      Number(limit.value) > 0
+    ) {
+      query += ` LIMIT ${limit.value}`;
+    }
     return query;
-  }, [selectedTable, selectedColumns, whereClause, orderByClause]);
+  }, [selectedTable, selectedColumns, whereClause, orderByClause, limit]);
 
   const handleTableSelect = useCallback(
     (newValue: SingleValue<SelectOption>) => {
@@ -296,6 +315,7 @@ export default function EditorPane({
         ],
       });
       setOrderByClause({ column: null, direction: null });
+      setLimit(null);
       setUniqueValues({ condition1: [], condition2: [] });
       setFetchError(null);
       const query = newValue ? `SELECT * FROM ${newValue.value} ` : "";
@@ -336,6 +356,7 @@ export default function EditorPane({
           ],
         });
         setOrderByClause({ column: null, direction: null });
+        setLimit(null);
         setUniqueValues({ condition1: [], condition2: [] });
         setFetchError(null);
         setTimeout(() => onQueryChange(""), 0);
@@ -584,6 +605,28 @@ export default function EditorPane({
     [buildQuery, onQueryChange]
   );
 
+  const handleLimitSelect = useCallback(
+    (newValue: SingleValue<SelectOption>) => {
+      setLimit(
+        newValue && !isNaN(Number(newValue.value)) && Number(newValue.value) > 0
+          ? newValue
+          : null
+      );
+      const query = buildQuery();
+      if (editorRef.current) {
+        editorRef.current.dispatch({
+          changes: {
+            from: 0,
+            to: editorRef.current.state.doc.length,
+            insert: query,
+          },
+        });
+      }
+      setTimeout(() => onQueryChange(query), 0);
+    },
+    [buildQuery, onQueryChange]
+  );
+
   const formatQuery = useCallback(() => {
     if (!editorRef.current) return;
     const currentText = editorRef.current.state.doc.toString();
@@ -720,10 +763,10 @@ export default function EditorPane({
 
   const updateOrderByClause = (query: string): void => {
     const orderByMatch = query.match(
-      /\bORDER\s+BY\s+((?:"[\w]+"|'[\w]+'|[\w_]+))\s*(ASC|DESC)?/i
+      /\bORDER\s+BY\s+((?:"[\w]+"|'[\w]+'|[\w_]+))\s*(ASC|DESC)?\s*(?:LIMIT\s+(\d+))?/i
     );
     if (orderByMatch) {
-      const [, column, direction] = orderByMatch;
+      const [column, direction, limitValue] = orderByMatch;
       setOrderByClause({
         column: column
           ? { value: stripQuotes(column), label: stripQuotes(column) }
@@ -738,8 +781,14 @@ export default function EditorPane({
             }
           : null,
       });
+      setLimit(
+        limitValue && !isNaN(Number(limitValue)) && Number(limitValue) > 0
+          ? { value: limitValue, label: limitValue }
+          : null
+      );
     } else {
       setOrderByClause({ column: null, direction: null });
+      setLimit(null);
     }
   };
 
@@ -801,6 +850,7 @@ export default function EditorPane({
         ],
       });
       setOrderByClause({ column: null, direction: null });
+      setLimit(null);
       setUniqueValues({ condition1: [], condition2: [] });
       setFetchError(null);
     };
@@ -1287,7 +1337,7 @@ export default function EditorPane({
         </div>
         <div className="flex flex-col gap-2">
           <div className="flex flex-row items-center gap-2 w-full">
-            <div className="flex flex-col gap-1 w-1/2">
+            <div className="flex flex-col gap-1 w-1/3">
               <label className="text-xs text-[#f8f9fa] mb-1">
                 Column (Order By)
               </label>
@@ -1295,14 +1345,14 @@ export default function EditorPane({
                 options={orderByColumnOptions}
                 value={orderByClause.column}
                 onChange={handleOrderByColumnSelect}
-                placeholder="Select column to order by"
+                placeholder="Column"
                 isClearable
                 isDisabled={!selectedTable || metadataLoading}
                 styles={singleSelectStyles}
                 className="min-w-0 w-full"
               />
             </div>
-            <div className="flex flex-col gap-1 w-1/2">
+            <div className="flex flex-col gap-1 w-1/3">
               <label className="text-xs text-[#f8f9fa] mb-1">Direction</label>
               <Select
                 options={directionOptions}
@@ -1315,6 +1365,20 @@ export default function EditorPane({
                 }
                 styles={singleSelectStyles}
                 className="min-w-0 w-full"
+              />
+            </div>
+            <div className="flex flex-col gap-1 w-1/3">
+              <label className="text-xs text-[#f8f9fa] mb-1">Limit</label>
+              <CreatableSelect
+                options={limitOptions}
+                value={limit}
+                onChange={handleLimitSelect}
+                placeholder="Set row limit"
+                isClearable
+                isDisabled={!selectedTable || metadataLoading}
+                styles={singleSelectStyles}
+                className="min-w-0 w-full"
+                formatCreateLabel={(inputValue) => inputValue}
               />
             </div>
           </div>

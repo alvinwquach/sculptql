@@ -12,6 +12,7 @@ import { suggestSelect } from "../utils/sqlCompletion/suggestions/suggestSelect"
 import { suggestTablesAfterFrom } from "../utils/sqlCompletion/suggestions/suggestTablesAfterFrom";
 import { suggestWhereClause } from "../utils/sqlCompletion/suggestions/suggestWhereClause";
 import { suggestOrderByClause } from "../utils/sqlCompletion/suggestions/suggestOrderByClause";
+import { suggestLimitClause } from "../utils/sqlCompletion/suggestions/suggestLimitClause";
 
 /**
  * Hook: useSqlCompletion
@@ -113,7 +114,8 @@ export const useSqlCompletion = (
           stripQuotes,
           needsQuotes,
           ast
-        )
+        ) ||
+        suggestLimitClause(docText, pos, word, tableNames)
       );
     },
 
