@@ -16,19 +16,23 @@ export const suggestTablesAfterFrom = (
   word: { from: number } | null, // Word range (used for determining where to insert suggestion)
   getValidTables: (
     selectedColumn: string | null,
+    tableColumns: TableColumn,
     dataType?: string
-  ) => string[], // Updated to accept optional dataType
+  ) => string[], // Function to get valid tables based on selected column and table metadata
   stripQuotes: (s: string) => string, // Utility to remove quotes from identifiers
   needsQuotes: (id: string) => boolean, // Utility to check if a table name needs quotes
+  tableColumns: TableColumn, // Table metadata mapping table names to their columns
   ast: Select | Select[] | null // Parsed SQL Abstract Syntax Tree (AST)
 ): CompletionResult | null => {
   // === STEP 1: Define helper functions ===
+  // Check if a node is a SELECT node
   const isSelectNode = (node: unknown): node is Select =>
     !!node &&
     typeof node === "object" &&
     "type" in node &&
     (node as { type: unknown }).type === "select";
 
+  // Check if an expression is a column reference
   const isColumnRefExpr = (expr: unknown): expr is ColumnRefExpr =>
     !!expr &&
     typeof expr === "object" &&
@@ -36,30 +40,32 @@ export const suggestTablesAfterFrom = (
     (expr as { type: unknown }).type === "column_ref" &&
     "column" in expr;
 
+  // Check if an expression is an aggregate function (COUNT, SUM, MAX, MIN)
   const isAggrFuncExpr = (expr: unknown): expr is AggrFuncExpr =>
     !!expr &&
     typeof expr === "object" &&
     "type" in expr &&
     (expr as { type: unknown }).type === "aggr_func" &&
     "name" in expr &&
-    "args" in expr &&
-    typeof (expr as { args: unknown }).args === "object" &&
-    "expr" in (expr as { args: { expr: unknown } }).args;
+    ["COUNT", "SUM", "MAX", "MIN"].includes(
+      (expr as { name: string }).name.toUpperCase()
+    );
 
   // === STEP 2: Define regex patterns ===
-  // Matches: SELECT [DISTINCT] column_name FROM, SELECT [DISTINCT] * FROM, SELECT COUNT(*) FROM, or SELECT SUM(column) FROM
-  const selectFromTableRegex =
-    /\bSELECT\s+(DISTINCT\s+)?((?:"[\w]+"|'[\w]+'|[\w_]+)|\*|COUNT\(\*\)|SUM\((?:"[\w]+"|'[\w]+'|[\w_]+)\))\s+FROM\s*(\w*)$/i;
+  // Matches: SELECT [DISTINCT] column_name, SELECT [DISTINCT] *, SELECT COUNT(*), SELECT SUM(column), SELECT MAX(column), or SELECT MIN(column)
+  const selectColumnRegex =
+    /\bSELECT\s+(?:(?:DISTINCT\s+)?(?:COUNT\(\*\)|(?:SUM|MAX|MIN)\(\s*(["'\w][^)]*?)\s*\)|(["'\w][^,]*?))\s*(?:,\s*(?:COUNT\(\*\)|(?:SUM|MAX|MIN)\(\s*(["'\w][^)]*?)\s*\)|(["'\w][^,]*?)))*)?$/i;
 
-  // Matches: SELECT [DISTINCT] column_name FROM table_name, SELECT COUNT(*) FROM table_name, or SELECT SUM(column) FROM table_name
+  // Matches: SELECT [DISTINCT] column_name FROM table_name, SELECT COUNT(*) FROM table_name, SELECT SUM(column) FROM table_name, SELECT MAX(column) FROM table_name, or SELECT MIN(column) FROM table_name
   const afterTableRegex =
-    /\bSELECT\s+(DISTINCT\s+)?((?:"[\w]+"|'[\w]+'|[\w_]+)|\*|COUNT\(\*\)|SUM\((?:"[\w]+"|'[\w]+'|[\w_]+)\))\s+FROM\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*$/i;
+    /\bSELECT\s+(DISTINCT\s+)?((?:"[\w]+"|'[\w]+'|[\w_]+)|\*|COUNT\(\*\)|(?:SUM|MAX|MIN)\((?:"[\w]+"|'[\w]+'|[\w_]+)\))\s+FROM\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*$/i;
 
   // === STEP 3: Handle suggestions after FROM with a valid table ===
+  // Suggest WHERE or ; if a valid table name is already provided after FROM
   if (afterTableRegex.test(docText)) {
     const tableName = docText.match(afterTableRegex)![3];
-    const filteredTables = getValidTables(null).filter(
-      (table) => tableName.toLowerCase() === table.toLowerCase()
+    const filteredTables = getValidTables(null, tableColumns).filter(
+      (table) => table.toLowerCase() === tableName.toLowerCase()
     );
 
     if (filteredTables.length > 0) {
@@ -86,89 +92,104 @@ export const suggestTablesAfterFrom = (
   }
 
   // === STEP 4: Handle table suggestions after FROM ===
-  if (selectFromTableRegex.test(docText)) {
-    // Extract the column or aggregate function from the regex match
-    const match = docText.match(selectFromTableRegex);
+  // Suggest table names when the user is typing after SELECT ... FROM
+  if (selectColumnRegex.test(docText) && !docText.match(/\bFROM\b/i)) {
     let selectedColumn: string | null = null;
-    let isSumFunction = false;
 
-    if (match && match[2] !== "*" && match[2] !== "COUNT(*)") {
-      if (match[2].startsWith("SUM(")) {
-        selectedColumn = stripQuotes(match[2].slice(4, -1)); // Extract column from SUM(column)
-        isSumFunction = true;
-      } else {
+    // Extract the column or aggregate function from the regex match
+    const match = docText.match(selectColumnRegex);
+    if (match) {
+      if (match[1]) {
+        selectedColumn = stripQuotes(match[1]); // Column inside SUM/MAX/MIN
+      } else if (match[2]) {
         selectedColumn = stripQuotes(match[2]); // Regular column
+      } else if (match[3]) {
+        selectedColumn = stripQuotes(match[3]); // Column inside SUM/MAX/MIN (from comma-separated list)
+      } else if (match[4]) {
+        selectedColumn = stripQuotes(match[4]); // Regular column (from comma-separated list)
       }
     }
 
-    // === STEP 5: Fallback to AST for column or aggregate function ===
-    if (!selectedColumn && ast) {
-      const selectNode = Array.isArray(ast)
-        ? ast.find((node: Select) => isSelectNode(node))
-        : isSelectNode(ast)
-        ? ast
-        : null;
-
-      if (selectNode && selectNode.columns && selectNode.columns.length > 0) {
-        const lastColumn = selectNode.columns[selectNode.columns.length - 1];
-        if (isColumnRefExpr(lastColumn.expr)) {
-          selectedColumn = stripQuotes(lastColumn.expr.column);
-        } else if (
-          isAggrFuncExpr(lastColumn.expr) &&
-          (lastColumn.expr.name.toUpperCase() === "COUNT" ||
-            lastColumn.expr.name.toUpperCase() === "SUM")
-        ) {
-          if (lastColumn.expr.name.toUpperCase() === "COUNT") {
-            selectedColumn = null; // COUNT(*) doesn't reference a specific column
-          } else if (
-            lastColumn.expr.name.toUpperCase() === "SUM" &&
-            isColumnRefExpr(lastColumn.expr.args.expr)
-          ) {
-            selectedColumn = stripQuotes(lastColumn.expr.args.expr.column); // SUM(column)
-            isSumFunction = true;
-          }
-        }
-      }
-    }
-
-    // === STEP 6: Get valid tables based on the selected column and data type ===
-    const numericTypes = [
-      "INTEGER",
-      "INT",
-      "FLOAT",
-      "DOUBLE",
-      "DECIMAL",
-      "NUMERIC",
-      "BIGINT",
-      "SMALLINT",
-      "REAL",
-    ];
-    const filteredTables = getValidTables(
-      selectedColumn,
-      isSumFunction ? numericTypes.join(",") : undefined
-    ).filter((tableName) =>
-      currentWord
-        ? tableName
-            .toLowerCase()
-            .startsWith(stripQuotes(currentWord).toLowerCase())
-        : true
+    // Get valid tables based on the selected column and table metadata (no data type filtering)
+    const validTables = getValidTables(selectedColumn, tableColumns).filter(
+      (tableName) =>
+        currentWord
+          ? tableName
+              .toLowerCase()
+              .startsWith(stripQuotes(currentWord).toLowerCase())
+          : true
     );
 
-    // === STEP 7: Return table suggestions ===
-    if (filteredTables.length > 0) {
+    if (validTables.length > 0) {
       return {
         from: word ? word.from : pos,
-        options: filteredTables.map((tableName) => ({
+        options: validTables.map((tableName) => ({
           label: tableName,
           type: "table",
           apply: needsQuotes(tableName) ? `"${tableName}" ` : `${tableName} `,
           detail: "Table name",
         })),
         filter: true,
-        validFor: /^\w*$/,
+        validFor: /^["'\w]*$/,
       };
     }
   }
 
+  // === STEP 5: Fallback to AST for column or aggregate function ===
+  // Use the AST to find the last column or aggregate function if regex didn't match
+  if (ast) {
+    const selectNode = Array.isArray(ast)
+      ? ast.find((node: Select) => isSelectNode(node))
+      : isSelectNode(ast)
+      ? ast
+      : null;
+
+    if (
+      selectNode &&
+      selectNode.columns &&
+      selectNode.columns.length > 0 &&
+      !selectNode.from
+    ) {
+      let selectedColumn: string | null = null;
+      const lastColumn = selectNode.columns[selectNode.columns.length - 1];
+
+      if (lastColumn.expr) {
+        if (isColumnRefExpr(lastColumn.expr)) {
+          selectedColumn = stripQuotes(lastColumn.expr.column);
+        } else if (isAggrFuncExpr(lastColumn.expr)) {
+          if (isColumnRefExpr(lastColumn.expr.args.expr)) {
+            selectedColumn = stripQuotes(lastColumn.expr.args.expr.column);
+          }
+        }
+      }
+
+      // === STEP 6: Get valid tables based on the selected column and table metadata (no data type filtering)
+      const validTables = getValidTables(selectedColumn, tableColumns).filter(
+        (tableName) =>
+          currentWord
+            ? tableName
+                .toLowerCase()
+                .startsWith(stripQuotes(currentWord).toLowerCase())
+            : true
+      );
+
+      // === STEP 7: Return table suggestions ===
+      if (validTables.length > 0) {
+        return {
+          from: word ? word.from : pos,
+          options: validTables.map((tableName) => ({
+            label: tableName,
+            type: "table",
+            apply: needsQuotes(tableName) ? `"${tableName}" ` : `${tableName} `,
+            detail: "Table name",
+          })),
+          filter: true,
+          validFor: /^["'\w]*$/,
+        };
+      }
+    }
+  }
+
+  // === STEP 8: No valid suggestions found ===
   return null;
 };
