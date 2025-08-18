@@ -24,7 +24,6 @@ export const suggestTablesAfterFrom = (
   tableColumns: TableColumn, // Table metadata mapping table names to their columns
   ast: Select | Select[] | null // Parsed SQL Abstract Syntax Tree (AST)
 ): CompletionResult | null => {
-  // === STEP 1: Define helper functions ===
   // Check if a node is a SELECT node
   const isSelectNode = (node: unknown): node is Select =>
     !!node &&
@@ -40,25 +39,24 @@ export const suggestTablesAfterFrom = (
     (expr as { type: unknown }).type === "column_ref" &&
     "column" in expr;
 
-  // Check if an expression is an aggregate function (COUNT, SUM, MAX, MIN)
+  // Check if an expression is an aggregate function (COUNT, SUM, MAX, MIN, AVG)
   const isAggrFuncExpr = (expr: unknown): expr is AggrFuncExpr =>
     !!expr &&
     typeof expr === "object" &&
     "type" in expr &&
     (expr as { type: unknown }).type === "aggr_func" &&
     "name" in expr &&
-    ["COUNT", "SUM", "MAX", "MIN"].includes(
+    ["COUNT", "SUM", "MAX", "MIN", "AVG"].includes(
       (expr as { name: string }).name.toUpperCase()
     );
 
-  // === STEP 2: Define regex patterns ===
-  // Matches: SELECT [DISTINCT] column_name, SELECT [DISTINCT] *, SELECT COUNT(*), SELECT SUM(column), SELECT MAX(column), or SELECT MIN(column)
+  // Matches: SELECT [DISTINCT] column_name, *, COUNT(*), SUM(column), MAX(column), MIN(column), AVG(column)
   const selectColumnRegex =
-    /\bSELECT\s+(?:(?:DISTINCT\s+)?(?:COUNT\(\*\)|(?:SUM|MAX|MIN)\(\s*(["'\w][^)]*?)\s*\)|(["'\w][^,]*?))\s*(?:,\s*(?:COUNT\(\*\)|(?:SUM|MAX|MIN)\(\s*(["'\w][^)]*?)\s*\)|(["'\w][^,]*?)))*)?$/i;
+    /\bSELECT\s+(?:(?:DISTINCT\s+)?(?:COUNT\(\*\)|(?:SUM|MAX|MIN|AVG)\(\s*(["'\w][^)]*?)\s*\)|(["'\w][^,]*?))\s*(?:,\s*(?:COUNT\(\*\)|(?:SUM|MAX|MIN|AVG)\(\s*(["'\w][^)]*?)\s*\)|(["'\w][^,]*?)))*)?$/i;
 
-  // Matches: SELECT [DISTINCT] column_name FROM table_name, SELECT COUNT(*) FROM table_name, SELECT SUM(column) FROM table_name, SELECT MAX(column) FROM table_name, or SELECT MIN(column) FROM table_name
+  // Matches: SELECT [DISTINCT] column_name FROM table_name, etc.
   const afterTableRegex =
-    /\bSELECT\s+(DISTINCT\s+)?((?:"[\w]+"|'[\w]+'|[\w_]+)|\*|COUNT\(\*\)|(?:SUM|MAX|MIN)\((?:"[\w]+"|'[\w]+'|[\w_]+)\))\s+FROM\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*$/i;
+    /\bSELECT\s+(DISTINCT\s+)?((?:"[\w]+"|'[\w]+'|[\w_]+)|\*|COUNT\(\*\)|(?:SUM|MAX|MIN|AVG)\((?:"[\w]+"|'[\w]+'|[\w_]+)\))\s+FROM\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*$/i;
 
   // === STEP 3: Handle suggestions after FROM with a valid table ===
   // Suggest WHERE or ; if a valid table name is already provided after FROM

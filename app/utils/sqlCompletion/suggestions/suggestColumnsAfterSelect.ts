@@ -4,7 +4,7 @@ import { stripQuotes } from "../stripQuotes";
 
 // This function provides autocomplete suggestions for DISTINCT, *, aggregate functions,
 // and column names immediately after the `SELECT` or `SELECT DISTINCT` keywords in a SQL query,
-// or within the parentheses of an aggregate function (e.g., MAX(), SUM(), MIN()).
+// or within the parentheses of an aggregate function (e.g., MAX(), SUM(), MIN(), AVG()).
 export const suggestColumnsAfterSelect = (
   docText: string, // The full text of the current SQL document
   currentWord: string, // The current word being typed at the cursor
@@ -16,9 +16,9 @@ export const suggestColumnsAfterSelect = (
 ): CompletionResult | null => {
   // Regex to match SELECT or SELECT DISTINCT with no columns yet typed
   const selectRegex = /^SELECT\s*(DISTINCT\s*)?$/i;
-  // Regex to match inside an aggregate function (e.g., SELECT MAX(, SELECT MAX(n)
+  // Regex to match inside an aggregate function (e.g., SELECT AVG(, SELECT AVG(d)
   const aggrFuncRegex =
-    /\bSELECT\s+(DISTINCT\s+)?(?:SUM|MAX|MIN)\(\s*([a-zA-Z_][a-zA-Z0-9_"]*)?\s*$/i;
+    /\bSELECT\s+(DISTINCT\s+)?(?:SUM|MAX|MIN|AVG)\(\s*([a-zA-Z_][a-zA-Z0-9_"]*)?\s*$/i;
 
   const aggrMatch = docText.match(aggrFuncRegex);
   const isInSelectClause =
@@ -41,7 +41,7 @@ export const suggestColumnsAfterSelect = (
         ? ast.some((node: Select) => node.type === "select" && node.distinct)
         : ast.type === "select" && ast.distinct));
 
-  // === STEP 3: If in SELECT or SELECT DISTINCT with no columns, offer suggestions ===
+  // === STEP 3: Handle suggestions inside aggregate function parentheses
   if (aggrMatch) {
     const partialColumn = aggrMatch[2] ? stripQuotes(aggrMatch[2]) : "";
     const filteredColumns = allColumns.filter((column) =>
@@ -109,6 +109,12 @@ export const suggestColumnsAfterSelect = (
               type: "function",
               apply: "MIN(",
               detail: "Minimum column value",
+            },
+            {
+              label: "AVG(",
+              type: "function",
+              apply: "AVG(",
+              detail: "Average of column values",
             },
           ]
         : []),
