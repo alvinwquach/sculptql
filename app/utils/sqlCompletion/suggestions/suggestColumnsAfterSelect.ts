@@ -1,8 +1,10 @@
 import { CompletionResult } from "@codemirror/autocomplete";
 import { Select } from "node-sql-parser";
+import { stripQuotes } from "../stripQuotes";
 
-// This function provides autocomplete suggestions for DISTINCT, *, and column names
-// immediately after the `SELECT` or `SELECT DISTINCT` keywords in a SQL query.
+// This function provides autocomplete suggestions for DISTINCT, *, aggregate functions,
+// and column names immediately after the `SELECT` or `SELECT DISTINCT` keywords in a SQL query,
+// or within the parentheses of an aggregate function (e.g., MAX(), SUM(), MIN()).
 export const suggestColumnsAfterSelect = (
   docText: string, // The full text of the current SQL document
   currentWord: string, // The current word being typed at the cursor
@@ -12,47 +14,70 @@ export const suggestColumnsAfterSelect = (
   needsQuotes: (id: string) => boolean, // Function to determine if a column name needs quotes
   ast: Select | Select[] | null // The parsed SQL AST (Abstract Syntax Tree)
 ): CompletionResult | null => {
-  // === STEP 1: Determine if we're in a SELECT clause with no columns ===
-  // Check if AST is a "select" node or contains a "select" node
-  // AND the select clause has no columns yet.
-  const inSelectClause =
-    ast &&
-    (Array.isArray(ast)
-      ? ast.some(
-          (node: Select) =>
-            node.type === "select" &&
-            (!node.columns || node.columns.length === 0)
-        )
-      : ast.type === "select" && (!ast.columns || ast.columns.length === 0));
+  // Regex to match SELECT or SELECT DISTINCT with no columns yet typed
+  const selectRegex = /^SELECT\s*(DISTINCT\s*)?$/i;
+  // Regex to match inside an aggregate function (e.g., SELECT MAX(, SELECT MAX(n)
+  const aggrFuncRegex =
+    /\bSELECT\s+(DISTINCT\s+)?(?:SUM|MAX|MIN)\(\s*([a-zA-Z_][a-zA-Z0-9_"]*)?\s*$/i;
 
-  // Regex to match `SELECT` or `SELECT DISTINCT` with no columns yet typed
-  const selectRegex = /^select\s*$/i;
-  const selectDistinctRegex = /^select\s+distinct\s*$/i;
+  const aggrMatch = docText.match(aggrFuncRegex);
+  const isInSelectClause =
+    selectRegex.test(docText.trim()) ||
+    (ast &&
+      (Array.isArray(ast)
+        ? ast.some(
+            (node: Select) =>
+              node.type === "select" &&
+              (!node.columns || node.columns.length === 0)
+          )
+        : ast.type === "select" && (!ast.columns || ast.columns.length === 0)));
 
   // === STEP 2: Check if DISTINCT is present ===
+  // Regex to match `SELECT` or `SELECT DISTINCT` with no columns yet typed
   const isDistinctPresent =
-    selectDistinctRegex.test(docText.trim()) ||
+    /^SELECT\s+DISTINCT\s*$/i.test(docText.trim()) ||
     (ast &&
       (Array.isArray(ast)
         ? ast.some((node: Select) => node.type === "select" && node.distinct)
         : ast.type === "select" && ast.distinct));
 
   // === STEP 3: If in SELECT or SELECT DISTINCT with no columns, offer suggestions ===
-  if (
-    inSelectClause ||
-    selectRegex.test(docText.trim()) ||
-    selectDistinctRegex.test(docText.trim())
-  ) {
+  if (aggrMatch) {
+    const partialColumn = aggrMatch[2] ? stripQuotes(aggrMatch[2]) : "";
+    const filteredColumns = allColumns.filter((column) =>
+      partialColumn
+        ? column.toLowerCase().startsWith(partialColumn.toLowerCase())
+        : true
+    );
     // Filter column suggestions if user has started typing a partial word
+    if (filteredColumns.length > 0) {
+      return {
+        from: word ? word.from : pos,
+        options: filteredColumns.map((column) => ({
+          label: column,
+          type: "field",
+          apply: needsQuotes(column) ? `"${column}") ` : `${column}) `,
+          detail: "Column name",
+        })),
+        filter: true,
+        validFor: /^["'\w]*$/,
+      };
+    }
+  }
+
+  // Handle suggestions after SELECT or SELECT DISTINCT
+  if (isInSelectClause || selectRegex.test(docText.trim())) {
     const filteredColumns = allColumns.filter((column) =>
       currentWord
-        ? column.toLowerCase().startsWith(currentWord.replace(/["']/g, ""))
+        ? column
+            .toLowerCase()
+            .startsWith(stripQuotes(currentWord).toLowerCase())
         : true
     );
 
     // === STEP 4: Build suggestions ===
     const options = [
-      // Suggest DISTINCT only if not already present and not after SELECT DISTINCT
+      // Suggest DISTINCT and aggregate functions if not after SELECT DISTINCT
       ...(!isDistinctPresent
         ? [
             {
@@ -66,6 +91,24 @@ export const suggestColumnsAfterSelect = (
               type: "function",
               apply: "COUNT(*) ",
               detail: "Count all rows",
+            },
+            {
+              label: "SUM(",
+              type: "function",
+              apply: "SUM(",
+              detail: "Sum of column values",
+            },
+            {
+              label: "MAX(",
+              type: "function",
+              apply: "MAX(",
+              detail: "Maximum column value",
+            },
+            {
+              label: "MIN(",
+              type: "function",
+              apply: "MIN(",
+              detail: "Minimum column value",
             },
           ]
         : []),
@@ -92,7 +135,7 @@ export const suggestColumnsAfterSelect = (
     // === STEP 5: Return suggestions if there are any ===
     if (options.length > 0) {
       return {
-        from: word ? word.from : pos, 
+        from: word ? word.from : pos,
         options,
         filter: true, // Enable filtering as user types more
         validFor: /^["'\w.]*$/, // Only trigger if valid characters (letters, quotes, etc.)

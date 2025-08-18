@@ -33,6 +33,8 @@ import {
 import { EditorState, Compartment } from "@codemirror/state";
 import { ViewPlugin } from "@codemirror/view";
 import { format as formatSQL } from "sql-formatter";
+import { needsQuotes } from "@/app/utils/sqlCompletion/needsQuotes";
+import { stripQuotes } from "@/app/utils/sqlCompletion/stripQuotes";
 
 interface EditorPaneProps {
   queryTabs: Tab[];
@@ -124,17 +126,15 @@ export default function EditorPane({
   const aggregateOptions: SelectOption[] = [
     { value: "COUNT(*)", label: "COUNT(*)", aggregate: true },
     { value: "SUM", label: "SUM()", aggregate: true },
+    { value: "MAX", label: "MAX()", aggregate: true },
+    { value: "MIN", label: "MIN()", aggregate: true },
   ];
 
   const aggregateColumnOptions: SelectOption[] = selectedTable
-    ? tableColumns[selectedTable.value]
-        ?.filter(() => {
-          return true;
-        })
-        .map((col) => ({
-          value: col,
-          label: col,
-        })) || []
+    ? tableColumns[selectedTable.value]?.map((col) => ({
+        value: col,
+        label: col,
+      })) || []
     : [];
 
   const whereColumnOptions: SelectOption[] = selectedTable
@@ -246,31 +246,47 @@ export default function EditorPane({
     fetchUniqueValues(1);
   }, [selectedTable, whereClause.conditions]);
 
-  const needsQuotes = (id: string): boolean =>
-    !/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(id);
-
-  const stripQuotes = (s: string): string => s.replace(/^['"]|['"]$/g, "");
-
   const buildQuery = useCallback(() => {
     let columns: string;
     if (selectedAggregate) {
       if (selectedAggregate.value === "COUNT(*)") {
         columns = selectedAggregate.value;
-      } else if (selectedAggregate.value === "SUM" && aggregateColumn) {
-        columns = `SUM(${aggregateColumn.value})`;
+      } else if (
+        ["SUM", "MAX", "MIN"].includes(selectedAggregate.value) &&
+        aggregateColumn
+      ) {
+        columns = `${selectedAggregate.value}(${
+          needsQuotes(aggregateColumn.value)
+            ? `"${aggregateColumn.value}"`
+            : aggregateColumn.value
+        })`;
       } else {
         columns = "*";
       }
       if (selectedColumns.length > 0 && selectedColumns[0].value !== "*") {
-        columns += ", " + selectedColumns.map((col) => col.value).join(", ");
+        columns +=
+          ", " +
+          selectedColumns
+            .map((col) =>
+              needsQuotes(col.value) ? `"${col.value}"` : col.value
+            )
+            .join(", ");
       }
     } else {
       columns = selectedColumns.length
-        ? selectedColumns.map((col) => col.value).join(", ")
+        ? selectedColumns
+            .map((col) =>
+              needsQuotes(col.value) ? `"${col.value}"` : col.value
+            )
+            .join(", ")
         : "*";
     }
     let query = selectedTable
-      ? `SELECT ${columns} FROM ${selectedTable.value} `
+      ? `SELECT ${columns} FROM ${
+          needsQuotes(selectedTable.value)
+            ? `"${selectedTable.value}"`
+            : selectedTable.value
+        } `
       : "";
     const validConditions = whereClause.conditions.filter(
       (c) =>
@@ -295,12 +311,7 @@ export default function EditorPane({
             condition.value.value.trim() !== "" &&
             condition.value2.value.trim() !== ""
           ) {
-            const isNumeric =
-              !isNaN(Number(condition.value.value)) &&
-              !isNaN(Number(condition.value2.value));
-            conditionStr += isNumeric
-              ? ` ${condition.value.value} AND ${condition.value2.value}`
-              : ` '${condition.value.value}' AND '${condition.value2.value}'`;
+            conditionStr += ` '${condition.value.value}' AND '${condition.value2.value}'`;
           } else if (
             condition.value &&
             condition.operator!.value !== "IS NULL" &&
@@ -366,7 +377,11 @@ export default function EditorPane({
       setLimit(null);
       setUniqueValues({ condition1: [], condition2: [] });
       setFetchError(null);
-      const query = newValue ? `SELECT * FROM ${newValue.value} ` : "";
+      const query = newValue
+        ? `SELECT * FROM ${
+            needsQuotes(newValue.value) ? `"${newValue.value}"` : newValue.value
+          } `
+        : "";
       if (editorRef.current) {
         editorRef.current.dispatch({
           changes: {
@@ -733,7 +748,7 @@ export default function EditorPane({
           insert: formatted,
         },
       });
-      setTimeout(() => onQueryChange(formatted), 0);
+      onQueryChange(formatted);
     } catch (err) {
       console.error("SQL formatting failed:", err);
     }
@@ -891,7 +906,11 @@ export default function EditorPane({
       .filter((col) => col !== "");
 
     const aggregateMatch = columns.find(
-      (col) => col.toUpperCase() === "COUNT(*)" || col.match(/^SUM\(.+\)$/i)
+      (col) =>
+        col.toUpperCase() === "COUNT(*)" ||
+        col.match(/^SUM\(.+\)$/i) ||
+        col.match(/^MAX\(.+\)$/i) ||
+        col.match(/^MIN\(.+\)$/i)
     );
     if (aggregateMatch) {
       if (aggregateMatch.toUpperCase() === "COUNT(*)") {
@@ -901,10 +920,19 @@ export default function EditorPane({
           aggregate: true,
         });
         setAggregateColumn(null);
-      } else if (aggregateMatch.match(/^SUM\((.+)\)$/i)) {
-        const column = stripQuotes(aggregateMatch.match(/^SUM\((.+)\)$/i)![1]);
-        setSelectedAggregate({ value: "SUM", label: "SUM()", aggregate: true });
-        setAggregateColumn({ value: column, label: column });
+      } else if (aggregateMatch.match(/^(SUM|MAX|MIN)\((.+)\)$/i)) {
+        const [aggFunc, column] = aggregateMatch.match(
+          /^(SUM|MAX|MIN)\((.+)\)$/i
+        )!;
+        setSelectedAggregate({
+          value: aggFunc,
+          label: `${aggFunc}()`,
+          aggregate: true,
+        });
+        setAggregateColumn({
+          value: stripQuotes(column),
+          label: stripQuotes(column),
+        });
       }
       columns.splice(columns.indexOf(aggregateMatch), 1);
     } else {
@@ -1091,7 +1119,6 @@ export default function EditorPane({
     tableNames,
     tableColumns,
     completion,
-    operatorOptions,
   ]);
 
   useEffect(() => {
@@ -1314,7 +1341,7 @@ export default function EditorPane({
               className="min-w-0 w-full"
             />
           </div>
-          {selectedAggregate?.value === "SUM" && (
+          {["SUM", "MAX", "MIN"].includes(selectedAggregate?.value || "") && (
             <div className="flex flex-col gap-1 w-1/2">
               <label className="text-xs text-[#f8f9fa] mb-1">
                 Aggregate Column
@@ -1323,7 +1350,7 @@ export default function EditorPane({
                 options={aggregateColumnOptions}
                 value={aggregateColumn}
                 onChange={handleAggregateColumnSelect}
-                placeholder="Select column for SUM"
+                placeholder={`Select column for ${selectedAggregate?.value}`}
                 isClearable
                 isDisabled={!selectedTable || metadataLoading}
                 styles={singleSelectStyles}
