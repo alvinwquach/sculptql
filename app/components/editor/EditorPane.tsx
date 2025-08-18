@@ -72,6 +72,9 @@ export default function EditorPane({
   const [selectedColumns, setSelectedColumns] = useState<SelectOption[]>([]);
   const [selectedAggregate, setSelectedAggregate] =
     useState<SelectOption | null>(null);
+  const [aggregateColumn, setAggregateColumn] = useState<SelectOption | null>(
+    null
+  );
   const [whereClause, setWhereClause] = useState<WhereClause>({
     conditions: [
       {
@@ -120,7 +123,19 @@ export default function EditorPane({
 
   const aggregateOptions: SelectOption[] = [
     { value: "COUNT(*)", label: "COUNT(*)", aggregate: true },
+    { value: "SUM", label: "SUM()", aggregate: true },
   ];
+
+  const aggregateColumnOptions: SelectOption[] = selectedTable
+    ? tableColumns[selectedTable.value]
+        ?.filter(() => {
+          return true;
+        })
+        .map((col) => ({
+          value: col,
+          label: col,
+        })) || []
+    : [];
 
   const whereColumnOptions: SelectOption[] = selectedTable
     ? tableColumns[selectedTable.value]?.map((col) => ({
@@ -237,12 +252,22 @@ export default function EditorPane({
   const stripQuotes = (s: string): string => s.replace(/^['"]|['"]$/g, "");
 
   const buildQuery = useCallback(() => {
-    let columns = selectedColumns.length
-      ? selectedColumns.map((col) => col.value).join(", ")
-      : "*";
+    let columns: string;
     if (selectedAggregate) {
-      columns =
-        selectedAggregate.value + (columns !== "*" ? ", " + columns : "");
+      if (selectedAggregate.value === "COUNT(*)") {
+        columns = selectedAggregate.value;
+      } else if (selectedAggregate.value === "SUM" && aggregateColumn) {
+        columns = `SUM(${aggregateColumn.value})`;
+      } else {
+        columns = "*";
+      }
+      if (selectedColumns.length > 0 && selectedColumns[0].value !== "*") {
+        columns += ", " + selectedColumns.map((col) => col.value).join(", ");
+      }
+    } else {
+      columns = selectedColumns.length
+        ? selectedColumns.map((col) => col.value).join(", ")
+        : "*";
     }
     let query = selectedTable
       ? `SELECT ${columns} FROM ${selectedTable.value} `
@@ -307,6 +332,7 @@ export default function EditorPane({
     selectedTable,
     selectedColumns,
     selectedAggregate,
+    aggregateColumn,
     whereClause,
     orderByClause,
     limit,
@@ -317,6 +343,7 @@ export default function EditorPane({
       setSelectedTable(newValue);
       setSelectedColumns([]);
       setSelectedAggregate(null);
+      setAggregateColumn(null);
       setWhereClause({
         conditions: [
           {
@@ -359,6 +386,7 @@ export default function EditorPane({
       if (!selectedTable) {
         setSelectedColumns([]);
         setSelectedAggregate(null);
+        setAggregateColumn(null);
         setWhereClause({
           conditions: [
             {
@@ -381,7 +409,7 @@ export default function EditorPane({
         setLimit(null);
         setUniqueValues({ condition1: [], condition2: [] });
         setFetchError(null);
-        setTimeout(() => onQueryChange(""), 0);
+        setTimeout(() => onQueryChange(query), 0);
         if (editorRef.current) {
           editorRef.current.dispatch({
             changes: {
@@ -425,6 +453,27 @@ export default function EditorPane({
   const handleAggregateSelect = useCallback(
     (newValue: SingleValue<SelectOption>) => {
       setSelectedAggregate(newValue);
+      if (!newValue || newValue.value === "COUNT(*)") {
+        setAggregateColumn(null);
+      }
+      const query = buildQuery();
+      if (editorRef.current) {
+        editorRef.current.dispatch({
+          changes: {
+            from: 0,
+            to: editorRef.current.state.doc.length,
+            insert: query,
+          },
+        });
+      }
+      setTimeout(() => onQueryChange(query), 0);
+    },
+    [buildQuery, onQueryChange]
+  );
+
+  const handleAggregateColumnSelect = useCallback(
+    (newValue: SingleValue<SelectOption>) => {
+      setAggregateColumn(newValue);
       const query = buildQuery();
       if (editorRef.current) {
         editorRef.current.dispatch({
@@ -474,24 +523,25 @@ export default function EditorPane({
           value: null,
           value2: null,
         };
-        return { conditions: newConditions };
+        const newClause = { conditions: newConditions };
+        const query = buildQuery();
+        if (editorRef.current) {
+          editorRef.current.dispatch({
+            changes: {
+              from: 0,
+              to: editorRef.current.state.doc.length,
+              insert: query,
+            },
+          });
+        }
+        setTimeout(() => onQueryChange(query), 0);
+        return newClause;
       });
       setUniqueValues((prev) => ({
         ...prev,
         [`condition${conditionIndex + 1}`]: [],
       }));
       setFetchError(null);
-      const query = buildQuery();
-      if (editorRef.current) {
-        editorRef.current.dispatch({
-          changes: {
-            from: 0,
-            to: editorRef.current.state.doc.length,
-            insert: query,
-          },
-        });
-      }
-      setTimeout(() => onQueryChange(query), 0);
     },
     [buildQuery, onQueryChange]
   );
@@ -829,29 +879,48 @@ export default function EditorPane({
     tableName: string
   ): void => {
     const columnMatch = query.match(/SELECT\s+(.+?)\s+FROM/i);
-    const columns: string[] = columnMatch
-      ? columnMatch[1].split(",").map((col) => stripQuotes(col.trim()))
-      : [];
+    if (!columnMatch) {
+      setSelectedAggregate(null);
+      setAggregateColumn(null);
+      setSelectedColumns([]);
+      return;
+    }
+    const columns: string[] = columnMatch[1]
+      .split(",")
+      .map((col) => stripQuotes(col.trim()))
+      .filter((col) => col !== "");
 
-    const aggregate = columns.find((col) => col === "COUNT(*)");
-    if (aggregate) {
-      setSelectedAggregate({
-        value: "COUNT(*)",
-        label: "COUNT(*)",
-        aggregate: true,
-      });
-      columns.splice(columns.indexOf("COUNT(*)"), 1);
+    const aggregateMatch = columns.find(
+      (col) => col.toUpperCase() === "COUNT(*)" || col.match(/^SUM\(.+\)$/i)
+    );
+    if (aggregateMatch) {
+      if (aggregateMatch.toUpperCase() === "COUNT(*)") {
+        setSelectedAggregate({
+          value: "COUNT(*)",
+          label: "COUNT(*)",
+          aggregate: true,
+        });
+        setAggregateColumn(null);
+      } else if (aggregateMatch.match(/^SUM\((.+)\)$/i)) {
+        const column = stripQuotes(aggregateMatch.match(/^SUM\((.+)\)$/i)![1]);
+        setSelectedAggregate({ value: "SUM", label: "SUM()", aggregate: true });
+        setAggregateColumn({ value: column, label: column });
+      }
+      columns.splice(columns.indexOf(aggregateMatch), 1);
     } else {
       setSelectedAggregate(null);
+      setAggregateColumn(null);
     }
 
     if (columns.length > 0 && columns[0] !== "*") {
       setSelectedColumns(
-        columns.map((col: string) => ({ value: col, label: col }))
+        columns
+          .filter((col) => tableColumns[tableName]?.includes(col))
+          .map((col) => ({ value: col, label: col }))
       );
     } else {
       setSelectedColumns(
-        tableColumns[tableName]?.map((col: string) => ({
+        tableColumns[tableName]?.map((col) => ({
           value: col,
           label: col,
         })) || []
@@ -867,18 +936,16 @@ export default function EditorPane({
         update: (update) => {
           if (!update.docChanged || isInitialRender.current) return;
           const newQuery: string = update.state.doc.toString();
-          setTimeout(() => {
-            onQueryChange(newQuery);
-            const tableName: string | null = extractTableName(newQuery);
-            if (!tableName || !tableNames.includes(tableName)) {
-              resetQueryState();
-              return;
-            }
-            updateTableSelection(tableName);
-            updateColumnAndAggregateSelection(newQuery, tableName);
-            updateWhereClause(newQuery);
-            updateOrderByClause(newQuery);
-          }, 0);
+          onQueryChange(newQuery);
+          const tableName: string | null = extractTableName(newQuery);
+          if (!tableName || !tableNames.includes(tableName)) {
+            resetQueryState();
+            return;
+          }
+          updateTableSelection(tableName);
+          updateColumnAndAggregateSelection(newQuery, tableName);
+          updateWhereClause(newQuery);
+          updateOrderByClause(newQuery);
         },
       }),
       {
@@ -899,6 +966,7 @@ export default function EditorPane({
       setSelectedTable(null);
       setSelectedColumns([]);
       setSelectedAggregate(null);
+      setAggregateColumn(null);
       setWhereClause({
         conditions: [
           {
@@ -1230,20 +1298,39 @@ export default function EditorPane({
             className="min-w-0 w-full"
           />
         </div>
-        <div className="flex flex-col gap-1">
-          <label className="text-xs text-[#f8f9fa] mb-1">
-            Aggregate Function
-          </label>
-          <Select
-            options={aggregateOptions}
-            value={selectedAggregate}
-            onChange={handleAggregateSelect}
-            placeholder="Select aggregate function"
-            isClearable
-            isDisabled={!selectedTable || metadataLoading}
-            styles={singleSelectStyles}
-            className="min-w-0 w-full"
-          />
+        <div className="flex flex-row items-center gap-2 w-full">
+          <div className="flex flex-col gap-1 w-1/2">
+            <label className="text-xs text-[#f8f9fa] mb-1">
+              Aggregate Function
+            </label>
+            <Select
+              options={aggregateOptions}
+              value={selectedAggregate}
+              onChange={handleAggregateSelect}
+              placeholder="Select aggregate function"
+              isClearable
+              isDisabled={!selectedTable || metadataLoading}
+              styles={singleSelectStyles}
+              className="min-w-0 w-full"
+            />
+          </div>
+          {selectedAggregate?.value === "SUM" && (
+            <div className="flex flex-col gap-1 w-1/2">
+              <label className="text-xs text-[#f8f9fa] mb-1">
+                Aggregate Column
+              </label>
+              <Select
+                options={aggregateColumnOptions}
+                value={aggregateColumn}
+                onChange={handleAggregateColumnSelect}
+                placeholder="Select column for SUM"
+                isClearable
+                isDisabled={!selectedTable || metadataLoading}
+                styles={singleSelectStyles}
+                className="min-w-0 w-full"
+              />
+            </div>
+          )}
         </div>
         <div className="flex flex-col gap-1">
           <label className="text-xs text-[#f8f9fa] mb-1">Columns</label>
