@@ -123,13 +123,18 @@ export default function EditorPane({
       ]
     : [];
 
-  const aggregateOptions: SelectOption[] = [
-    { value: "COUNT(*)", label: "COUNT(*)", aggregate: true },
-    { value: "SUM", label: "SUM()", aggregate: true },
-    { value: "MAX", label: "MAX()", aggregate: true },
-    { value: "MIN", label: "MIN()", aggregate: true },
-  ];
-
+    const aggregateOptions: SelectOption[] = [
+      {
+        value: "COUNT(*)",
+        label: "COUNT(*) – Count all rows",
+        aggregate: true,
+      },
+      { value: "SUM", label: "SUM() – Total of values", aggregate: true },
+      { value: "MAX", label: "MAX() – Largest value", aggregate: true },
+      { value: "MIN", label: "MIN() – Smallest value", aggregate: true },
+      { value: "AVG", label: "AVG() – Average value", aggregate: true },
+    ];
+    
   const aggregateColumnOptions: SelectOption[] = selectedTable
     ? tableColumns[selectedTable.value]?.map((col) => ({
         value: col,
@@ -252,7 +257,7 @@ export default function EditorPane({
       if (selectedAggregate.value === "COUNT(*)") {
         columns = selectedAggregate.value;
       } else if (
-        ["SUM", "MAX", "MIN"].includes(selectedAggregate.value) &&
+        ["SUM", "MAX", "MIN", "AVG"].includes(selectedAggregate.value) &&
         aggregateColumn
       ) {
         columns = `${selectedAggregate.value}(${
@@ -424,7 +429,7 @@ export default function EditorPane({
         setLimit(null);
         setUniqueValues({ condition1: [], condition2: [] });
         setFetchError(null);
-        setTimeout(() => onQueryChange(query), 0);
+        setTimeout(() => onQueryChange(""), 0);
         if (editorRef.current) {
           editorRef.current.dispatch({
             changes: {
@@ -910,7 +915,8 @@ export default function EditorPane({
         col.toUpperCase() === "COUNT(*)" ||
         col.match(/^SUM\(.+\)$/i) ||
         col.match(/^MAX\(.+\)$/i) ||
-        col.match(/^MIN\(.+\)$/i)
+        col.match(/^MIN\(.+\)$/i) ||
+        col.match(/^AVG\(.+\)$/i) 
     );
     if (aggregateMatch) {
       if (aggregateMatch.toUpperCase() === "COUNT(*)") {
@@ -920,9 +926,9 @@ export default function EditorPane({
           aggregate: true,
         });
         setAggregateColumn(null);
-      } else if (aggregateMatch.match(/^(SUM|MAX|MIN)\((.+)\)$/i)) {
+      } else if (aggregateMatch.match(/^(SUM|MAX|MIN|AVG)\((.+)\)$/i)) {
         const [aggFunc, column] = aggregateMatch.match(
-          /^(SUM|MAX|MIN)\((.+)\)$/i
+          /^(SUM|MAX|MIN|AVG)\((.+)\)$/i
         )!;
         setSelectedAggregate({
           value: aggFunc,
@@ -1341,7 +1347,9 @@ export default function EditorPane({
               className="min-w-0 w-full"
             />
           </div>
-          {["SUM", "MAX", "MIN"].includes(selectedAggregate?.value || "") && (
+          {["SUM", "MAX", "MIN", "AVG"].includes(
+            selectedAggregate?.value || ""
+          ) && (
             <div className="flex flex-col gap-1 w-1/2">
               <label className="text-xs text-[#f8f9fa] mb-1">
                 Aggregate Column
