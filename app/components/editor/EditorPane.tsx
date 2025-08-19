@@ -10,6 +10,7 @@ import WhereClauseSelector from "./WhereClauseSelector";
 import OrderByLimitSelector from "./OrderByLimitSelector";
 import JoinSelector from "./JoinSelector";
 import CodeMirrorSetup from "./CodeMirrorSetup";
+import HavingClauseSelector from "./HavingClauseSelector";
 import { Tab, TableColumn } from "@/app/types/query";
 import { CompletionSource } from "@codemirror/autocomplete";
 import { useQueryBuilder } from "./useQueryBuilder";
@@ -68,10 +69,14 @@ export default function EditorPane({
     handleWhereColumnSelect,
     handleOperatorSelect,
     handleValueSelect,
+    handleHavingAggregateSelect,
+    handleHavingColumnSelect,
+    handleHavingOperatorSelect,
+    handleHavingValueChange,
     handleOrderByColumnSelect,
     handleOrderByDirectionSelect,
     handleLimitSelect,
-    handleJoinTypeSelect, 
+    handleJoinTypeSelect,
     handleJoinTableSelect,
     handleJoinOnColumn1Select,
     handleJoinOnColumn2Select,
@@ -170,6 +175,19 @@ export default function EditorPane({
           operatorOptions={operatorOptions}
           logicalOperatorOptions={logicalOperatorOptions}
           joinClauses={queryState.joinClauses}
+        />
+        <HavingClauseSelector
+          tableColumns={tableColumns}
+          selectedTable={queryState.selectedTable}
+          joinClauses={queryState.joinClauses}
+          havingClause={queryState.havingClause}
+          uniqueValues={queryState.uniqueValues}
+          onHavingAggregateSelect={handleHavingAggregateSelect}
+          onHavingColumnSelect={handleHavingColumnSelect}
+          onHavingOperatorSelect={handleHavingOperatorSelect}
+          onHavingValueChange={handleHavingValueChange}
+          metadataLoading={metadataLoading}
+          operatorOptions={operatorOptions}
         />
         <OrderByLimitSelector
           selectedTable={queryState.selectedTable}

@@ -68,6 +68,7 @@ export const suggestGroupByClause = (
 
   // Check if GROUP BY already exists in the query
   const hasGroupBy = /\bGROUP\s+BY\b/i.test(docText);
+  const hasHaving = /\bHAVING\b/i.test(docText);
 
   // Suggest GROUP BY after FROM or WHERE if no GROUP BY exists
   const afterTableOrWhereRegex = /\bFROM\s+\w+(\s+WHERE\s+[^;]*?)?\s*$/i;
@@ -89,7 +90,7 @@ export const suggestGroupByClause = (
 
   // Suggest columns or column numbers after GROUP BY
   const afterGroupByRegex = /\bGROUP\s+BY\s*([^;]*)$/i;
-  if (afterGroupByRegex.test(docText)) {
+  if (!hasHaving && afterGroupByRegex.test(docText)) {
     const groupByText = afterGroupByRegex.exec(docText)![1].trim();
     const lastCharIsComma = groupByText.endsWith(",");
     const currentGroupByItems = groupByText
@@ -99,7 +100,6 @@ export const suggestGroupByClause = (
           .filter((item) => item)
       : [];
 
-    // If the last character is a comma or GROUP BY is empty, suggest columns and numbers
     if (lastCharIsComma || groupByText === "") {
       const columns = tableColumns[selectedTable].filter(
         (column) =>
@@ -150,10 +150,10 @@ export const suggestGroupByClause = (
     }
   }
 
-  // Suggest comma, ORDER BY, or ; after a valid GROUP BY item
-  const afterGroupByItemRegex = /\bGROUP\s+BY\s+([^;]+?)(?:(,\s*)?(\w*))?$/i;
+  // Suggest comma, HAVING, ORDER BY, or ; after a valid GROUP BY item
+  const afterGroupByItemRegex = /\bGROUP\s+BY\s+([^;]+?)(\s*)$/i;
   const match = docText.match(afterGroupByItemRegex);
-  if (match) {
+  if (!hasHaving && match) {
     const groupByItems = match[1]
       .split(",")
       .map((item) => item.trim())
@@ -175,6 +175,12 @@ export const suggestGroupByClause = (
           detail: "Add another GROUP BY column",
         },
         {
+          label: "HAVING",
+          type: "keyword",
+          apply: "HAVING ",
+          detail: "Filter grouped results",
+        },
+        {
           label: "ORDER BY",
           type: "keyword",
           apply: "ORDER BY ",
@@ -192,7 +198,7 @@ export const suggestGroupByClause = (
         from: word ? word.from : pos,
         options,
         filter: true,
-        validFor: /^(,|ORDER\s+BY|;)$/i,
+        validFor: /^(,|HAVING|ORDER\s+BY|;)$/i,
       };
     }
   }
