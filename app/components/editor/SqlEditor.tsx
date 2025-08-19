@@ -448,6 +448,45 @@ export default function SqlEditor() {
     [result]
   );
 
+  const exportToMarkdown = useCallback(
+    (exportAll: boolean = false, startIndex: number, endIndex: number) => {
+      if (!result || !result.rows || !result.fields) return;
+      const headers =
+        result.fields.map((field) => `| ${field} `).join("") + "|";
+      const separator = result.fields.map(() => "| --- ").join("") + "|";
+      const rows = result.rows
+        .slice(
+          exportAll ? 0 : startIndex,
+          exportAll ? result.rows.length : endIndex
+        )
+        .map(
+          (row) =>
+            result.fields
+              .map((field) => {
+                const value = row[field] !== null ? String(row[field]) : "";
+                return `| ${value.replace(/\|/g, "\\|")} `;
+              })
+              .join("") + "|"
+        );
+      const markdownContent = [headers, separator, ...rows].join("\n");
+      const blob = new Blob([markdownContent], {
+        type: "text/markdown;charset=utf-8;",
+      });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.setAttribute("href", url);
+      link.setAttribute(
+        "download",
+        `query_results_${new Date().toISOString()}.md`
+      );
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    },
+    [result]
+  );
+
   const addTab = useCallback(() => {
     if (queryTabs.length >= 5) {
       alert("Maximum tab limit (5) reached.");
@@ -712,6 +751,7 @@ export default function SqlEditor() {
                   onViewModeChange={handleViewModeChange}
                   onExportToCsv={exportToCsv}
                   onExportToJson={exportToJson}
+                  onExportToMarkdown={exportToMarkdown}
                   fullScreenEditor={fullScreenEditor}
                   currentPage={currentPage}
                   pageSize={pageSize}
