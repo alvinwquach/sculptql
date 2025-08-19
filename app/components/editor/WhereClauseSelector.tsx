@@ -1,7 +1,14 @@
+"use client";
+
 import Select from "react-select";
 import CreatableSelect from "react-select/creatable";
 import { SingleValue } from "react-select";
-import { SelectOption, TableColumn, WhereClause } from "@/app/types/query";
+import {
+  SelectOption,
+  TableColumn,
+  WhereClause,
+  JoinClause,
+} from "@/app/types/query";
 import { selectStyles } from "../../utils/selectStyles";
 
 interface WhereClauseSelectorProps {
@@ -26,6 +33,7 @@ interface WhereClauseSelectorProps {
   metadataLoading: boolean;
   operatorOptions: SelectOption[];
   logicalOperatorOptions: SelectOption[];
+  joinClauses: JoinClause[];
 }
 
 export default function WhereClauseSelector({
@@ -40,12 +48,24 @@ export default function WhereClauseSelector({
   metadataLoading,
   operatorOptions,
   logicalOperatorOptions,
+  joinClauses,
 }: WhereClauseSelectorProps) {
   const whereColumnOptions: SelectOption[] = selectedTable
-    ? tableColumns[selectedTable.value]?.map((col) => ({
-        value: col,
-        label: col,
-      })) || []
+    ? [
+        ...(tableColumns[selectedTable.value]?.map((col) => ({
+          value: `${selectedTable.value}.${col}`,
+          label: `${selectedTable.value}.${col}`,
+        })) || []),
+        ...joinClauses
+          .filter((join) => join.table?.value)
+          .flatMap(
+            (join) =>
+              tableColumns[join.table!.value]?.map((col) => ({
+                value: `${join.table!.value}.${col}`,
+                label: `${join.table!.value}.${col}`,
+              })) || []
+          ),
+      ]
     : [];
 
   return (

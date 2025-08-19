@@ -194,6 +194,12 @@ export interface OrderByClause {
   direction?: SelectOption | null;
 }
 
+export interface JoinClause {
+  table: SelectOption | null;
+  onColumn1: SelectOption | null;
+  onColumn2: SelectOption | null;
+}
+
 export interface UniqueValues {
   condition1: SelectOption[];
   condition2: SelectOption[];

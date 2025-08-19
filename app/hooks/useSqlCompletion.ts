@@ -14,6 +14,7 @@ import { suggestWhereClause } from "../utils/sqlCompletion/suggestions/suggestWh
 import { suggestOrderByClause } from "../utils/sqlCompletion/suggestions/suggestOrderByClause";
 import { suggestLimitClause } from "../utils/sqlCompletion/suggestions/suggestLimitClause";
 import { suggestGroupByClause } from "../utils/sqlCompletion/suggestions/suggestGroupByClause";
+import { suggestJoinClause } from "../utils/sqlCompletion/suggestions/suggestJoinClause";
 
 /**
  * Hook: useSqlCompletion
@@ -95,6 +96,17 @@ export const useSqlCompletion = (
           stripQuotes,
           needsQuotes,
           tableColumns,
+          ast
+        ) ||
+        suggestJoinClause(
+          docText,
+          currentWord,
+          pos,
+          word,
+          tableNames,
+          tableColumns,
+          stripQuotes,
+          needsQuotes,
           ast
         ) ||
         suggestWhereClause(
