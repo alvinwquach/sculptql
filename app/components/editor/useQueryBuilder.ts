@@ -181,7 +181,7 @@ export const useQueryBuilder = (
           if (joinType === "CROSS JOIN") {
             return `${joinType} ${table}`;
           }
-          // For INNER JOIN and LEFT JOIN, require onColumn1 and onColumn2
+          // For INNER JOIN, LEFT JOIN, and RIGHT JOIN, require onColumn1 and onColumn2
           if (!join.onColumn1?.value || !join.onColumn2?.value) {
             return "";
           }
@@ -636,6 +636,7 @@ export const useQueryBuilder = (
         newJoinClauses[joinIndex] = {
           ...newJoinClauses[joinIndex],
           joinType: newValue,
+          // Clear columns for CROSS JOIN, preserve for others
           onColumn1:
             newValue?.value === "CROSS JOIN"
               ? null
@@ -880,7 +881,7 @@ export const useQueryBuilder = (
 
       // Parse JOIN clauses
       const joinMatches = newQuery.matchAll(
-        /((INNER|LEFT|CROSS)\s+JOIN)\s+([a-zA-Z_][a-zA-Z0-9_]*)(?:\s+ON\s+([a-zA-Z_][a-zA-Z0-9_]*)\.([a-zA-Z_][a-zA-Z0-9_]*)\s*=\s*([a-zA-Z_][a-zA-Z0-9_]*)\.([a-zA-Z_][a-zA-Z0-9_]*))?/gi
+        /((INNER|LEFT|RIGHT|CROSS)\s+JOIN)\s+([a-zA-Z_][a-zA-Z0-9_]*)(?:\s+ON\s+([a-zA-Z_][a-zA-Z0-9_]*)\.([a-zA-Z_][a-zA-Z0-9_]*)\s*=\s*([a-zA-Z_][a-zA-Z0-9_]*)\.([a-zA-Z_][a-zA-Z0-9_]*))?/gi
       );
       const joinClauses: JoinClause[] = [];
       for (const match of joinMatches) {

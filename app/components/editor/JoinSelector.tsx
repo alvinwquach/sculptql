@@ -52,6 +52,7 @@ export default function JoinSelector({
   const joinTypeOptions: SelectOption[] = [
     { value: "INNER JOIN", label: "INNER JOIN" },
     { value: "LEFT JOIN", label: "LEFT JOIN" },
+    { value: "RIGHT JOIN", label: "RIGHT JOIN" },
     { value: "CROSS JOIN", label: "CROSS JOIN" },
   ];
 
