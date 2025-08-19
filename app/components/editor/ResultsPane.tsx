@@ -38,6 +38,11 @@ interface ResultsPaneProps {
     startIndex: number,
     endIndex: number
   ) => void;
+  onExportToMarkdown: (
+    exportAll: boolean,
+    startIndex: number,
+    endIndex: number
+  ) => void;
   fullScreenEditor: boolean;
   currentPage: number;
   pageSize: number;
@@ -58,6 +63,7 @@ export default function ResultsPane({
   onViewModeChange,
   onExportToCsv,
   onExportToJson,
+  onExportToMarkdown,
   fullScreenEditor,
   currentPage,
   pageSize,
@@ -112,6 +118,7 @@ export default function ResultsPane({
               onPageSizeChange={onPageSizeChange}
               onExportToCsv={onExportToCsv}
               onExportToJson={onExportToJson}
+              onExportToMarkdown={onExportToMarkdown}
             />
           )}
           {result && viewMode === "json" && (
@@ -123,6 +130,7 @@ export default function ResultsPane({
               onPageSizeChange={onPageSizeChange}
               onExportToCsv={onExportToCsv}
               onExportToJson={onExportToJson}
+              onExportToMarkdown={onExportToMarkdown}
             />
           )}
           {result && viewMode === "stats" && (

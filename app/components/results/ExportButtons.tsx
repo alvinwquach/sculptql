@@ -5,7 +5,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { Download } from "lucide-react";
+import { Sheet, Braces, FileText } from "lucide-react";
 
 interface ExportButtonsProps {
   onExportToCsv: (
@@ -18,14 +18,29 @@ interface ExportButtonsProps {
     startIndex: number,
     endIndex: number
   ) => void;
+  onExportToMarkdown: (
+    exportAll: boolean,
+    startIndex: number,
+    endIndex: number
+  ) => void;
   totalRows: number;
   currentPage: number;
   pageSize: number;
 }
 
+const baseButtonStyles = `
+px-2 py-1
+text-green-300 border-slate-600 bg-slate-800
+hover:bg-green-500 hover:text-white
+transition-all duration-200 rounded-full shadow-sm
+`;
+
+const iconStyles = "w-4 h-4";
+
 export default function ExportButtons({
   onExportToCsv,
   onExportToJson,
+  onExportToMarkdown,
   totalRows,
   currentPage,
   pageSize,
@@ -34,63 +49,90 @@ export default function ExportButtons({
   const endIndex = Math.min(startIndex + pageSize, totalRows);
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
+    <div className="flex flex-wrap gap-2 sm:gap-3">
       <TooltipProvider>
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
               variant="outline"
-              size="sm"
+              size="icon"
               onClick={() => onExportToCsv(false, startIndex, endIndex)}
-              className="px-2 sm:px-3 py-1 text-green-300 border-slate-600 bg-slate-800 hover:bg-green-500 hover:text-white transition-all duration-200 rounded-full shadow-sm text-xs sm:text-sm w-24 sm:w-auto"
+              className={`${baseButtonStyles} w-8 h-8`}
             >
-              <Download className="w-3 sm:w-4 h-3 sm:h-4 mr-1 sm:mr-2" />
-              Page CSV
+              <Sheet className={iconStyles} />
             </Button>
           </TooltipTrigger>
           <TooltipContent>Export current page as CSV</TooltipContent>
         </Tooltip>
+
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
               variant="outline"
-              size="sm"
+              size="icon"
               onClick={() => onExportToCsv(true, 0, totalRows)}
-              className="px-2 sm:px-3 py-1 text-green-300 border-slate-600 bg-slate-800 hover:bg-green-500 hover:text-white transition-all duration-200 rounded-full shadow-sm text-xs sm:text-sm w-24 sm:w-auto"
+              className={`${baseButtonStyles} w-8 h-8`}
             >
-              <Download className="w-3 sm:w-4 h-3 sm:h-4 mr-1 sm:mr-2" />
-              All CSV
+              <Sheet className={iconStyles} />
             </Button>
           </TooltipTrigger>
           <TooltipContent>Export all data as CSV</TooltipContent>
         </Tooltip>
+
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
               variant="outline"
-              size="sm"
+              size="icon"
               onClick={() => onExportToJson(false, startIndex, endIndex)}
-              className="px-2 sm:px-3 py-1 text-green-300 border-slate-600 bg-slate-800 hover:bg-green-500 hover:text-white transition-all duration-200 rounded-full shadow-sm text-xs sm:text-sm w-24 sm:w-auto"
+              className={`${baseButtonStyles} w-8 h-8`}
             >
-              <Download className="w-3 sm:w-4 h-3 sm:h-4 mr-1 sm:mr-2" />
-              Page JSON
+              <Braces className={iconStyles} />
             </Button>
           </TooltipTrigger>
           <TooltipContent>Export current page as JSON</TooltipContent>
         </Tooltip>
+
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
               variant="outline"
-              size="sm"
+              size="icon"
               onClick={() => onExportToJson(true, 0, totalRows)}
-              className="px-2 sm:px-3 py-1 text-green-300 border-slate-600 bg-slate-800 hover:bg-green-500 hover:text-white transition-all duration-200 rounded-full shadow-sm text-xs sm:text-sm w-24 sm:w-auto"
+              className={`${baseButtonStyles} w-8 h-8`}
             >
-              <Download className="w-3 sm:w-4 h-3 sm:h-4 mr-1 sm:mr-2" />
-              All JSON
+              <Braces className={iconStyles} />
             </Button>
           </TooltipTrigger>
           <TooltipContent>Export all data as JSON</TooltipContent>
+        </Tooltip>
+
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => onExportToMarkdown(false, startIndex, endIndex)}
+              className={`${baseButtonStyles} w-8 h-8`}
+            >
+              <FileText className={iconStyles} />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Export current page as Markdown</TooltipContent>
+        </Tooltip>
+
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => onExportToMarkdown(true, 0, totalRows)}
+              className={`${baseButtonStyles} w-8 h-8`}
+            >
+              <FileText className={iconStyles} />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Export all data as Markdown</TooltipContent>
         </Tooltip>
       </TooltipProvider>
     </div>

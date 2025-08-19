@@ -32,6 +32,11 @@ interface JsonViewProps {
     startIndex: number,
     endIndex: number
   ) => void;
+  onExportToMarkdown: (
+    exportAll: boolean,
+    startIndex: number,
+    endIndex: number
+  ) => void;
 }
 
 export default function JsonView({
@@ -42,6 +47,7 @@ export default function JsonView({
   onPageSizeChange,
   onExportToCsv,
   onExportToJson,
+  onExportToMarkdown,
 }: JsonViewProps) {
   const [filter, setFilter] = useState<JsonFilter>({
     field: undefined,
@@ -76,6 +82,7 @@ export default function JsonView({
         <ExportButtons
           onExportToCsv={onExportToCsv}
           onExportToJson={onExportToJson}
+          onExportToMarkdown={onExportToMarkdown}
           totalRows={filteredRows.length}
           currentPage={currentPage}
           pageSize={pageSize}

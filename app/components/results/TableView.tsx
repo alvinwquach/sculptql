@@ -1,3 +1,5 @@
+"use client";
+
 import { Table } from "lucide-react";
 import { QueryResult } from "@/app/types/query";
 import { getPaginatedRows } from "@/app/utils/resultsUtils";
@@ -20,6 +22,11 @@ interface TableViewProps {
     startIndex: number,
     endIndex: number
   ) => void;
+  onExportToMarkdown: (
+    exportAll: boolean,
+    startIndex: number,
+    endIndex: number
+  ) => void;
 }
 
 export default function TableView({
@@ -30,6 +37,7 @@ export default function TableView({
   onPageSizeChange,
   onExportToCsv,
   onExportToJson,
+  onExportToMarkdown,
 }: TableViewProps) {
   const totalRows = result.rows.length;
   const paginatedRows = getPaginatedRows(result.rows, currentPage, pageSize);
@@ -44,6 +52,7 @@ export default function TableView({
         <ExportButtons
           onExportToCsv={onExportToCsv}
           onExportToJson={onExportToJson}
+          onExportToMarkdown={onExportToMarkdown}
           totalRows={totalRows}
           currentPage={currentPage}
           pageSize={pageSize}
