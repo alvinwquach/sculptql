@@ -36,6 +36,136 @@ import { format as formatSQL } from "sql-formatter";
 import { needsQuotes } from "@/app/utils/sqlCompletion/needsQuotes";
 import { stripQuotes } from "@/app/utils/sqlCompletion/stripQuotes";
 
+const restrictedKeywords = [
+  "INSERT",
+  "UPDATE",
+  "DELETE",
+  "DROP",
+  "ALTER",
+  "CREATE",
+  "TRUNCATE",
+  "GRANT",
+  "REVOKE",
+  "MERGE",
+  "REPLACE",
+  "UPSERT",
+  "EXEC",
+  "EXECUTE",
+  "CALL",
+  "COPY",
+  "LOAD DATA",
+  "BULK INSERT",
+  "INSERT IGNORE",
+  "INSERT ON DUPLICATE KEY UPDATE",
+  "RENAME",
+  "ADD",
+  "MODIFY",
+  "CHANGE",
+  "SET SCHEMA",
+  "COMMENT",
+  "COMMIT",
+  "ROLLBACK",
+  "SAVEPOINT",
+  "BEGIN",
+  "START TRANSACTION",
+  "SET ROLE",
+  "SET SESSION",
+  "OWNERSHIP",
+  "SECURITY",
+  "CREATE FUNCTION",
+  "CREATE PROCEDURE",
+  "ALTER FUNCTION",
+  "ALTER PROCEDURE",
+  "DROP FUNCTION",
+  "DROP PROCEDURE",
+  "DO",
+  "CREATE TRIGGER",
+  "ALTER TRIGGER",
+  "DROP TRIGGER",
+  "CREATE EVENT",
+  "ALTER EVENT",
+  "DROP EVENT",
+  "CREATE DATABASE",
+  "ALTER DATABASE",
+  "DROP DATABASE",
+  "VACUUM",
+  "ANALYZE",
+  "REINDEX",
+  "CLUSTER",
+  "PREPARE",
+  "DECLARE",
+  "LOCK",
+  "UNLOCK",
+  "SET",
+  "REFRESH MATERIALIZED VIEW",
+  "IMPORT FOREIGN SCHEMA",
+  "CREATE INDEX",
+  "ALTER INDEX",
+  "DROP INDEX",
+  "CREATE TYPE",
+  "ALTER TYPE",
+  "DROP TYPE",
+  "CREATE DOMAIN",
+  "ALTER DOMAIN",
+  "DROP DOMAIN",
+  "CREATE SEQUENCE",
+  "ALTER SEQUENCE",
+  "DROP SEQUENCE",
+  "CREATE TABLESPACE",
+  "ALTER TABLESPACE",
+  "DROP TABLESPACE",
+  "CREATE POLICY",
+  "ALTER POLICY",
+  "DROP POLICY",
+  "SET CONSTRAINTS",
+  "ALTER SYSTEM",
+  "DISCARD",
+  "RESET",
+  "LISTEN",
+  "NOTIFY",
+  "LOAD XML",
+  "INSERT DELAYED",
+  "CREATE TABLE SELECT",
+  "ALTER VIEW",
+  "DROP VIEW",
+  "FLUSH",
+  "KILL",
+  "PURGE",
+  "RESET MASTER",
+  "RESET SLAVE",
+  "CREATE USER",
+  "ALTER USER",
+  "DROP USER",
+  "SET PASSWORD",
+  "LOCK TABLES",
+  "UNLOCK TABLES",
+  "ATTACH DATABASE",
+  "DETACH DATABASE",
+  "PRAGMA",
+  "CREATE VIRTUAL TABLE",
+  "CREATE OR REPLACE",
+  "FLASHBACK",
+  "CREATE SYNONYM",
+  "ALTER SYNONYM",
+  "DROP SYNONYM",
+  "CREATE MATERIALIZED VIEW",
+  "ALTER MATERIALIZED VIEW",
+  "DROP MATERIALIZED VIEW",
+  "DBCC",
+  "ALTER AUTHORIZATION",
+  "BACKUP",
+  "RESTORE",
+];
+
+const containsRestrictedKeywords = (query: string): boolean => {
+  const upperQuery = query.toUpperCase();
+  return restrictedKeywords.some((keyword) =>
+    upperQuery.match(
+      new RegExp(`\\b${keyword.replace(/\s+/g, "\\s+")}\\b`, "i")
+    )
+  );
+};
+
 interface EditorPaneProps {
   queryTabs: Tab[];
   activeTab: number;
@@ -50,6 +180,7 @@ interface EditorPaneProps {
   runQuery: () => void;
   tableNames: string[];
   tableColumns: TableColumn;
+  onError?: (error: string) => void;
 }
 
 export default function EditorPane({
@@ -66,6 +197,7 @@ export default function EditorPane({
   runQuery,
   tableNames,
   tableColumns,
+  onError,
 }: EditorPaneProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<EditorView | null>(null);
@@ -106,6 +238,8 @@ export default function EditorPane({
     Record<string, SelectOption[]>
   >({ condition1: [], condition2: [] });
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const [queryError, setQueryError] = useState<string | null>(null);
+
   const isMac =
     typeof navigator !== "undefined" && /Mac/i.test(navigator.platform);
   const isInitialRender = useRef(true);
@@ -1152,11 +1286,26 @@ export default function EditorPane({
           if (!update.docChanged || isInitialRender.current) return;
           const newQuery: string = update.state.doc.toString();
           onQueryChange(newQuery);
+          setQueryError(null);
+
+          if (containsRestrictedKeywords(newQuery)) {
+            setQueryError(
+              "Query contains restricted keywords that could modify the database."
+            );
+            onError?.(
+              "Query contains restricted keywords that could modify the database."
+            );
+            return;
+          }
+
           const tableName: string | null = extractTableName(newQuery);
           if (!tableName || !tableNames.includes(tableName)) {
             resetQueryState();
+            setQueryError("Invalid or missing table name in query.");
+            onError?.("Invalid or missing table name in query.");
             return;
           }
+
           updateTableSelection(tableName);
           updateColumnAndAggregateSelection(newQuery, tableName);
           updateWhereClause(newQuery);
@@ -1272,6 +1421,22 @@ export default function EditorPane({
           {
             key: isMac ? "Cmd-Enter" : "Ctrl-Enter",
             run: () => {
+              const currentQuery =
+                editorRef.current?.state.doc.toString() || "";
+              if (!currentQuery.trim()) {
+                setQueryError("Query cannot be empty.");
+                onError?.("Query cannot be empty.");
+                return true;
+              }
+              if (containsRestrictedKeywords(currentQuery)) {
+                setQueryError(
+                  "Query contains restricted keywords that could modify the database."
+                );
+                onError?.(
+                  "Query contains restricted keywords that could modify the database."
+                );
+                return true;
+              }
               runQuery();
               return true;
             },
@@ -1304,6 +1469,7 @@ export default function EditorPane({
     activeTab,
     queryTabs,
     onQueryChange,
+    onError,
     formatQuery,
     isMac,
     tableNames,
@@ -1500,6 +1666,12 @@ export default function EditorPane({
           <div className="flex items-center gap-2 text-red-400 text-xs">
             <AlertCircle className="w-4 h-4" />
             <span>{fetchError}</span>
+          </div>
+        )}
+        {queryError && (
+          <div className="flex items-center gap-2 text-red-400 text-xs">
+            <AlertCircle className="w-4 h-4" />
+            <span>{queryError}</span>
           </div>
         )}
         <div className="flex flex-col gap-1">
