@@ -55,7 +55,7 @@ export const suggestJoinClause = (
     return null;
   }
 
-  // Suggest INNER JOIN, LEFT JOIN, and CROSS JOIN after FROM or another JOIN
+  // Suggest INNER JOIN, LEFT JOIN, RIGHT JOIN, and CROSS JOIN after FROM or another JOIN
   const afterFromOrJoinRegex = /\b(FROM|JOIN)\s+[\w.]+\s*$/i;
   if (afterFromOrJoinRegex.test(docText)) {
     return {
@@ -74,6 +74,12 @@ export const suggestJoinClause = (
           detail: "Join tables, keeping all records from the left table",
         },
         {
+          label: "RIGHT JOIN",
+          type: "keyword",
+          apply: "RIGHT JOIN ",
+          detail: "Join tables, keeping all records from the right table",
+        },
+        {
           label: "CROSS JOIN",
           type: "keyword",
           apply: "CROSS JOIN ",
@@ -81,12 +87,12 @@ export const suggestJoinClause = (
         },
       ],
       filter: true,
-      validFor: /^(INNER\s+JOIN|LEFT\s+JOIN|CROSS\s+JOIN)$/i,
+      validFor: /^(INNER\s+JOIN|LEFT\s+JOIN|RIGHT\s+JOIN|CROSS\s+JOIN)$/i,
     };
   }
 
-  // Suggest table names after INNER JOIN, LEFT JOIN, or CROSS JOIN
-  const afterJoinRegex = /\b(INNER|LEFT|CROSS)\s+JOIN\s+(\w*)$/i;
+  // Suggest table names after INNER JOIN, LEFT JOIN, RIGHT JOIN, or CROSS JOIN
+  const afterJoinRegex = /\b(INNER|LEFT|RIGHT|CROSS)\s+JOIN\s+(\w*)$/i;
   if (afterJoinRegex.test(docText)) {
     const availableTables = tableNames.filter(
       (table) => table !== primaryTable
@@ -107,7 +113,7 @@ export const suggestJoinClause = (
   }
 
   // Suggest columns for ON clause (first column from primary table)
-  const afterOnRegex = /\b(INNER|LEFT)\s+JOIN\s+[\w.]+\s+ON\s+(\w*)$/i;
+  const afterOnRegex = /\b(INNER|LEFT|RIGHT)\s+JOIN\s+[\w.]+\s+ON\s+(\w*)$/i;
   if (
     afterOnRegex.test(docText) &&
     primaryTable &&
@@ -137,7 +143,7 @@ export const suggestJoinClause = (
 
   // Suggest columns for second table in ON clause
   const afterOnEqualRegex =
-    /\b(INNER|LEFT)\s+JOIN\s+([\w.]+)\s+ON\s+[\w.]+\.[\w.]+\s*=\s*(\w*)$/i;
+    /\b(INNER|LEFT|RIGHT)\s+JOIN\s+([\w.]+)\s+ON\s+[\w.]+\.[\w.]+\s*=\s*(\w*)$/i;
   const match = docText.match(afterOnEqualRegex);
   if (match && match[2] && tableColumns[match[2]]) {
     const joinTable = match[2];
@@ -163,7 +169,7 @@ export const suggestJoinClause = (
 
   // Suggest WHERE or ; after complete ON clause or CROSS JOIN
   const afterJoinClauseRegex =
-    /\b(INNER|LEFT)\s+JOIN\s+[\w.]+\s+ON\s+[\w.]+\.[\w.]+\s*=\s*[\w.]+\.[\w.]+\s*$|\bCROSS\s+JOIN\s+[\w.]+\s*$/i;
+    /\b(INNER|LEFT|RIGHT)\s+JOIN\s+[\w.]+\s+ON\s+[\w.]+\.[\w.]+\s*=\s*[\w.]+\.[\w.]+\s*$|\bCROSS\s+JOIN\s+[\w.]+\s*$/i;
   if (afterJoinClauseRegex.test(docText)) {
     return {
       from: word ? word.from : pos,
