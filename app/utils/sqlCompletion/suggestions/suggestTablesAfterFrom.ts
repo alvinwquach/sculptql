@@ -80,6 +80,12 @@ export const suggestTablesAfterFrom = (
             detail: "Join tables, keeping all records from the left table",
           },
           {
+            label: "CROSS JOIN",
+            type: "keyword",
+            apply: "CROSS JOIN ",
+            detail: "Combine all rows from both tables",
+          },
+          {
             label: "WHERE",
             type: "keyword",
             apply: "WHERE ",
@@ -93,7 +99,7 @@ export const suggestTablesAfterFrom = (
           },
         ],
         filter: true,
-        validFor: /^(INNER\s+JOIN|LEFT\s+JOIN|WHERE|;)$/i,
+        validFor: /^(INNER\s+JOIN|LEFT\s+JOIN|CROSS\s+JOIN|WHERE|;)$/i,
       };
     }
   }

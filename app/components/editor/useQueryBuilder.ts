@@ -172,25 +172,30 @@ export const useQueryBuilder = (
     // Add JOIN clauses
     if (joinClauses.length > 0) {
       query += joinClauses
-        .filter(
-          (join) =>
-            join.table?.value && join.onColumn1?.value && join.onColumn2?.value
-        )
+        .filter((join) => join.table?.value)
         .map((join) => {
           const table = needsQuotes(join.table!.value)
             ? `"${join.table!.value}"`
             : join.table!.value;
+          const joinType = join.joinType?.value || "INNER JOIN";
+          if (joinType === "CROSS JOIN") {
+            return `${joinType} ${table}`;
+          }
+          // For INNER JOIN and LEFT JOIN, require onColumn1 and onColumn2
+          if (!join.onColumn1?.value || !join.onColumn2?.value) {
+            return "";
+          }
           const onColumn1 = needsQuotes(join.onColumn1!.value)
             ? `"${join.onColumn1!.value}"`
             : join.onColumn1!.value;
           const onColumn2 = needsQuotes(join.onColumn2!.value)
             ? `"${join.onColumn2!.value}"`
             : join.onColumn2!.value;
-          const joinType = join.joinType?.value || "INNER JOIN";
           return `${joinType} ${table} ON ${
             selectedTable?.value
           }.${onColumn1} = ${join.table!.value}.${onColumn2}`;
         })
+        .filter((clause) => clause !== "")
         .join(" ");
     }
 
@@ -631,6 +636,14 @@ export const useQueryBuilder = (
         newJoinClauses[joinIndex] = {
           ...newJoinClauses[joinIndex],
           joinType: newValue,
+          onColumn1:
+            newValue?.value === "CROSS JOIN"
+              ? null
+              : newJoinClauses[joinIndex].onColumn1,
+          onColumn2:
+            newValue?.value === "CROSS JOIN"
+              ? null
+              : newJoinClauses[joinIndex].onColumn2,
         };
         const query = buildQuery();
         updateEditor(query);
@@ -647,9 +660,18 @@ export const useQueryBuilder = (
         newJoinClauses[joinIndex] = {
           ...newJoinClauses[joinIndex],
           table: newValue,
-          onColumn1: null,
-          onColumn2: null,
-          joinType: { value: "INNER JOIN", label: "INNER JOIN" }, // Default to INNER JOIN
+          onColumn1:
+            newJoinClauses[joinIndex].joinType?.value === "CROSS JOIN"
+              ? null
+              : null,
+          onColumn2:
+            newJoinClauses[joinIndex].joinType?.value === "CROSS JOIN"
+              ? null
+              : null,
+          joinType: newJoinClauses[joinIndex].joinType || {
+            value: "INNER JOIN",
+            label: "INNER JOIN",
+          },
         };
         const query = buildQuery();
         updateEditor(query);
@@ -858,21 +880,18 @@ export const useQueryBuilder = (
 
       // Parse JOIN clauses
       const joinMatches = newQuery.matchAll(
-        /(INNER|LEFT)\s+JOIN\s+([a-zA-Z_][a-zA-Z0-9_]*)\s+ON\s+([a-zA-Z_][a-zA-Z0-9_]*)\.([a-zA-Z_][a-zA-Z0-9_]*)\s*=\s*([a-zA-Z_][a-zA-Z0-9_]*)\.([a-zA-Z_][a-zA-Z0-9_]*)/gi
+        /((INNER|LEFT|CROSS)\s+JOIN)\s+([a-zA-Z_][a-zA-Z0-9_]*)(?:\s+ON\s+([a-zA-Z_][a-zA-Z0-9_]*)\.([a-zA-Z_][a-zA-Z0-9_]*)\s*=\s*([a-zA-Z_][a-zA-Z0-9_]*)\.([a-zA-Z_][a-zA-Z0-9_]*))?/gi
       );
       const joinClauses: JoinClause[] = [];
       for (const match of joinMatches) {
-        const [, joinType, joinTable, table1, column1, table2, column2] = match;
-        if (
-          tableNames.includes(joinTable) &&
-          tableColumns[table1]?.includes(column1) &&
-          tableColumns[table2]?.includes(column2)
-        ) {
+        const [, , joinType, joinTable, table1, column1, table2, column2] =
+          match;
+        if (tableNames.includes(joinTable)) {
           joinClauses.push({
             table: { value: joinTable, label: joinTable },
-            onColumn1: { value: column1, label: column1 },
-            onColumn2: { value: column2, label: column2 },
-            joinType: { value: joinType + " JOIN", label: joinType + " JOIN" },
+            onColumn1: column1 ? { value: column1, label: column1 } : null,
+            onColumn2: column2 ? { value: column2, label: column2 } : null,
+            joinType: { value: joinType, label: joinType },
           });
         }
       }
