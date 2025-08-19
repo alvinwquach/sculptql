@@ -215,3 +215,28 @@ export interface JsonFilter {
   field?: string;
   value?: string;
 }
+
+export interface HavingCondition {
+  aggregate: SelectOption | null;
+  column: SelectOption | null;
+  operator: SelectOption | null;
+  value: string | null;
+  logicalOperator: SelectOption | null;
+}
+
+export interface QueryState {
+  selectedTable: SelectOption | null;
+  selectedColumns: SelectOption[];
+  selectedAggregate: SelectOption | null;
+  aggregateColumn: SelectOption | null;
+  decimalPlaces: SelectOption | null;
+  whereClause: WhereClause;
+  havingClause: { conditions: HavingCondition[] };
+  orderByClause: OrderByClause;
+  groupByColumns: SelectOption[];
+  limit: SelectOption | null;
+  uniqueValues: Record<string, SelectOption[]>;
+  fetchError: string | null;
+  queryError: string | null;
+  joinClauses: JoinClause[];
+}

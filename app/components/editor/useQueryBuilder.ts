@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useMemo, useEffect, RefObject } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { MultiValue, SingleValue } from "react-select";
 import { EditorView } from "@codemirror/view";
 import {
@@ -9,6 +9,7 @@ import {
   OrderByClause,
   TableColumn,
   JoinClause,
+  HavingCondition,
 } from "@/app/types/query";
 import { needsQuotes } from "@/app/utils/sqlCompletion/needsQuotes";
 import { stripQuotes } from "@/app/utils/sqlCompletion/stripQuotes";
@@ -21,6 +22,7 @@ interface QueryState {
   aggregateColumn: SelectOption | null;
   decimalPlaces: SelectOption | null;
   whereClause: WhereClause;
+  havingClause: { conditions: HavingCondition[] };
   orderByClause: OrderByClause;
   groupByColumns: SelectOption[];
   limit: SelectOption | null;
@@ -34,7 +36,7 @@ export const useQueryBuilder = (
   tableNames: string[],
   tableColumns: TableColumn,
   onQueryChange: (query: string) => void,
-  editorRef: RefObject<EditorView | null>
+  editorRef: React.RefObject<EditorView | null>
 ) => {
   const [queryState, setQueryState] = useState<QueryState>({
     selectedTable: null,
@@ -60,6 +62,7 @@ export const useQueryBuilder = (
         },
       ],
     },
+    havingClause: { conditions: [] },
     orderByClause: { column: null, direction: null },
     groupByColumns: [],
     limit: null,
@@ -69,29 +72,23 @@ export const useQueryBuilder = (
     joinClauses: [],
   });
 
-  const operatorOptions: SelectOption[] = useMemo(
-    () => [
-      { value: "=", label: "=" },
-      { value: "!=", label: "!=" },
-      { value: ">", label: ">" },
-      { value: "<", label: "<" },
-      { value: ">=", label: ">=" },
-      { value: "<=", label: "<=" },
-      { value: "LIKE", label: "LIKE" },
-      { value: "IS NULL", label: "IS NULL" },
-      { value: "IS NOT NULL", label: "IS NOT NULL" },
-      { value: "BETWEEN", label: "BETWEEN" },
-    ],
-    []
-  );
+  const operatorOptions: SelectOption[] = [
+    { value: "=", label: "=" },
+    { value: "!=", label: "!=" },
+    { value: ">", label: ">" },
+    { value: "<", label: "<" },
+    { value: ">=", label: ">=" },
+    { value: "<=", label: "<=" },
+    { value: "LIKE", label: "LIKE" },
+    { value: "IS NULL", label: "IS NULL" },
+    { value: "IS NOT NULL", label: "IS NOT NULL" },
+    { value: "BETWEEN", label: "BETWEEN" },
+  ];
 
-  const logicalOperatorOptions = useMemo(
-    () => [
-      { value: "AND", label: "AND" },
-      { value: "OR", label: "OR" },
-    ],
-    []
-  );
+  const logicalOperatorOptions: SelectOption[] = [
+    { value: "AND", label: "AND" },
+    { value: "OR", label: "OR" },
+  ];
 
   const buildQuery = useCallback(() => {
     const {
@@ -101,6 +98,7 @@ export const useQueryBuilder = (
       aggregateColumn,
       decimalPlaces,
       whereClause,
+      havingClause,
       orderByClause,
       groupByColumns,
       limit,
@@ -169,7 +167,6 @@ export const useQueryBuilder = (
         } `
       : "";
 
-    // Add JOIN clauses
     if (joinClauses.length > 0) {
       query += joinClauses
         .filter((join) => join.table?.value)
@@ -181,7 +178,6 @@ export const useQueryBuilder = (
           if (joinType === "CROSS JOIN") {
             return `${joinType} ${table}`;
           }
-          // For INNER JOIN, LEFT JOIN, and RIGHT JOIN, require onColumn1 and onColumn2
           if (!join.onColumn1?.value || !join.onColumn2?.value) {
             return "";
           }
@@ -211,7 +207,7 @@ export const useQueryBuilder = (
     if (validConditions.length > 0) {
       query += " WHERE ";
       query += validConditions
-        .map((condition) => {
+        .map((condition, index) => {
           const column = condition.column!.value.includes(".")
             ? condition.column!.value
             : needsQuotes(condition.column!.value)
@@ -234,9 +230,11 @@ export const useQueryBuilder = (
           ) {
             conditionStr += ` '${condition.value.value}'`;
           }
-          return conditionStr;
+          return index === 0 || !condition.logicalOperator?.value
+            ? conditionStr
+            : `${condition.logicalOperator.value} ${conditionStr}`;
         })
-        .join(` ${whereClause.conditions[0].logicalOperator?.value || "AND"} `);
+        .join(" ");
     }
 
     if (groupByColumns.length > 0) {
@@ -276,6 +274,32 @@ export const useQueryBuilder = (
       query += ` GROUP BY ${groupByClause}`;
     }
 
+    const validHavingConditions = havingClause.conditions.filter(
+      (c) => c.aggregate?.value && c.operator?.value && c.value?.trim()
+    );
+    if (validHavingConditions.length > 0) {
+      query += " HAVING ";
+      query += validHavingConditions
+        .map((condition, index) => {
+          let conditionStr = "";
+          if (condition.aggregate!.value === "COUNT(*)") {
+            conditionStr = `COUNT(*) ${condition.operator!.value} ${
+              condition.value
+            }`;
+          } else if (condition.column?.value) {
+            conditionStr = `${condition.aggregate!.value}(${
+              needsQuotes(condition.column.value)
+                ? `"${condition.column.value}"`
+                : condition.column.value
+            }) ${condition.operator!.value} ${condition.value}`;
+          }
+          return index === 0 || !condition.logicalOperator?.value
+            ? conditionStr
+            : `${condition.logicalOperator.value} ${conditionStr}`;
+        })
+        .join(" ");
+    }
+
     if (orderByClause.column?.value && orderByClause.direction?.value) {
       const column = orderByClause.column.value.includes(".")
         ? orderByClause.column.value
@@ -313,6 +337,81 @@ export const useQueryBuilder = (
     [editorRef, onQueryChange]
   );
 
+  const fetchUniqueValues = useCallback(
+    async (conditionIndex: number, isHaving: boolean = false) => {
+      const targetTable = queryState.selectedTable?.value;
+      const conditions = isHaving
+        ? queryState.havingClause.conditions
+        : queryState.whereClause.conditions;
+      const condition = conditions[conditionIndex];
+
+      if (!targetTable || !condition?.column?.value) return;
+
+      const columnName = condition.column.value.split(".").pop();
+      if (!columnName) return;
+
+      try {
+        const res = await fetch(
+          `/api/unique-values?table=${encodeURIComponent(
+            targetTable
+          )}&column=${encodeURIComponent(columnName)}`
+        );
+        if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
+        const data = await res.json();
+        const unique = data.values.map((val: string) => ({
+          value: val,
+          label: val,
+        }));
+        setQueryState((prev) => ({
+          ...prev,
+          uniqueValues: {
+            ...prev.uniqueValues,
+            [isHaving
+              ? `having${conditionIndex + 1}`
+              : `condition${conditionIndex + 1}`]: unique,
+          },
+          fetchError: null,
+        }));
+      } catch (e) {
+        const message =
+          e instanceof Error ? e.message : "Failed to fetch unique values";
+        console.error(
+          `Error fetching unique values for ${
+            isHaving ? "having" : "condition"
+          } ${conditionIndex + 1}:`,
+          message
+        );
+        setQueryState((prev) => ({
+          ...prev,
+          fetchError: message,
+          uniqueValues: {
+            ...prev.uniqueValues,
+            [isHaving
+              ? `having${conditionIndex + 1}`
+              : `condition${conditionIndex + 1}`]: [],
+          },
+        }));
+      }
+    },
+    [
+      queryState.selectedTable,
+      queryState.whereClause.conditions,
+      queryState.havingClause.conditions,
+    ]
+  );
+
+  useEffect(() => {
+    queryState.whereClause.conditions.forEach((_, i) => fetchUniqueValues(i));
+    queryState.havingClause.conditions.forEach((_, i) =>
+      fetchUniqueValues(i, true)
+    );
+  }, [
+    queryState.selectedTable,
+    queryState.whereClause.conditions,
+    queryState.havingClause.conditions,
+    fetchUniqueValues,
+  ]);
+
   const handleTableSelect = useCallback(
     (newValue: SingleValue<SelectOption>) => {
       setQueryState((prev) => ({
@@ -340,6 +439,7 @@ export const useQueryBuilder = (
             },
           ],
         },
+        havingClause: { conditions: [] },
         orderByClause: { column: null, direction: null },
         groupByColumns: [],
         limit: null,
@@ -384,6 +484,7 @@ export const useQueryBuilder = (
               },
             ],
           },
+          havingClause: { conditions: [] },
           orderByClause: { column: null, direction: null },
           groupByColumns: [],
           limit: null,
@@ -515,8 +616,9 @@ export const useQueryBuilder = (
           fetchError: null,
         };
       });
+      if (newValue) fetchUniqueValues(conditionIndex);
     },
-    [buildQuery, updateEditor]
+    [buildQuery, updateEditor, fetchUniqueValues]
   );
 
   const handleOperatorSelect = useCallback(
@@ -576,6 +678,102 @@ export const useQueryBuilder = (
         const query = buildQuery();
         updateEditor(query);
         return { ...prev, whereClause: { conditions: newConditions } };
+      });
+    },
+    [buildQuery, updateEditor]
+  );
+
+  const handleHavingAggregateSelect = useCallback(
+    (index: number, newValue: SingleValue<SelectOption>) => {
+      setQueryState((prev) => {
+        const newConditions = [...prev.havingClause.conditions];
+        newConditions[index] = {
+          ...newConditions[index],
+          aggregate: newValue,
+          column:
+            newValue?.value === "COUNT(*)" ? null : newConditions[index].column,
+          value: null,
+          operator: null,
+        };
+        const query = buildQuery();
+        updateEditor(query);
+        return { ...prev, havingClause: { conditions: newConditions } };
+      });
+    },
+    [buildQuery, updateEditor]
+  );
+
+  const handleHavingColumnSelect = useCallback(
+    (index: number, newValue: SingleValue<SelectOption>) => {
+      setQueryState((prev) => {
+        const newConditions = [...prev.havingClause.conditions];
+        newConditions[index] = {
+          ...newConditions[index],
+          column: newValue,
+          value: null,
+          operator: null,
+        };
+        const query = buildQuery();
+        updateEditor(query);
+        return {
+          ...prev,
+          havingClause: { conditions: newConditions },
+          uniqueValues: {
+            ...prev.uniqueValues,
+            [`having${index + 1}`]: [],
+          },
+          fetchError: null,
+        };
+      });
+      if (newValue) fetchUniqueValues(index, true);
+    },
+    [buildQuery, updateEditor, fetchUniqueValues]
+  );
+
+  const handleHavingOperatorSelect = useCallback(
+    (index: number, newValue: SingleValue<SelectOption>) => {
+      setQueryState((prev) => {
+        const newConditions = [...prev.havingClause.conditions];
+        newConditions[index] = {
+          ...newConditions[index],
+          operator: newValue,
+          value: null,
+        };
+        const query = buildQuery();
+        updateEditor(query);
+        return { ...prev, havingClause: { conditions: newConditions } };
+      });
+    },
+    [buildQuery, updateEditor]
+  );
+
+  const handleHavingValueChange = useCallback(
+    (index: number, value: string | null) => {
+      setQueryState((prev) => {
+        const newConditions = [...prev.havingClause.conditions];
+        newConditions[index] = {
+          ...newConditions[index],
+          value: value?.trim() || null,
+        };
+        const query = buildQuery();
+        updateEditor(query);
+        return { ...prev, havingClause: { conditions: newConditions } };
+      });
+    },
+    [buildQuery, updateEditor]
+  );
+
+  const handleHavingLogicalOperatorSelect = useCallback(
+    (index: number, newValue: SingleValue<SelectOption>) => {
+      setQueryState((prev) => {
+        const newConditions = [...prev.havingClause.conditions];
+        newConditions[index] = {
+          ...newConditions[index],
+          logicalOperator: newValue,
+        };
+        const query = buildQuery();
+        updateEditor(query);
+        return { ...prev, havingClause: { conditions: newConditions } };
       });
     },
     [buildQuery, updateEditor]
@@ -727,7 +925,9 @@ export const useQueryBuilder = (
         },
       ],
     }));
-  }, []);
+    const query = buildQuery();
+    updateEditor(query);
+  }, [buildQuery, updateEditor]);
 
   const removeJoinClause = useCallback(
     (joinIndex: number) => {
@@ -742,86 +942,6 @@ export const useQueryBuilder = (
     },
     [buildQuery, updateEditor]
   );
-
-  useEffect(() => {
-    if (!queryState.selectedTable?.value) {
-      setQueryState((prev) => ({
-        ...prev,
-        uniqueValues: { condition1: [], condition2: [] },
-        fetchError: null,
-        joinClauses: [],
-      }));
-      return;
-    }
-
-    const fetchUniqueValues = async (conditionIndex: number) => {
-      const condition = queryState.whereClause.conditions[conditionIndex];
-      if (!condition.column?.value) {
-        setQueryState((prev) => ({
-          ...prev,
-          uniqueValues: {
-            ...prev.uniqueValues,
-            [`condition${conditionIndex + 1}`]: [],
-          },
-        }));
-        return;
-      }
-
-      const [tableName, columnName] = condition.column.value.split(".");
-      const targetTable = tableName || queryState.selectedTable?.value;
-
-      try {
-        if (!targetTable) {
-          throw new Error("No table selected");
-        }
-
-        const res = await fetch(
-          `/api/unique-values?table=${encodeURIComponent(
-            targetTable
-          )}&column=${encodeURIComponent(columnName || condition.column.value)}`
-        );
-
-        if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-        const contentType = res.headers.get("content-type");
-        if (!contentType || !contentType.includes("application/json"))
-          throw new Error("Response is not JSON");
-        const data = await res.json();
-        if (!data.values || !Array.isArray(data.values))
-          throw new Error("Invalid response format: 'values' array expected");
-        const values =
-          condition.operator?.value === "LIKE" ||
-          condition.operator?.value === "IS NULL" ||
-          condition.operator?.value === "IS NOT NULL"
-            ? []
-            : data.values.map((value: string) => ({ value, label: value }));
-        setQueryState((prev) => ({
-          ...prev,
-          uniqueValues: {
-            ...prev.uniqueValues,
-            [`condition${conditionIndex + 1}`]: values,
-          },
-          fetchError: null,
-        }));
-      } catch (e) {
-        const message = (e as Error).message || "Failed to fetch unique values";
-        console.error(
-          `Error fetching unique values for condition ${conditionIndex + 1}:`,
-          message
-        );
-        setQueryState((prev) => ({
-          ...prev,
-          fetchError: message,
-          uniqueValues: {
-            ...prev.uniqueValues,
-            [`condition${conditionIndex + 1}`]: [],
-          },
-        }));
-      }
-    };
-
-    fetchUniqueValues(0);
-    fetchUniqueValues(1);
-  }, [queryState.selectedTable, queryState.whereClause.conditions]);
 
   const updateQueryState = useCallback(
     (newQuery: string) => {
@@ -862,6 +982,7 @@ export const useQueryBuilder = (
               },
             ],
           },
+          havingClause: { conditions: [] },
           orderByClause: { column: null, direction: null },
           groupByColumns: [],
           limit: null,
@@ -879,7 +1000,6 @@ export const useQueryBuilder = (
         queryError: null,
       }));
 
-      // Parse JOIN clauses
       const joinMatches = newQuery.matchAll(
         /((INNER|LEFT|RIGHT|CROSS)\s+JOIN)\s+([a-zA-Z_][a-zA-Z0-9_]*)(?:\s+ON\s+([a-zA-Z_][a-zA-Z0-9_]*)\.([a-zA-Z_][a-zA-Z0-9_]*)\s*=\s*([a-zA-Z_][a-zA-Z0-9_]*)\.([a-zA-Z_][a-zA-Z0-9_]*))?/gi
       );
@@ -898,7 +1018,6 @@ export const useQueryBuilder = (
       }
       setQueryState((prev) => ({ ...prev, joinClauses }));
 
-      // Update columns and aggregates
       const columnMatch = newQuery.match(/SELECT\s+(.+?)\s+FROM/i);
       if (columnMatch) {
         const columns = columnMatch[1]
@@ -999,7 +1118,6 @@ export const useQueryBuilder = (
         }));
       }
 
-      // Update WHERE clause
       const whereMatch = newQuery.match(
         /WHERE\s+((?:"[\w]+"|'[\w]+'|[\w_]+\.[\w_]+))\s*(IS NULL|IS NOT NULL|BETWEEN|[=!><]=?|LIKE)\s*('[^']*'|[0-9]+(?:\.[0-9]+)?)?(?:\s+AND\s+('[^']*'|[0-9]+(?:\.[0-9]+)?))?\s*(AND|OR)?\s*((?:"[\w]+"|'[\w]+'|[\w_]+\.[\w_]+))?\s*(IS NULL|IS NOT NULL|BETWEEN|[=!><]=?|LIKE)?\s*('[^']*'|[0-9]+(?:\.[0-9]+)?)?(?:\s+AND\s+('[^']*'|[0-9]+(?:\.[0-9]+)?))?/i
       );
@@ -1103,7 +1221,6 @@ export const useQueryBuilder = (
         }));
       }
 
-      // Update GROUP BY clause
       const groupByMatch = newQuery.match(/\bGROUP\s+BY\s+([^;]+)/i);
       if (groupByMatch && tableNameMatch) {
         const groupByItems = groupByMatch[1]
@@ -1168,7 +1285,62 @@ export const useQueryBuilder = (
         setQueryState((prev) => ({ ...prev, groupByColumns: [] }));
       }
 
-      // Update ORDER BY clause
+      // Update HAVING clause
+      const havingMatch = newQuery.match(
+        /\bHAVING\s+(.+?)(?=\s*(ORDER\s+BY|LIMIT|$))/i
+      );
+      if (havingMatch && tableNameMatch) {
+        const havingText = havingMatch[1];
+        const conditionStrings = havingText
+          .split(/(AND|OR)/i)
+          .map((part) => part.trim())
+          .filter((part) => part && !part.match(/AND|OR/i));
+        const logicalOperators = havingText.match(/(AND|OR)/gi) || [];
+
+        const havingConditions: HavingCondition[] = conditionStrings
+          .map((condition, index) => {
+            const match = condition.match(
+              /(COUNT\(\*\)|(?:SUM|MAX|MIN|AVG|ROUND)\((.*?)\))\s*(=|>|<|>=|<=|!=)\s*([0-9]+(?:\.[0-9]+)?|\w+)/i
+            );
+            if (!match) return null;
+            const [, aggregate, column, operator, value] = match;
+            return {
+              aggregate: aggregate
+                ? { value: aggregate, label: aggregate }
+                : null,
+              column: column
+                ? { value: stripQuotes(column), label: stripQuotes(column) }
+                : null,
+              operator: operator ? { value: operator, label: operator } : null,
+              value: value || null,
+              logicalOperator:
+                index > 0 && logicalOperators[index - 1]
+                  ? {
+                      value: logicalOperators[index - 1],
+                      label: logicalOperators[index - 1],
+                    }
+                  : null,
+            };
+          })
+          .filter(
+            (c): c is HavingCondition =>
+              !!c &&
+              c.aggregate !== null &&
+              c.operator !== null &&
+              c.value !== null
+          );
+
+        setQueryState((prev) => ({
+          ...prev,
+          havingClause: { conditions: havingConditions },
+        }));
+      } else {
+        setQueryState((prev) => ({
+          ...prev,
+          havingClause: { conditions: [] },
+        }));
+      }
+
       const orderByMatch = newQuery.match(
         /\bORDER\s+BY\s+((?:"[\w]+"|'[\w]+'|[\w_]+\.[\w_]+))\s*(ASC|DESC)?\s*(?:LIMIT\s+(\d+))?/i
       );
@@ -1221,6 +1393,11 @@ export const useQueryBuilder = (
     handleWhereColumnSelect,
     handleOperatorSelect,
     handleValueSelect,
+    handleHavingAggregateSelect,
+    handleHavingColumnSelect,
+    handleHavingOperatorSelect,
+    handleHavingValueChange,
+    handleHavingLogicalOperatorSelect,
     handleOrderByColumnSelect,
     handleOrderByDirectionSelect,
     handleLimitSelect,
@@ -1230,6 +1407,7 @@ export const useQueryBuilder = (
     handleJoinOnColumn2Select,
     addJoinClause,
     removeJoinClause,
+
     operatorOptions,
     logicalOperatorOptions,
   };
