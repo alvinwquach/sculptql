@@ -12,7 +12,7 @@ import {
 import { EditorState, Compartment } from "@codemirror/state";
 import { ViewPlugin } from "@codemirror/view";
 import { format as formatSQL } from "sql-formatter";
-import { Tab } from "@/app/types/query";
+import { Tab, TableColumn, SelectOption } from "@/app/types/query";
 import { CompletionSource } from "@codemirror/autocomplete";
 import { stripQuotes } from "@/app/utils/sqlCompletion/stripQuotes";
 import { containsRestrictedKeywords } from "../../utils/restrictedKeywords";
@@ -27,6 +27,8 @@ interface UseEditorSyncProps {
   completion: CompletionSource;
   metadataLoading: boolean;
   runQuery: () => void;
+  tableNames: string[];
+  tableColumns: TableColumn;
   updateQueryState: (query: string) => void;
 }
 
@@ -40,6 +42,8 @@ export const useEditorSync = ({
   completion,
   metadataLoading,
   runQuery,
+  tableNames,
+  tableColumns,
   updateQueryState,
 }: UseEditorSyncProps) => {
   const isInitialRender = useRef(true);
@@ -57,26 +61,45 @@ export const useEditorSync = ({
           let newQuery = update.state.doc.toString();
 
           if (newQuery) {
+            // Extract and validate table name
             const tableMatch = newQuery.match(
               /FROM\s+((?:"[\w]+"|'[\w]+'|[\w_]+))/i
             );
+            let normalizedTable: string | null = null;
             if (tableMatch && tableMatch[1]) {
-              const normalizedTable = stripQuotes(tableMatch[1]);
+              normalizedTable = stripQuotes(tableMatch[1]);
+              if (!tableNames.includes(normalizedTable)) {
+                onError?.(`Invalid table name: ${normalizedTable}`);
+                return;
+              }
               newQuery = newQuery.replace(tableMatch[1], normalizedTable);
             }
 
+            // Extract and validate column names
             const columnMatch = newQuery.match(/SELECT\s+(.+?)\s+FROM/i);
-            if (columnMatch && columnMatch[1]) {
-              const normalizedColumns = columnMatch[1]
+            if (columnMatch && columnMatch[1] && normalizedTable) {
+              const columns = columnMatch[1]
                 .split(",")
                 .map((col) => stripQuotes(col.trim()))
-                .join(", ");
+                .filter((col) => col);
+              const invalidColumns = columns.filter(
+                (col) => !tableColumns[normalizedTable ?? ""].includes(col)
+              );
+              if (invalidColumns.length > 0) {
+                onError?.(
+                  `Invalid column(s): ${invalidColumns.join(
+                    ", "
+                  )} in table ${normalizedTable}`
+                );
+                return;
+              }
+              const normalizedColumns = columns.join(", ");
               newQuery = newQuery.replace(columnMatch[1], normalizedColumns);
             }
-          }
 
-          onQueryChange(newQuery);
-          updateQueryState(newQuery);
+            onQueryChange(newQuery);
+            updateQueryState(newQuery);
+          }
         },
       }),
       {
@@ -209,6 +232,8 @@ export const useEditorSync = ({
     completion,
     containerRef,
     isMac,
+    tableNames,
+    tableColumns,
   ]);
 
   useEffect(() => {

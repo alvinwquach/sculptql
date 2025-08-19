@@ -82,13 +82,10 @@ export const useQueryBuilder = (
     []
   );
 
-  const logicalOperatorOptions = useMemo(
-    () => [
-      { value: "AND", label: "AND" },
-      { value: "OR", label: "OR" },
-    ],
-    []
-  );
+  const logicalOperatorOptions = useMemo(() => [
+    { value: "AND", label: "AND" },
+    { value: "OR", label: "OR" },
+  ], []);
 
   const buildQuery = useCallback(() => {
     const {
@@ -992,6 +989,6 @@ export const useQueryBuilder = (
     handleOrderByDirectionSelect,
     handleLimitSelect,
     operatorOptions,
-    logicalOperatorOptions,
+    logicalOperatorOptions
   };
 };
