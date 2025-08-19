@@ -55,7 +55,7 @@ export const suggestJoinClause = (
     return null;
   }
 
-  // Suggest INNER JOIN after FROM or another JOIN
+  // Suggest INNER JOIN and LEFT JOIN after FROM or another JOIN
   const afterFromOrJoinRegex = /\b(FROM|JOIN)\s+[\w.]+\s*$/i;
   if (afterFromOrJoinRegex.test(docText)) {
     return {
@@ -67,15 +67,21 @@ export const suggestJoinClause = (
           apply: "INNER JOIN ",
           detail: "Join tables with matching records",
         },
+        {
+          label: "LEFT JOIN",
+          type: "keyword",
+          apply: "LEFT JOIN ",
+          detail: "Join tables, keeping all records from the left table",
+        },
       ],
       filter: true,
-      validFor: /^INNER\s+JOIN$/i,
+      validFor: /^(INNER\s+JOIN|LEFT\s+JOIN)$/i,
     };
   }
 
-  // Suggest table names after INNER JOIN
-  const afterInnerJoinRegex = /\bINNER\s+JOIN\s+(\w*)$/i;
-  if (afterInnerJoinRegex.test(docText)) {
+  // Suggest table names after INNER JOIN or LEFT JOIN
+  const afterJoinRegex = /\b(INNER|LEFT)\s+JOIN\s+(\w*)$/i;
+  if (afterJoinRegex.test(docText)) {
     const availableTables = tableNames.filter(
       (table) => table !== primaryTable
     );
@@ -93,7 +99,7 @@ export const suggestJoinClause = (
   }
 
   // Suggest columns for ON clause (first column from primary table)
-  const afterOnRegex = /\bINNER\s+JOIN\s+[\w.]+\s+ON\s+(\w*)$/i;
+  const afterOnRegex = /\b(INNER|LEFT)\s+JOIN\s+[\w.]+\s+ON\s+(\w*)$/i;
   if (
     afterOnRegex.test(docText) &&
     primaryTable &&
@@ -123,10 +129,10 @@ export const suggestJoinClause = (
 
   // Suggest columns for second table in ON clause
   const afterOnEqualRegex =
-    /\bINNER\s+JOIN\s+([\w.]+)\s+ON\s+[\w.]+\.[\w.]+\s*=\s*(\w*)$/i;
+    /\b(INNER|LEFT)\s+JOIN\s+([\w.]+)\s+ON\s+[\w.]+\.[\w.]+\s*=\s*(\w*)$/i;
   const match = docText.match(afterOnEqualRegex);
-  if (match && match[1] && tableColumns[match[1]]) {
-    const joinTable = match[1];
+  if (match && match[2] && tableColumns[match[2]]) {
+    const joinTable = match[2];
     const columns = tableColumns[joinTable].filter((column) =>
       currentWord
         ? stripQuotes(column)
@@ -147,9 +153,9 @@ export const suggestJoinClause = (
     };
   }
 
-  // Suggest WHERE or ; after complete ON clause (no additional INNER JOIN)
+  // Suggest WHERE or ; after complete ON clause
   const afterOnClauseRegex =
-    /\bINNER\s+JOIN\s+[\w.]+\s+ON\s+[\w.]+\.[\w.]+\s*=\s*[\w.]+\.[\w.]+\s*$/i;
+    /\b(INNER|LEFT)\s+JOIN\s+[\w.]+\s+ON\s+[\w.]+\.[\w.]+\s*=\s*[\w.]+\.[\w.]+\s*$/i;
   if (afterOnClauseRegex.test(docText)) {
     return {
       from: word ? word.from : pos,

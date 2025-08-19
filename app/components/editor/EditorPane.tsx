@@ -71,6 +71,7 @@ export default function EditorPane({
     handleOrderByColumnSelect,
     handleOrderByDirectionSelect,
     handleLimitSelect,
+    handleJoinTypeSelect, 
     handleJoinTableSelect,
     handleJoinOnColumn1Select,
     handleJoinOnColumn2Select,
@@ -126,6 +127,7 @@ export default function EditorPane({
           tableNames={tableNames}
           tableColumns={tableColumns}
           joinClauses={queryState.joinClauses}
+          onJoinTypeSelect={handleJoinTypeSelect}
           onJoinTableSelect={handleJoinTableSelect}
           onJoinOnColumn1Select={handleJoinOnColumn1Select}
           onJoinOnColumn2Select={handleJoinOnColumn2Select}

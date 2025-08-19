@@ -15,6 +15,10 @@ interface JoinSelectorProps {
     value: SingleValue<SelectOption>,
     joinIndex: number
   ) => void;
+  onJoinTypeSelect: (
+    value: SingleValue<SelectOption>,
+    joinIndex: number
+  ) => void;
   onJoinOnColumn1Select: (
     value: SingleValue<SelectOption>,
     joinIndex: number
@@ -34,6 +38,7 @@ export default function JoinSelector({
   tableColumns,
   joinClauses,
   onJoinTableSelect,
+  onJoinTypeSelect,
   onJoinOnColumn1Select,
   onJoinOnColumn2Select,
   onAddJoinClause,
@@ -43,6 +48,11 @@ export default function JoinSelector({
   const tableOptions: SelectOption[] = tableNames
     .filter((table) => table !== selectedTable?.value)
     .map((table) => ({ value: table, label: table }));
+
+  const joinTypeOptions: SelectOption[] = [
+    { value: "INNER JOIN", label: "INNER JOIN" },
+    { value: "LEFT JOIN", label: "LEFT JOIN" },
+  ];
 
   const getColumnOptions = (table: string | null): SelectOption[] =>
     table && tableColumns[table]
@@ -67,7 +77,22 @@ export default function JoinSelector({
       <label className="text-sm font-medium text-[#f8f9fa]">Joins</label>
       {joinClauses.map((join, index) => (
         <div key={index} className="flex flex-row items-end gap-2 w-full">
-          <div className="flex flex-col gap-1 w-1/4">
+          <div className="flex flex-col gap-1 w-1/5">
+            <label className="text-xs text-[#f8f9fa]">Join Type</label>
+            <Select
+              options={joinTypeOptions}
+              value={
+                join.joinType || { value: "INNER JOIN", label: "INNER JOIN" }
+              }
+              onChange={(value) => onJoinTypeSelect(value, index)}
+              placeholder="Join Type"
+              isClearable={false}
+              isDisabled={!selectedTable || metadataLoading}
+              styles={selectStyles}
+              className="min-w-0 w-full"
+            />
+          </div>
+          <div className="flex flex-col gap-1 w-1/5">
             <label className="text-xs text-[#f8f9fa]">Join Table</label>
             <Select
               options={tableOptions}
@@ -80,7 +105,7 @@ export default function JoinSelector({
               className="min-w-0 w-full"
             />
           </div>
-          <div className="flex flex-col gap-1 w-1/4">
+          <div className="flex flex-col gap-1 w-1/5">
             <label className="text-xs text-[#f8f9fa]">
               {selectedTable?.value || "Table"} Column
             </label>
@@ -95,7 +120,7 @@ export default function JoinSelector({
               className="min-w-0 w-full"
             />
           </div>
-          <div className="flex flex-col gap-1 w-1/4">
+          <div className="flex flex-col gap-1 w-1/5">
             <label className="text-xs text-[#f8f9fa]">
               {join.table?.value || "Join"} Column
             </label>

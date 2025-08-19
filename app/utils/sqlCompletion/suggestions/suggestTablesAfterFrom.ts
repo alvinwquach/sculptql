@@ -74,6 +74,12 @@ export const suggestTablesAfterFrom = (
             detail: "Join tables with matching records",
           },
           {
+            label: "LEFT JOIN",
+            type: "keyword",
+            apply: "LEFT JOIN ",
+            detail: "Join tables, keeping all records from the left table",
+          },
+          {
             label: "WHERE",
             type: "keyword",
             apply: "WHERE ",
@@ -87,7 +93,7 @@ export const suggestTablesAfterFrom = (
           },
         ],
         filter: true,
-        validFor: /^(INNER\s+JOIN|WHERE|;)$/i,
+        validFor: /^(INNER\s+JOIN|LEFT\s+JOIN|WHERE|;)$/i,
       };
     }
   }

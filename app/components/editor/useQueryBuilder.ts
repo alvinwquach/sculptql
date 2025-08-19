@@ -27,7 +27,7 @@ interface QueryState {
   uniqueValues: Record<string, SelectOption[]>;
   fetchError: string | null;
   queryError: string | null;
-  joinClauses: JoinClause[]; // New state for JOIN clauses
+  joinClauses: JoinClause[];
 }
 
 export const useQueryBuilder = (
@@ -66,7 +66,7 @@ export const useQueryBuilder = (
     uniqueValues: { condition1: [], condition2: [] },
     fetchError: null,
     queryError: null,
-    joinClauses: [], // Initialize empty join clauses
+    joinClauses: [],
   });
 
   const operatorOptions: SelectOption[] = useMemo(
@@ -140,7 +140,7 @@ export const useQueryBuilder = (
           selectedColumns
             .map((col) =>
               col.value.includes(".")
-                ? col.value // Already includes table prefix
+                ? col.value
                 : needsQuotes(col.value)
                 ? `"${col.value}"`
                 : col.value
@@ -186,7 +186,8 @@ export const useQueryBuilder = (
           const onColumn2 = needsQuotes(join.onColumn2!.value)
             ? `"${join.onColumn2!.value}"`
             : join.onColumn2!.value;
-          return `INNER JOIN ${table} ON ${
+          const joinType = join.joinType?.value || "INNER JOIN";
+          return `${joinType} ${table} ON ${
             selectedTable?.value
           }.${onColumn1} = ${join.table!.value}.${onColumn2}`;
         })
@@ -339,7 +340,7 @@ export const useQueryBuilder = (
         limit: null,
         uniqueValues: { condition1: [], condition2: [] },
         fetchError: null,
-        joinClauses: [], // Reset join clauses on table change
+        joinClauses: [],
       }));
       const query = newValue?.value
         ? `SELECT * FROM ${
@@ -623,14 +624,32 @@ export const useQueryBuilder = (
     [buildQuery, updateEditor]
   );
 
+  const handleJoinTypeSelect = useCallback(
+    (newValue: SingleValue<SelectOption>, joinIndex: number) => {
+      setQueryState((prev) => {
+        const newJoinClauses = [...prev.joinClauses];
+        newJoinClauses[joinIndex] = {
+          ...newJoinClauses[joinIndex],
+          joinType: newValue,
+        };
+        const query = buildQuery();
+        updateEditor(query);
+        return { ...prev, joinClauses: newJoinClauses };
+      });
+    },
+    [buildQuery, updateEditor]
+  );
+
   const handleJoinTableSelect = useCallback(
     (newValue: SingleValue<SelectOption>, joinIndex: number) => {
       setQueryState((prev) => {
         const newJoinClauses = [...prev.joinClauses];
         newJoinClauses[joinIndex] = {
+          ...newJoinClauses[joinIndex],
           table: newValue,
           onColumn1: null,
           onColumn2: null,
+          joinType: { value: "INNER JOIN", label: "INNER JOIN" }, // Default to INNER JOIN
         };
         const query = buildQuery();
         updateEditor(query);
@@ -677,7 +696,12 @@ export const useQueryBuilder = (
       ...prev,
       joinClauses: [
         ...prev.joinClauses,
-        { table: null, onColumn1: null, onColumn2: null },
+        {
+          table: null,
+          onColumn1: null,
+          onColumn2: null,
+          joinType: { value: "INNER JOIN", label: "INNER JOIN" },
+        },
       ],
     }));
   }, []);
@@ -834,11 +858,11 @@ export const useQueryBuilder = (
 
       // Parse JOIN clauses
       const joinMatches = newQuery.matchAll(
-        /INNER\s+JOIN\s+([a-zA-Z_][a-zA-Z0-9_]*)\s+ON\s+([a-zA-Z_][a-zA-Z0-9_]*)\.([a-zA-Z_][a-zA-Z0-9_]*)\s*=\s*([a-zA-Z_][a-zA-Z0-9_]*)\.([a-zA-Z_][a-zA-Z0-9_]*)/gi
+        /(INNER|LEFT)\s+JOIN\s+([a-zA-Z_][a-zA-Z0-9_]*)\s+ON\s+([a-zA-Z_][a-zA-Z0-9_]*)\.([a-zA-Z_][a-zA-Z0-9_]*)\s*=\s*([a-zA-Z_][a-zA-Z0-9_]*)\.([a-zA-Z_][a-zA-Z0-9_]*)/gi
       );
       const joinClauses: JoinClause[] = [];
       for (const match of joinMatches) {
-        const [, joinTable, table1, column1, table2, column2] = match;
+        const [, joinType, joinTable, table1, column1, table2, column2] = match;
         if (
           tableNames.includes(joinTable) &&
           tableColumns[table1]?.includes(column1) &&
@@ -848,6 +872,7 @@ export const useQueryBuilder = (
             table: { value: joinTable, label: joinTable },
             onColumn1: { value: column1, label: column1 },
             onColumn2: { value: column2, label: column2 },
+            joinType: { value: joinType + " JOIN", label: joinType + " JOIN" },
           });
         }
       }
@@ -1179,6 +1204,7 @@ export const useQueryBuilder = (
     handleOrderByColumnSelect,
     handleOrderByDirectionSelect,
     handleLimitSelect,
+    handleJoinTypeSelect,
     handleJoinTableSelect,
     handleJoinOnColumn1Select,
     handleJoinOnColumn2Select,

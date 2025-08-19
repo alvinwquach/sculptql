@@ -49,6 +49,8 @@ export const selectStyles: StylesConfig<SelectOption, true> &
     zIndex: 20,
     width: "100%",
     overflowY: "auto",
+    overflowX: "hidden",
+    wordWrap: "break-word",
   }),
   option: (baseStyles, state) => ({
     ...baseStyles,
@@ -61,6 +63,8 @@ export const selectStyles: StylesConfig<SelectOption, true> &
     "&:active": { backgroundColor: "#2563eb" },
     padding: "0.3rem 0.5rem",
     fontSize: "12px",
+    whiteSpace: "normal",
+    wordBreak: "break-word",
   }),
   placeholder: (baseStyles) => ({
     ...baseStyles,
