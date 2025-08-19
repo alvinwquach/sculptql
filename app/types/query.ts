@@ -198,6 +198,7 @@ export interface JoinClause {
   table: SelectOption | null;
   onColumn1: SelectOption | null;
   onColumn2: SelectOption | null;
+  joinType?: SelectOption | null;
 }
 
 export interface UniqueValues {
