@@ -8,6 +8,7 @@ import {
   WhereClause,
   OrderByClause,
   TableColumn,
+  JoinClause,
 } from "@/app/types/query";
 import { needsQuotes } from "@/app/utils/sqlCompletion/needsQuotes";
 import { stripQuotes } from "@/app/utils/sqlCompletion/stripQuotes";
@@ -26,6 +27,7 @@ interface QueryState {
   uniqueValues: Record<string, SelectOption[]>;
   fetchError: string | null;
   queryError: string | null;
+  joinClauses: JoinClause[]; // New state for JOIN clauses
 }
 
 export const useQueryBuilder = (
@@ -64,6 +66,7 @@ export const useQueryBuilder = (
     uniqueValues: { condition1: [], condition2: [] },
     fetchError: null,
     queryError: null,
+    joinClauses: [], // Initialize empty join clauses
   });
 
   const operatorOptions: SelectOption[] = useMemo(
@@ -82,10 +85,13 @@ export const useQueryBuilder = (
     []
   );
 
-  const logicalOperatorOptions = useMemo(() => [
-    { value: "AND", label: "AND" },
-    { value: "OR", label: "OR" },
-  ], []);
+  const logicalOperatorOptions = useMemo(
+    () => [
+      { value: "AND", label: "AND" },
+      { value: "OR", label: "OR" },
+    ],
+    []
+  );
 
   const buildQuery = useCallback(() => {
     const {
@@ -98,6 +104,7 @@ export const useQueryBuilder = (
       orderByClause,
       groupByColumns,
       limit,
+      joinClauses,
     } = queryState;
 
     let columns: string;
@@ -132,7 +139,11 @@ export const useQueryBuilder = (
           ", " +
           selectedColumns
             .map((col) =>
-              needsQuotes(col.value) ? `"${col.value}"` : col.value
+              col.value.includes(".")
+                ? col.value // Already includes table prefix
+                : needsQuotes(col.value)
+                ? `"${col.value}"`
+                : col.value
             )
             .join(", ");
       }
@@ -140,7 +151,11 @@ export const useQueryBuilder = (
       columns = selectedColumns.length
         ? selectedColumns
             .map((col) =>
-              needsQuotes(col.value) ? `"${col.value}"` : col.value
+              col.value.includes(".")
+                ? col.value
+                : needsQuotes(col.value)
+                ? `"${col.value}"`
+                : col.value
             )
             .join(", ")
         : "*";
@@ -154,6 +169,30 @@ export const useQueryBuilder = (
         } `
       : "";
 
+    // Add JOIN clauses
+    if (joinClauses.length > 0) {
+      query += joinClauses
+        .filter(
+          (join) =>
+            join.table?.value && join.onColumn1?.value && join.onColumn2?.value
+        )
+        .map((join) => {
+          const table = needsQuotes(join.table!.value)
+            ? `"${join.table!.value}"`
+            : join.table!.value;
+          const onColumn1 = needsQuotes(join.onColumn1!.value)
+            ? `"${join.onColumn1!.value}"`
+            : join.onColumn1!.value;
+          const onColumn2 = needsQuotes(join.onColumn2!.value)
+            ? `"${join.onColumn2!.value}"`
+            : join.onColumn2!.value;
+          return `INNER JOIN ${table} ON ${
+            selectedTable?.value
+          }.${onColumn1} = ${join.table!.value}.${onColumn2}`;
+        })
+        .join(" ");
+    }
+
     const validConditions = whereClause.conditions.filter(
       (c) =>
         c.column?.value &&
@@ -164,10 +203,12 @@ export const useQueryBuilder = (
     );
 
     if (validConditions.length > 0) {
-      query += "WHERE ";
+      query += " WHERE ";
       query += validConditions
         .map((condition) => {
-          const column = needsQuotes(condition.column!.value)
+          const column = condition.column!.value.includes(".")
+            ? condition.column!.value
+            : needsQuotes(condition.column!.value)
             ? `"${condition.column!.value}"`
             : condition.column!.value;
           let conditionStr = `${column} ${condition.operator!.value}`;
@@ -219,6 +260,8 @@ export const useQueryBuilder = (
             ) + 1;
           return selectIndex > 0
             ? selectIndex.toString()
+            : col.value.includes(".")
+            ? col.value
             : needsQuotes(col.value)
             ? `"${col.value}"`
             : col.value;
@@ -228,7 +271,9 @@ export const useQueryBuilder = (
     }
 
     if (orderByClause.column?.value && orderByClause.direction?.value) {
-      const column = needsQuotes(orderByClause.column.value)
+      const column = orderByClause.column.value.includes(".")
+        ? orderByClause.column.value
+        : needsQuotes(orderByClause.column.value)
         ? `"${orderByClause.column.value}"`
         : orderByClause.column.value;
       query += ` ORDER BY ${column} ${orderByClause.direction.value}`;
@@ -294,6 +339,7 @@ export const useQueryBuilder = (
         limit: null,
         uniqueValues: { condition1: [], condition2: [] },
         fetchError: null,
+        joinClauses: [], // Reset join clauses on table change
       }));
       const query = newValue?.value
         ? `SELECT * FROM ${
@@ -337,6 +383,7 @@ export const useQueryBuilder = (
           limit: null,
           uniqueValues: { condition1: [], condition2: [] },
           fetchError: null,
+          joinClauses: [],
         }));
         updateEditor("");
         return;
@@ -344,17 +391,34 @@ export const useQueryBuilder = (
 
       const includesStar = newValue.some((option) => option.value === "*");
       const columnsToSelect = includesStar
-        ? tableColumns[queryState.selectedTable.value]?.map((col) => ({
-            value: col,
-            label: col,
-          })) || []
+        ? [
+            ...(tableColumns[queryState.selectedTable.value]?.map((col) => ({
+              value: `${queryState.selectedTable!.value}.${col}`,
+              label: `${queryState.selectedTable!.value}.${col}`,
+            })) || []),
+            ...queryState.joinClauses
+              .filter((join) => join.table?.value)
+              .flatMap(
+                (join) =>
+                  tableColumns[join.table!.value]?.map((col) => ({
+                    value: `${join.table!.value}.${col}`,
+                    label: `${join.table!.value}.${col}`,
+                  })) || []
+              ),
+          ]
         : (newValue as SelectOption[]);
 
       setQueryState((prev) => ({ ...prev, selectedColumns: columnsToSelect }));
       const query = buildQuery();
       updateEditor(query);
     },
-    [queryState.selectedTable, tableColumns, buildQuery, updateEditor]
+    [
+      queryState.selectedTable,
+      queryState.joinClauses,
+      tableColumns,
+      buildQuery,
+      updateEditor,
+    ]
   );
 
   const handleAggregateSelect = useCallback(
@@ -559,12 +623,86 @@ export const useQueryBuilder = (
     [buildQuery, updateEditor]
   );
 
+  const handleJoinTableSelect = useCallback(
+    (newValue: SingleValue<SelectOption>, joinIndex: number) => {
+      setQueryState((prev) => {
+        const newJoinClauses = [...prev.joinClauses];
+        newJoinClauses[joinIndex] = {
+          table: newValue,
+          onColumn1: null,
+          onColumn2: null,
+        };
+        const query = buildQuery();
+        updateEditor(query);
+        return { ...prev, joinClauses: newJoinClauses };
+      });
+    },
+    [buildQuery, updateEditor]
+  );
+
+  const handleJoinOnColumn1Select = useCallback(
+    (newValue: SingleValue<SelectOption>, joinIndex: number) => {
+      setQueryState((prev) => {
+        const newJoinClauses = [...prev.joinClauses];
+        newJoinClauses[joinIndex] = {
+          ...newJoinClauses[joinIndex],
+          onColumn1: newValue,
+        };
+        const query = buildQuery();
+        updateEditor(query);
+        return { ...prev, joinClauses: newJoinClauses };
+      });
+    },
+    [buildQuery, updateEditor]
+  );
+
+  const handleJoinOnColumn2Select = useCallback(
+    (newValue: SingleValue<SelectOption>, joinIndex: number) => {
+      setQueryState((prev) => {
+        const newJoinClauses = [...prev.joinClauses];
+        newJoinClauses[joinIndex] = {
+          ...newJoinClauses[joinIndex],
+          onColumn2: newValue,
+        };
+        const query = buildQuery();
+        updateEditor(query);
+        return { ...prev, joinClauses: newJoinClauses };
+      });
+    },
+    [buildQuery, updateEditor]
+  );
+
+  const addJoinClause = useCallback(() => {
+    setQueryState((prev) => ({
+      ...prev,
+      joinClauses: [
+        ...prev.joinClauses,
+        { table: null, onColumn1: null, onColumn2: null },
+      ],
+    }));
+  }, []);
+
+  const removeJoinClause = useCallback(
+    (joinIndex: number) => {
+      setQueryState((prev) => {
+        const newJoinClauses = prev.joinClauses.filter(
+          (_, index) => index !== joinIndex
+        );
+        const query = buildQuery();
+        updateEditor(query);
+        return { ...prev, joinClauses: newJoinClauses };
+      });
+    },
+    [buildQuery, updateEditor]
+  );
+
   useEffect(() => {
     if (!queryState.selectedTable?.value) {
       setQueryState((prev) => ({
         ...prev,
         uniqueValues: { condition1: [], condition2: [] },
         fetchError: null,
+        joinClauses: [],
       }));
       return;
     }
@@ -582,15 +720,18 @@ export const useQueryBuilder = (
         return;
       }
 
+      const [tableName, columnName] = condition.column.value.split(".");
+      const targetTable = tableName || queryState.selectedTable?.value;
+
       try {
-        if (!queryState.selectedTable) {
+        if (!targetTable) {
           throw new Error("No table selected");
         }
 
         const res = await fetch(
           `/api/unique-values?table=${encodeURIComponent(
-            queryState.selectedTable.value
-          )}&column=${encodeURIComponent(condition.column.value)}`
+            targetTable
+          )}&column=${encodeURIComponent(columnName || condition.column.value)}`
         );
 
         if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
@@ -646,9 +787,9 @@ export const useQueryBuilder = (
         return;
       }
 
-      const tableName =
+      const tableNameMatch =
         newQuery.match(/FROM\s+([a-zA-Z_][a-zA-Z0-9_]*)/i)?.[1] || null;
-      if (!tableName || !tableNames.includes(tableName)) {
+      if (!tableNameMatch || !tableNames.includes(tableNameMatch)) {
         setQueryState((prev) => ({
           ...prev,
           selectedTable: null,
@@ -680,15 +821,37 @@ export const useQueryBuilder = (
           uniqueValues: { condition1: [], condition2: [] },
           fetchError: null,
           queryError: "Invalid or missing table name in query.",
+          joinClauses: [],
         }));
         return;
       }
 
       setQueryState((prev) => ({
         ...prev,
-        selectedTable: { value: tableName, label: tableName },
+        selectedTable: { value: tableNameMatch, label: tableNameMatch },
         queryError: null,
       }));
+
+      // Parse JOIN clauses
+      const joinMatches = newQuery.matchAll(
+        /INNER\s+JOIN\s+([a-zA-Z_][a-zA-Z0-9_]*)\s+ON\s+([a-zA-Z_][a-zA-Z0-9_]*)\.([a-zA-Z_][a-zA-Z0-9_]*)\s*=\s*([a-zA-Z_][a-zA-Z0-9_]*)\.([a-zA-Z_][a-zA-Z0-9_]*)/gi
+      );
+      const joinClauses: JoinClause[] = [];
+      for (const match of joinMatches) {
+        const [, joinTable, table1, column1, table2, column2] = match;
+        if (
+          tableNames.includes(joinTable) &&
+          tableColumns[table1]?.includes(column1) &&
+          tableColumns[table2]?.includes(column2)
+        ) {
+          joinClauses.push({
+            table: { value: joinTable, label: joinTable },
+            onColumn1: { value: column1, label: column1 },
+            onColumn2: { value: column2, label: column2 },
+          });
+        }
+      }
+      setQueryState((prev) => ({ ...prev, joinClauses }));
 
       // Update columns and aggregates
       const columnMatch = newQuery.match(/SELECT\s+(.+?)\s+FROM/i);
@@ -763,23 +926,37 @@ export const useQueryBuilder = (
           }));
         }
 
+        const allAvailableColumns = [
+          ...(tableColumns[tableNameMatch]?.map(
+            (col) => `${tableNameMatch}.${col}`
+          ) || []),
+          ...joinClauses
+            .filter((join) => join.table?.value)
+            .flatMap(
+              (join) =>
+                tableColumns[join.table!.value]?.map(
+                  (col) => `${join.table!.value}.${col}`
+                ) || []
+            ),
+        ];
+
         setQueryState((prev) => ({
           ...prev,
           selectedColumns:
             columns.length > 0 && columns[0] !== "*"
               ? columns
-                  .filter((col) => tableColumns[tableName]?.includes(col))
+                  .filter((col) => allAvailableColumns.includes(col))
                   .map((col) => ({ value: col, label: col }))
-              : tableColumns[tableName]?.map((col) => ({
+              : allAvailableColumns.map((col) => ({
                   value: col,
                   label: col,
-                })) || [],
+                })),
         }));
       }
 
       // Update WHERE clause
       const whereMatch = newQuery.match(
-        /WHERE\s+((?:"[\w]+"|'[\w]+'|[\w_]+))\s*(IS NULL|IS NOT NULL|BETWEEN|[=!><]=?|LIKE)\s*('[^']*'|[0-9]+(?:\.[0-9]+)?)?(?:\s+AND\s+('[^']*'|[0-9]+(?:\.[0-9]+)?))?\s*(AND|OR)?\s*((?:"[\w]+"|'[\w]+'|[\w_]+))?\s*(IS NULL|IS NOT NULL|BETWEEN|[=!><]=?|LIKE)?\s*('[^']*'|[0-9]+(?:\.[0-9]+)?)?(?:\s+AND\s+('[^']*'|[0-9]+(?:\.[0-9]+)?))?/i
+        /WHERE\s+((?:"[\w]+"|'[\w]+'|[\w_]+\.[\w_]+))\s*(IS NULL|IS NOT NULL|BETWEEN|[=!><]=?|LIKE)\s*('[^']*'|[0-9]+(?:\.[0-9]+)?)?(?:\s+AND\s+('[^']*'|[0-9]+(?:\.[0-9]+)?))?\s*(AND|OR)?\s*((?:"[\w]+"|'[\w]+'|[\w_]+\.[\w_]+))?\s*(IS NULL|IS NOT NULL|BETWEEN|[=!><]=?|LIKE)?\s*('[^']*'|[0-9]+(?:\.[0-9]+)?)?(?:\s+AND\s+('[^']*'|[0-9]+(?:\.[0-9]+)?))?/i
       );
       if (whereMatch) {
         const [
@@ -883,7 +1060,7 @@ export const useQueryBuilder = (
 
       // Update GROUP BY clause
       const groupByMatch = newQuery.match(/\bGROUP\s+BY\s+([^;]+)/i);
-      if (groupByMatch && tableName) {
+      if (groupByMatch && tableNameMatch) {
         const groupByItems = groupByMatch[1]
           .split(",")
           .map((item) => stripQuotes(item.trim()))
@@ -902,6 +1079,20 @@ export const useQueryBuilder = (
               )
           : [];
 
+        const allAvailableColumns = [
+          ...(tableColumns[tableNameMatch]?.map(
+            (col) => `${tableNameMatch}.${col}`
+          ) || []),
+          ...joinClauses
+            .filter((join) => join.table?.value)
+            .flatMap(
+              (join) =>
+                tableColumns[join.table!.value]?.map(
+                  (col) => `${join.table!.value}.${col}`
+                ) || []
+            ),
+        ];
+
         const groupByColumns = groupByItems
           .map((item) => {
             const isNumber = !isNaN(parseInt(item));
@@ -915,13 +1106,13 @@ export const useQueryBuilder = (
                 if (aggregateMatch) {
                   columnName = stripQuotes(aggregateMatch[2]);
                 }
-                return tableColumns[tableName].includes(columnName)
+                return allAvailableColumns.includes(columnName)
                   ? { value: columnName, label: columnName }
                   : null;
               }
               return null;
             }
-            return tableColumns[tableName].includes(item)
+            return allAvailableColumns.includes(item)
               ? { value: item, label: item }
               : null;
           })
@@ -934,7 +1125,7 @@ export const useQueryBuilder = (
 
       // Update ORDER BY clause
       const orderByMatch = newQuery.match(
-        /\bORDER\s+BY\s+((?:"[\w]+"|'[\w]+'|[\w_]+))\s*(ASC|DESC)?\s*(?:LIMIT\s+(\d+))?/i
+        /\bORDER\s+BY\s+((?:"[\w]+"|'[\w]+'|[\w_]+\.[\w_]+))\s*(ASC|DESC)?\s*(?:LIMIT\s+(\d+))?/i
       );
       if (orderByMatch) {
         const [, column, direction, limitValue] = orderByMatch;
@@ -988,7 +1179,12 @@ export const useQueryBuilder = (
     handleOrderByColumnSelect,
     handleOrderByDirectionSelect,
     handleLimitSelect,
+    handleJoinTableSelect,
+    handleJoinOnColumn1Select,
+    handleJoinOnColumn2Select,
+    addJoinClause,
+    removeJoinClause,
     operatorOptions,
-    logicalOperatorOptions
+    logicalOperatorOptions,
   };
 };

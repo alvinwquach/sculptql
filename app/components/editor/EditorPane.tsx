@@ -8,6 +8,7 @@ import AggregateSelector from "./AggregateSelector";
 import ColumnSelector from "./ColumnSelector";
 import WhereClauseSelector from "./WhereClauseSelector";
 import OrderByLimitSelector from "./OrderByLimitSelector";
+import JoinSelector from "./JoinSelector";
 import CodeMirrorSetup from "./CodeMirrorSetup";
 import { Tab, TableColumn } from "@/app/types/query";
 import { CompletionSource } from "@codemirror/autocomplete";
@@ -70,6 +71,11 @@ export default function EditorPane({
     handleOrderByColumnSelect,
     handleOrderByDirectionSelect,
     handleLimitSelect,
+    handleJoinTableSelect,
+    handleJoinOnColumn1Select,
+    handleJoinOnColumn2Select,
+    addJoinClause,
+    removeJoinClause,
     operatorOptions,
     logicalOperatorOptions,
   } = useQueryBuilder(tableNames, tableColumns, onQueryChange, editorRef);
@@ -115,12 +121,25 @@ export default function EditorPane({
           onTableSelect={handleTableSelect}
           metadataLoading={metadataLoading}
         />
+        <JoinSelector
+          selectedTable={queryState.selectedTable}
+          tableNames={tableNames}
+          tableColumns={tableColumns}
+          joinClauses={queryState.joinClauses}
+          onJoinTableSelect={handleJoinTableSelect}
+          onJoinOnColumn1Select={handleJoinOnColumn1Select}
+          onJoinOnColumn2Select={handleJoinOnColumn2Select}
+          onAddJoinClause={addJoinClause}
+          onRemoveJoinClause={removeJoinClause}
+          metadataLoading={metadataLoading}
+        />
         <AggregateSelector
           selectedTable={queryState.selectedTable}
           tableColumns={tableColumns}
           selectedAggregate={queryState.selectedAggregate}
           aggregateColumn={queryState.aggregateColumn}
           decimalPlaces={queryState.decimalPlaces}
+          joinClauses={queryState.joinClauses}
           onAggregateSelect={handleAggregateSelect}
           onAggregateColumnSelect={handleAggregateColumnSelect}
           onDecimalPlacesSelect={handleDecimalPlacesSelect}
@@ -132,6 +151,7 @@ export default function EditorPane({
           selectedColumns={queryState.selectedColumns}
           groupByColumns={queryState.groupByColumns}
           onColumnSelect={handleColumnSelect}
+          joinClauses={queryState.joinClauses}
           onGroupByColumnsSelect={handleGroupByColumnsSelect}
           metadataLoading={metadataLoading}
         />
@@ -147,6 +167,7 @@ export default function EditorPane({
           metadataLoading={metadataLoading}
           operatorOptions={operatorOptions}
           logicalOperatorOptions={logicalOperatorOptions}
+          joinClauses={queryState.joinClauses}
         />
         <OrderByLimitSelector
           selectedTable={queryState.selectedTable}
@@ -157,6 +178,7 @@ export default function EditorPane({
           onOrderByDirectionSelect={handleOrderByDirectionSelect}
           onLimitSelect={handleLimitSelect}
           metadataLoading={metadataLoading}
+          joinClauses={queryState.joinClauses}
         />
       </div>
       <CodeMirrorSetup
