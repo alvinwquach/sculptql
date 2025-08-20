@@ -3,13 +3,13 @@ import { Select } from "node-sql-parser";
 import { stripQuotes } from "../stripQuotes";
 
 export const suggestColumnsAfterSelect = (
-  docText: string, // The full text of the current SQL document
-  currentWord: string, // The current word being typed at the cursor
-  pos: number, // Cursor position
-  word: { from: number } | null, // The range of the current word
-  allColumns: string[], // List of available column names to suggest
-  needsQuotes: (id: string) => boolean, // Function to determine if a column name needs quotes
-  ast: Select | Select[] | null // The parsed SQL AST (Abstract Syntax Tree)
+  docText: string,
+  currentWord: string,
+  pos: number,
+  word: { from: number } | null,
+  allColumns: string[],
+  needsQuotes: (id: string) => boolean,
+  ast: Select | Select[] | null
 ): CompletionResult | null => {
   // PSEUDOCODE:
   // 1. Define regex patterns for SELECT, UNION SELECT, aggregate functions, and ROUND
@@ -48,7 +48,8 @@ export const suggestColumnsAfterSelect = (
   // Check if we're in a SELECT clause with no columns yet
   const isInSelectClause =
     selectRegex.test(docText.trim()) ||
-    unionSelectRegex.test(docText.trim()) || // Add support for UNION SELECT
+    // Add support for UNION SELECT
+    unionSelectRegex.test(docText.trim()) ||
     (ast &&
       (Array.isArray(ast)
         ? ast.some(
@@ -62,7 +63,8 @@ export const suggestColumnsAfterSelect = (
   const isDistinctPresent =
     /^SELECT\s+DISTINCT\s*$/i.test(docText.trim()) ||
     (unionSelectRegex.test(docText.trim()) &&
-      docText.match(/\bDISTINCT\s*$/i)) || // Check for DISTINCT after UNION SELECT
+      // Check for DISTINCT after UNION SELECT
+      docText.match(/\bDISTINCT\s*$/i)) ||
     (ast &&
       (Array.isArray(ast)
         ? ast.some((node: Select) => node.type === "select" && node.distinct)
@@ -212,6 +214,5 @@ export const suggestColumnsAfterSelect = (
     }
   }
 
-  // Not in SELECT clause or already has columns -> no suggestions
   return null;
 };

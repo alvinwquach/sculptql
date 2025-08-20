@@ -34,7 +34,8 @@ export const suggestCaseClause = (
     !!node &&
     typeof node === "object" &&
     "type" in node &&
-    (node as any).type === "select";
+    (node as { type: unknown }).type === "select";
+
 
   const isTableReference = (
     fromItem: unknown

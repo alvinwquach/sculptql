@@ -2,10 +2,27 @@ import { CompletionResult } from "@codemirror/autocomplete";
 import { Select, ColumnRefExpr } from "node-sql-parser";
 import { TableColumn } from "@/app/types/query";
 
+interface ColumnRefExprFixed extends Omit<ColumnRefExpr, "type"> {
+  type: "column_ref";
+  column: string;
+  table?: string;
+}
+
 interface AggrFuncExpr {
   type: "aggr_func";
   name: string;
-  args: { expr: ColumnRefExpr } | { expr: ColumnRefExpr; decimals: number };
+  args:
+    | { expr: ColumnRefExprFixed }
+    | { expr: ColumnRefExprFixed; decimals: number };
+}
+
+interface CaseWhen {
+  cond?: {
+    type: string;
+    left?: ColumnRefExprFixed;
+    right?: unknown;
+  };
+  result?: unknown;
 }
 
 export const suggestTablesAfterFrom = (
@@ -23,14 +40,6 @@ export const suggestTablesAfterFrom = (
   tableColumns: TableColumn,
   ast: Select | Select[] | null
 ): CompletionResult | null => {
-  // PSEUDOCODE:
-  // 1. Define type guards for Select node, column reference, and aggregate function
-  // 2. Extract selected columns from AST or regex
-  // 3. If after FROM or CASE END (with or without AS), suggest valid tables
-  // 4. If after a valid table, suggest JOIN types, UNION, WHERE, or ;
-  // 5. If no valid tables and no currentWord, suggest generic table_name
-  // 6. Return null if no suggestions apply
-
   // Type guard for Select node
   const isSelectNode = (node: unknown): node is Select =>
     !!node &&
@@ -39,12 +48,12 @@ export const suggestTablesAfterFrom = (
     (node as { type: unknown }).type === "select";
 
   // Type guard for column reference expression
-  const isColumnRefExpr = (expr: unknown): expr is ColumnRefExpr =>
+  const isColumnRefExpr = (expr: unknown): expr is ColumnRefExprFixed =>
     !!expr &&
     typeof expr === "object" &&
     "type" in expr &&
     (expr as { type: unknown }).type === "column_ref" &&
-    "column" in expr;
+    "column" in (expr as any);
 
   // Type guard for aggregate function expression
   const isAggrFuncExpr = (expr: unknown): expr is AggrFuncExpr =>
@@ -69,14 +78,14 @@ export const suggestTablesAfterFrom = (
             return stripQuotes(col.expr.column);
           } else if (col.expr && col.expr.type === "case") {
             return (
-              col.expr.when_list
-                ?.map((when: any) =>
+              (col.expr.when_list as CaseWhen[])
+                ?.map((when) =>
                   when.cond?.type === "binary_expr" &&
-                  when.cond.left?.type === "column_ref"
+                  isColumnRefExpr(when.cond.left)
                     ? stripQuotes(when.cond.left.column)
                     : null
                 )
-                .filter((col: string | null) => col) || []
+                .filter((col): col is string => !!col) || []
             );
           } else if (col.expr && isAggrFuncExpr(col.expr)) {
             if (isColumnRefExpr(col.expr.args.expr)) {
