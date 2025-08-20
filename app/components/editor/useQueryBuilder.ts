@@ -329,7 +329,8 @@ export const useQueryBuilder = (
           const table = needsQuotes(union.table!.value)
             ? `"${union.table!.value}"`
             : union.table!.value;
-          return ` UNION SELECT ${columns} FROM ${table}`;
+          const unionType = union.unionType?.value || "UNION";
+          return ` ${unionType} SELECT ${columns} FROM ${table}`;
         })
         .join("");
     }
@@ -974,6 +975,28 @@ export const useQueryBuilder = (
     [buildQuery, updateEditor]
   );
 
+  const handleUnionTypeSelect = useCallback(
+    (newValue: SingleValue<SelectOption>, unionIndex: number) => {
+      setQueryState((prev) => {
+        const newUnionClauses = [...prev.unionClauses];
+        newUnionClauses[unionIndex] = {
+          ...newUnionClauses[unionIndex],
+          unionType:
+            newValue && ["UNION", "UNION ALL"].includes(newValue.value)
+              ? {
+                  value: newValue.value as "UNION" | "UNION ALL",
+                  label: newValue.label,
+                }
+              : undefined,
+        };
+        const query = buildQuery();
+        updateEditor(query);
+        return { ...prev, unionClauses: newUnionClauses };
+      });
+    },
+    [buildQuery, updateEditor]
+  );
+
   const addUnionClause = useCallback(() => {
     setQueryState((prev) => ({
       ...prev,
@@ -1479,6 +1502,7 @@ export const useQueryBuilder = (
     addJoinClause,
     removeJoinClause,
     handleUnionTableSelect,
+    handleUnionTypeSelect,
     addUnionClause,
     removeUnionClause,
     operatorOptions,

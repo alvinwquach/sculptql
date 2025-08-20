@@ -1,6 +1,8 @@
 import { CompletionResult } from "@codemirror/autocomplete";
 import { Select } from "node-sql-parser";
+import { stripQuotes } from "../stripQuotes";
 
+// This function suggests UNION, UNION ALL, WHERE, or ; based on SQL context
 export const suggestUnionClause = (
   docText: string,
   currentWord: string,
@@ -58,7 +60,7 @@ export const suggestUnionClause = (
   const hasLimit = /\bLIMIT\b/i.test(docText);
   const hasUnion = /\bUNION\b/i.test(docText);
 
-  // Suggest UNION, WHERE, or ; after FROM table_name
+  // Suggest UNION, UNION ALL, WHERE, or ; after FROM table_name
   const afterFromRegex = /\bFROM\s+[\w.]+\s*$/i;
   if (
     afterFromRegex.test(docText) &&
@@ -76,7 +78,15 @@ export const suggestUnionClause = (
           label: "UNION",
           type: "keyword",
           apply: "UNION ",
-          detail: "Combine results with another SELECT query",
+          detail:
+            "Combine results with another SELECT query (removes duplicates)",
+        },
+        {
+          label: "UNION ALL",
+          type: "keyword",
+          apply: "UNION ALL ",
+          detail:
+            "Combine results with another SELECT query (keeps duplicates)",
         },
         {
           label: "WHERE",
@@ -92,11 +102,11 @@ export const suggestUnionClause = (
         },
       ],
       filter: true,
-      validFor: /^(UNION|WHERE|;)$/i,
+      validFor: /^(UNION|UNION\s+ALL|WHERE|;)$/i,
     };
   }
 
-  // Suggest UNION, WHERE, or ; after complete JOIN clause or CROSS JOIN
+  // Suggest UNION, UNION ALL, WHERE, or ; after complete JOIN clause or CROSS JOIN
   const afterJoinClauseRegex =
     /\b(INNER|LEFT|RIGHT)\s+JOIN\s+[\w.]+\s+ON\s+[\w.]+\.[\w.]+\s*=\s*[\w.]+\.[\w.]+\s*$|\bCROSS\s+JOIN\s+[\w.]+\s*$/i;
   if (
@@ -115,7 +125,15 @@ export const suggestUnionClause = (
           label: "UNION",
           type: "keyword",
           apply: "UNION ",
-          detail: "Combine results with another SELECT query",
+          detail:
+            "Combine results with another SELECT query (removes duplicates)",
+        },
+        {
+          label: "UNION ALL",
+          type: "keyword",
+          apply: "UNION ALL ",
+          detail:
+            "Combine results with another SELECT query (keeps duplicates)",
         },
         {
           label: "WHERE",
@@ -131,12 +149,12 @@ export const suggestUnionClause = (
         },
       ],
       filter: true,
-      validFor: /^(UNION|WHERE|;)$/i,
+      validFor: /^(UNION|UNION\s+ALL|WHERE|;)$/i,
     };
   }
 
-  // Suggest SELECT after UNION
-  const afterUnionRegex = /\bUNION\s*$/i;
+  // Suggest SELECT after UNION or UNION ALL
+  const afterUnionRegex = /\bUNION\s*(ALL\s*)?$/i;
   if (afterUnionRegex.test(docText)) {
     return {
       from: word ? word.from : pos,
@@ -150,6 +168,25 @@ export const suggestUnionClause = (
       ],
       filter: true,
       validFor: /^SELECT$/i,
+    };
+  }
+
+  // Suggest UNION ALL after UNION
+  const afterUnionAllRegex = /\bUNION\s+ALL\s*$/i;
+  if (afterUnionAllRegex.test(docText)) {
+    return {
+      from: word ? word.from : pos,
+      options: [
+        {
+          label: "UNION",
+          type: "keyword",
+          apply: "UNION ",
+          detail:
+            "Combine results with another SELECT query (removes duplicates)",
+        },
+      ],
+      filter: true,
+      validFor: /^UNION$/i,
     };
   }
 
