@@ -4,12 +4,13 @@ import mysql, { Pool as MySqlPool } from "mysql2/promise";
 import sqlite3 from "sqlite3";
 import { open, Database as SqliteDatabase } from "sqlite";
 import * as mssql from "mssql";
+import oracledb, { Pool as OraclePool } from "oracledb";
 import chalk from "chalk";
 import { config as dotenvConfig } from "dotenv";
 
 dotenvConfig({ path: ".env" });
 
-type SupportedDialect = "postgres" | "mysql" | "sqlite" | "mssql";
+type SupportedDialect = "postgres" | "mysql" | "sqlite" | "mssql" | "oracle";
 
 interface CLIOptions {
   dialect: SupportedDialect;
@@ -27,8 +28,7 @@ program
   .name("sculptql")
   .description(
     "Maintain a persistent connection to your SQL database.\n" +
-      "Supported dialects: postgres | mysql | sqlite | mssql (default: postgres)\n" +
-      "You can set the default via DB_DIALECT in .env or pass --dialect in CLI."
+      "Supported dialects: postgres | mysql | sqlite | mssql | oracle (default: postgres)"
   )
   .option(
     "--dialect <dialect>",
@@ -64,7 +64,12 @@ async function main() {
     db_file: options.db_file,
   });
 
-  let pool: PgPool | MySqlPool | SqliteDatabase | mssql.ConnectionPool;
+  let pool:
+    | PgPool
+    | MySqlPool
+    | SqliteDatabase
+    | mssql.ConnectionPool
+    | OraclePool;
 
   if (options.dialect === "postgres") {
     pool = new PgPool({
@@ -113,6 +118,17 @@ async function main() {
       pool: { max: 5, min: 0, idleTimeoutMillis: 30000 },
     };
     pool = await new mssql.ConnectionPool(config).connect();
+  } else if (options.dialect === "oracle") {
+    pool = await oracledb.createPool({
+      user: options.user!,
+      password: options.password!,
+      connectString: `${options.host}:${options.port || 1521}/${
+        options.database
+      }`,
+      poolMin: 0,
+      poolMax: 5,
+      poolIncrement: 1,
+    });
   } else {
     console.error(chalk.red("❌ Unsupported dialect:"), options.dialect);
     process.exit(1);
@@ -135,6 +151,8 @@ async function main() {
         await (pool as SqliteDatabase).close();
       } else if (options.dialect === "mssql") {
         await (pool as mssql.ConnectionPool).close();
+      } else if (options.dialect === "oracle") {
+        await (pool as OraclePool).close(10);
       }
       console.log(chalk.green("✅ Connection pool closed"));
     } catch (err: unknown) {
