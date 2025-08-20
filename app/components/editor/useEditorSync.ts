@@ -12,7 +12,7 @@ import {
 import { EditorState, Compartment } from "@codemirror/state";
 import { ViewPlugin } from "@codemirror/view";
 import { format as formatSQL } from "sql-formatter";
-import { Tab, TableColumn, SelectOption } from "@/app/types/query";
+import { Tab, TableColumn } from "@/app/types/query";
 import { CompletionSource } from "@codemirror/autocomplete";
 import { stripQuotes } from "@/app/utils/sqlCompletion/stripQuotes";
 import { containsRestrictedKeywords } from "../../utils/restrictedKeywords";

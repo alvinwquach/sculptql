@@ -12,6 +12,20 @@ export const suggestHavingClause = (
   needsQuotes: (id: string) => boolean,
   ast: Select | Select[] | null
 ): CompletionResult | null => {
+  // PSEUDOCODE:
+  // 1. Define type guards for Select node and table reference
+  // 2. Extract table name from AST or regex
+  // 3. If after GROUP BY and no HAVING, suggest HAVING
+  // 4. If after HAVING:
+  //    a. Suggest aggregate functions (COUNT, SUM, etc.)
+  //    b. After aggregate, suggest columns
+  //    c. After ROUND column, suggest comma or closing parenthesis
+  //    d. After ROUND comma, suggest decimal places
+  //    e. After aggregate or column, suggest operators
+  //    f. After operator, suggest values
+  //    g. After valid HAVING condition, suggest AND, OR, ORDER BY, or ;
+  // 5. Return null if no suggestions apply
+
   // Type guard for Select node
   const isSelectNode = (node: unknown): node is Select =>
     !!node &&

@@ -244,5 +244,18 @@ export interface QueryState {
 
 export interface UnionClause {
   table: SelectOption | null;
-  unionType?: { value: "UNION" | "UNION ALL"; label: string };
+  unionType?: { value: string; label: string };
+}
+
+export interface CaseCondition {
+  column: SelectOption | null;
+  operator: SelectOption | null;
+  value: SelectOption | null;
+  result: SelectOption | null;
+}
+
+export interface CaseClause {
+  conditions: CaseCondition[];
+  elseValue: SelectOption | null;
+  alias: string | null;
 }

@@ -17,7 +17,7 @@ import { suggestGroupByClause } from "../utils/sqlCompletion/suggestions/suggest
 import { suggestHavingClause } from "../utils/sqlCompletion/suggestions/suggestHavingClause";
 import { suggestJoinClause } from "../utils/sqlCompletion/suggestions/suggestJoinClause";
 import { suggestUnionClause } from "../utils/sqlCompletion/suggestions/suggestUnionClause";
-
+import { suggestCaseClause } from "../utils/sqlCompletion/suggestions/suggestCaseClause";
 
 /**
  * 
@@ -86,6 +86,16 @@ export const useSqlCompletion = (
           pos,
           word,
           allColumns,
+          needsQuotes,
+          ast
+        ) ||
+        suggestCaseClause(
+          docText,
+          currentWord,
+          pos,
+          word,
+          tableColumns,
+          stripQuotes,
           needsQuotes,
           ast
         ) ||

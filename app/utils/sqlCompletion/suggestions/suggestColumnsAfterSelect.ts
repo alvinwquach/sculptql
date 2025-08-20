@@ -2,18 +2,24 @@ import { CompletionResult } from "@codemirror/autocomplete";
 import { Select } from "node-sql-parser";
 import { stripQuotes } from "../stripQuotes";
 
-// This function provides autocomplete suggestions for DISTINCT, *, aggregate functions,
-// and column names immediately after the `SELECT` or `SELECT DISTINCT` keywords in a SQL query,
-// or within the parentheses of an aggregate function (e.g., MAX(), SUM(), MIN(), AVG(), ROUND()).
 export const suggestColumnsAfterSelect = (
-  docText: string, // The full text of the current SQL document
-  currentWord: string, // The current word being typed at the cursor
-  pos: number, // Cursor position
-  word: { from: number } | null, // The range of the current word
-  allColumns: string[], // List of available column names to suggest
-  needsQuotes: (id: string) => boolean, // Function to determine if a column name needs quotes
-  ast: Select | Select[] | null // The parsed SQL AST (Abstract Syntax Tree)
+  docText: string,
+  currentWord: string,
+  pos: number,
+  word: { from: number } | null,
+  allColumns: string[],
+  needsQuotes: (id: string) => boolean,
+  ast: Select | Select[] | null
 ): CompletionResult | null => {
+  // PSEUDOCODE:
+  // 1. Define regex patterns for SELECT, UNION SELECT, aggregate functions, and ROUND
+  // 2. If in a CASE statement or after a column in SELECT, return null (handled by suggestCaseClause)
+  // 3. If inside ROUND(column, suggest decimal places
+  // 4. If inside aggregate function (e.g., SUM(), suggest columns
+  // 5. If after SELECT or SELECT DISTINCT (including after UNION), suggest:
+  //    a. DISTINCT (if not present), aggregate functions, *, and columns
+  // 6. Return null if no suggestions apply
+
   // Regex to match SELECT or SELECT DISTINCT with no columns yet typed at the start of the query
   const selectRegex = /^SELECT\s*(DISTINCT\s*)?$/i;
   // Regex to match SELECT or SELECT DISTINCT after UNION or UNION ALL
@@ -24,13 +30,26 @@ export const suggestColumnsAfterSelect = (
   // Regex to match after ROUND(column, (e.g., SELECT ROUND(price,
   const roundDecimalRegex =
     /\bSELECT\s+(DISTINCT\s+)?ROUND\(\s*(?:"[\w]+"|'[\w]+'|[\w_]+)\s*,\s*(\d*)?\s*$/i;
+  // Regex to detect if we're in a CASE statement
+  const inCaseStatementRegex = /\bCASE\s+([^;]*?)$/i;
+  // Regex to detect if we're after a column in SELECT
+  const afterSelectColumnRegex = /\bSELECT\s+([^;]*?),\s*(\w*)$/i;
+
+  // If we're in a CASE statement or after a column in SELECT, don't suggest columns (let suggestCaseClause handle it)
+  if (
+    inCaseStatementRegex.test(docText) ||
+    afterSelectColumnRegex.test(docText)
+  ) {
+    return null;
+  }
 
   const aggrMatch = docText.match(aggrFuncRegex);
   const roundDecimalMatch = docText.match(roundDecimalRegex);
   // Check if we're in a SELECT clause with no columns yet
   const isInSelectClause =
     selectRegex.test(docText.trim()) ||
-    unionSelectRegex.test(docText.trim()) || // Add support for UNION SELECT
+    // Add support for UNION SELECT
+    unionSelectRegex.test(docText.trim()) ||
     (ast &&
       (Array.isArray(ast)
         ? ast.some(
@@ -44,13 +63,14 @@ export const suggestColumnsAfterSelect = (
   const isDistinctPresent =
     /^SELECT\s+DISTINCT\s*$/i.test(docText.trim()) ||
     (unionSelectRegex.test(docText.trim()) &&
-      docText.match(/\bDISTINCT\s*$/i)) || // Check for DISTINCT after UNION SELECT
+      // Check for DISTINCT after UNION SELECT
+      docText.match(/\bDISTINCT\s*$/i)) ||
     (ast &&
       (Array.isArray(ast)
         ? ast.some((node: Select) => node.type === "select" && node.distinct)
         : ast.type === "select" && ast.distinct));
 
-  // === STEP 3: Handle suggestions for decimal places in ROUND(column, ...)
+  // Handle suggestions for decimal places in ROUND(column, ...)
   if (roundDecimalMatch) {
     const partialNumber = roundDecimalMatch[2] || "";
     const decimalOptions = ["0", "1", "2", "3", "4"].filter((num) =>
@@ -114,7 +134,7 @@ export const suggestColumnsAfterSelect = (
         : true
     );
 
-    // === STEP 4: Build suggestions ===
+    // Build suggestions
     const options = [
       // Suggest DISTINCT and aggregate functions if not after SELECT DISTINCT
       ...(!isDistinctPresent
@@ -183,17 +203,16 @@ export const suggestColumnsAfterSelect = (
       })),
     ];
 
-    // === STEP 5: Return suggestions if there are any ===
+    // Return suggestions if there are any
     if (options.length > 0) {
       return {
         from: word ? word.from : pos,
         options,
-        filter: true, // Enable filtering as user types more
-        validFor: /^["'\w.]*$/, // Only trigger if valid characters (letters, quotes, etc.)
+        filter: true,
+        validFor: /^["'\w.]*$/,
       };
     }
   }
 
-  // === STEP 6: Not in SELECT clause or already has columns -> no suggestions ===
   return null;
 };

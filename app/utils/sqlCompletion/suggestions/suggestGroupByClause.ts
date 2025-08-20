@@ -12,6 +12,15 @@ export const suggestGroupByClause = (
   needsQuotes: (id: string) => boolean,
   ast: Select | Select[] | null
 ): CompletionResult | null => {
+  // PSEUDOCODE:
+  // 1. Define type guards for Select node and table reference
+  // 2. Extract table name from AST or regex
+  // 3. Get selected columns from SELECT clause
+  // 4. If after FROM or WHERE and no GROUP BY, suggest GROUP BY
+  // 5. If after GROUP BY and no HAVING, suggest columns or column numbers
+  // 6. If after a valid GROUP BY item, suggest comma, HAVING, ORDER BY, or ;
+  // 7. Return null if no suggestions apply
+
   // Type guard for Select node
   const isSelectNode = (node: unknown): node is Select =>
     !!node &&
