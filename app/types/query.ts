@@ -244,4 +244,5 @@ export interface QueryState {
 
 export interface UnionClause {
   table: SelectOption | null;
+  unionType?: { value: "UNION" | "UNION ALL"; label: string };
 }

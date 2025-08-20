@@ -98,6 +98,13 @@ export const suggestTablesAfterFrom = (
             detail: "Combine results with another SELECT query",
           },
           {
+            label: "UNION ALL",
+            type: "keyword",
+            apply: "UNION ALL ",
+            detail:
+              "Combine results with another SELECT query, including duplicates",
+          },
+          {
             label: "WHERE",
             type: "keyword",
             apply: "WHERE ",
@@ -112,7 +119,7 @@ export const suggestTablesAfterFrom = (
         ],
         filter: true,
         validFor:
-          /^(INNER\s+JOIN|LEFT\s+JOIN|RIGHT\s+JOIN|CROSS\s+JOIN|WHERE|;)$/i,
+          /^(INNER\s+JOIN|LEFT\s+JOIN|RIGHT\s+JOIN|CROSS\s+JOIN|WHERE|UNION\s+ALL|UNION|;)$/i,
       };
     }
   }

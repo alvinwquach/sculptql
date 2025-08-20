@@ -74,7 +74,7 @@ export default function EditorPane({
     handleHavingColumnSelect,
     handleHavingOperatorSelect,
     handleHavingValueChange,
-    // handleHavingLogicalOperatorSelect,
+    handleHavingLogicalOperatorSelect,
     handleOrderByColumnSelect,
     handleOrderByDirectionSelect,
     handleLimitSelect,

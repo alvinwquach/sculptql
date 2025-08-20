@@ -2,7 +2,6 @@ import { CompletionResult } from "@codemirror/autocomplete";
 import { Select } from "node-sql-parser";
 import { stripQuotes } from "../stripQuotes";
 
-
 // This function provides autocomplete suggestions for DISTINCT, *, aggregate functions,
 // and column names immediately after the `SELECT` or `SELECT DISTINCT` keywords in a SQL query,
 // or within the parentheses of an aggregate function (e.g., MAX(), SUM(), MIN(), AVG(), ROUND()).
@@ -101,7 +100,7 @@ export const suggestColumnsAfterSelect = (
     }
   }
 
-  // Handle suggestions after SELECT or SELECT DISTINCT (including after UNION SELECT)
+  // Handle suggestions after SELECT or SELECT DISTINCT (including after UNION SELECT or UNION ALL)
   if (
     isInSelectClause ||
     selectRegex.test(docText.trim()) ||
