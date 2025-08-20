@@ -2,6 +2,7 @@ import { CompletionResult } from "@codemirror/autocomplete";
 import { Select } from "node-sql-parser";
 import { stripQuotes } from "../stripQuotes";
 
+
 // This function provides autocomplete suggestions for DISTINCT, *, aggregate functions,
 // and column names immediately after the `SELECT` or `SELECT DISTINCT` keywords in a SQL query,
 // or within the parentheses of an aggregate function (e.g., MAX(), SUM(), MIN(), AVG(), ROUND()).
@@ -14,8 +15,10 @@ export const suggestColumnsAfterSelect = (
   needsQuotes: (id: string) => boolean, // Function to determine if a column name needs quotes
   ast: Select | Select[] | null // The parsed SQL AST (Abstract Syntax Tree)
 ): CompletionResult | null => {
-  // Regex to match SELECT or SELECT DISTINCT with no columns yet typed
+  // Regex to match SELECT or SELECT DISTINCT with no columns yet typed at the start of the query
   const selectRegex = /^SELECT\s*(DISTINCT\s*)?$/i;
+  // Regex to match SELECT or SELECT DISTINCT after UNION or UNION ALL
+  const unionSelectRegex = /\bUNION\s*(ALL\s*)?SELECT\s*(DISTINCT\s*)?$/i;
   // Regex to match inside an aggregate function (e.g., SELECT AVG(, SELECT AVG(d)
   const aggrFuncRegex =
     /\bSELECT\s+(DISTINCT\s+)?(?:SUM|MAX|MIN|AVG|ROUND)\(\s*([a-zA-Z_][a-zA-Z0-9_"]*)?\s*$/i;
@@ -25,8 +28,10 @@ export const suggestColumnsAfterSelect = (
 
   const aggrMatch = docText.match(aggrFuncRegex);
   const roundDecimalMatch = docText.match(roundDecimalRegex);
+  // Check if we're in a SELECT clause with no columns yet
   const isInSelectClause =
     selectRegex.test(docText.trim()) ||
+    unionSelectRegex.test(docText.trim()) || // Add support for UNION SELECT
     (ast &&
       (Array.isArray(ast)
         ? ast.some(
@@ -39,6 +44,8 @@ export const suggestColumnsAfterSelect = (
   // Check if DISTINCT is present
   const isDistinctPresent =
     /^SELECT\s+DISTINCT\s*$/i.test(docText.trim()) ||
+    (unionSelectRegex.test(docText.trim()) &&
+      docText.match(/\bDISTINCT\s*$/i)) || // Check for DISTINCT after UNION SELECT
     (ast &&
       (Array.isArray(ast)
         ? ast.some((node: Select) => node.type === "select" && node.distinct)
@@ -94,8 +101,12 @@ export const suggestColumnsAfterSelect = (
     }
   }
 
-  // Handle suggestions after SELECT or SELECT DISTINCT
-  if (isInSelectClause || selectRegex.test(docText.trim())) {
+  // Handle suggestions after SELECT or SELECT DISTINCT (including after UNION SELECT)
+  if (
+    isInSelectClause ||
+    selectRegex.test(docText.trim()) ||
+    unionSelectRegex.test(docText.trim())
+  ) {
     const filteredColumns = allColumns.filter((column) =>
       currentWord
         ? column

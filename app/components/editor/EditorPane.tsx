@@ -9,6 +9,7 @@ import ColumnSelector from "./ColumnSelector";
 import WhereClauseSelector from "./WhereClauseSelector";
 import OrderByLimitSelector from "./OrderByLimitSelector";
 import JoinSelector from "./JoinSelector";
+import UnionSelector from "./UnionSelector";
 import CodeMirrorSetup from "./CodeMirrorSetup";
 import HavingClauseSelector from "./HavingClauseSelector";
 import { Tab, TableColumn } from "@/app/types/query";
@@ -73,6 +74,7 @@ export default function EditorPane({
     handleHavingColumnSelect,
     handleHavingOperatorSelect,
     handleHavingValueChange,
+    // handleHavingLogicalOperatorSelect,
     handleOrderByColumnSelect,
     handleOrderByDirectionSelect,
     handleLimitSelect,
@@ -82,6 +84,9 @@ export default function EditorPane({
     handleJoinOnColumn2Select,
     addJoinClause,
     removeJoinClause,
+    handleUnionTableSelect,
+    addUnionClause,
+    removeUnionClause,
     operatorOptions,
     logicalOperatorOptions,
   } = useQueryBuilder(tableNames, tableColumns, onQueryChange, editorRef);
@@ -125,6 +130,15 @@ export default function EditorPane({
           tableNames={tableNames}
           selectedTable={queryState.selectedTable}
           onTableSelect={handleTableSelect}
+          metadataLoading={metadataLoading}
+        />
+        <UnionSelector
+          selectedTable={queryState.selectedTable}
+          tableNames={tableNames}
+          unionClauses={queryState.unionClauses}
+          onUnionTableSelect={handleUnionTableSelect}
+          onAddUnionClause={addUnionClause}
+          onRemoveUnionClause={removeUnionClause}
           metadataLoading={metadataLoading}
         />
         <JoinSelector
