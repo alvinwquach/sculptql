@@ -13,6 +13,16 @@ export const suggestJoinClause = (
   needsQuotes: (id: string) => boolean,
   ast: Select | Select[] | null
 ): CompletionResult | null => {
+  // PSEUDOCODE:
+  // 1. Define type guards for Select node and table reference
+  // 2. Extract primary table from AST or regex
+  // 3. If after FROM or another JOIN, suggest INNER JOIN, LEFT JOIN, RIGHT JOIN, CROSS JOIN
+  // 4. If after JOIN keyword, suggest table names (excluding primary table)
+  // 5. If after ON, suggest columns from primary table
+  // 6. If after ON table1.column =, suggest columns from joined table
+  // 7. If after complete JOIN clause or CROSS JOIN, suggest WHERE or ;
+  // 8. Return null if no suggestions apply
+
   // Type guard for Select node
   const isSelectNode = (node: unknown): node is Select =>
     !!node &&

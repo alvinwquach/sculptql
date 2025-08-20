@@ -6,6 +6,13 @@ export const suggestLimitClause = (
   word: { from: number } | null,
   tableNames: string[]
 ): CompletionResult | null => {
+  // PSEUDOCODE:
+  // 1. Extract table name from FROM clause using regex
+  // 2. Validate table name against provided tableNames
+  // 3. If after FROM, WHERE, or ORDER BY and no LIMIT, suggest LIMIT
+  // 4. If after LIMIT with no number, suggest numeric values (1, 3, 5, etc.)
+  // 5. Return null if no suggestions apply
+
   // Get the table name from the FROM clause using regex
   const fromMatch = docText.match(/\bFROM\s+(\w+)/i);
   const selectedTable = fromMatch ? fromMatch[1] : null;

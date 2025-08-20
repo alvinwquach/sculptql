@@ -12,6 +12,14 @@ export const suggestOrderByClause = (
   needsQuotes: (id: string) => boolean,
   ast: Select | Select[] | null
 ): CompletionResult | null => {
+  // PSEUDOCODE:
+  // 1. Define type guards for Select node and table reference
+  // 2. Extract table name from AST or regex
+  // 3. If after FROM or WHERE and no ORDER BY, suggest ORDER BY
+  // 4. If after ORDER BY, suggest columns
+  // 5. If after a valid column, suggest ASC, DESC, or LIMIT
+  // 6. Return null if no suggestions apply
+
   // Type guard for Select node
   const isSelectNode = (node: unknown): node is Select =>
     !!node &&

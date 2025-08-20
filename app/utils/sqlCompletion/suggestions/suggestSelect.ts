@@ -1,15 +1,18 @@
 import { CompletionResult } from "@codemirror/autocomplete";
 import { Select } from "node-sql-parser";
 
-// This function suggests the "SELECT" keyword when the user is starting a new SQL query.
 export const suggestSelect = (
-  docText: string, // The full current SQL text in the editor
-  currentWord: string, // The current word the user is typing
-  pos: number, // Current cursor position
-  word: { from: number } | null, // The range of the current word
-  ast: Select | Select[] | null // The parsed SQL Abstract Syntax Tree (AST)
+  docText: string,
+  currentWord: string,
+  pos: number,
+  word: { from: number } | null,
+  ast: Select | Select[] | null
 ): CompletionResult | null => {
-  // === STEP 1: Check if we should suggest "SELECT" ===
+  // PSEUDOCODE:
+  // 1. Check if user is typing SELECT or partial SELECT (e.g., "s", "se")
+  // 2. Verify no existing SELECT clause in AST
+  // 3. If conditions met, suggest SELECT keyword
+  // 4. Return null if no suggestions apply
 
   // Conditions:
   // - Either the query is empty or the user is typing something like "s", "se", or "select"
@@ -20,24 +23,24 @@ export const suggestSelect = (
   const hasNoSelectInAst =
     !ast ||
     (Array.isArray(ast)
-      ? ast.every((node: Select) => node.type !== "select") // If AST is an array of statements, none are SELECT
-      : ast.type !== "select"); // Or, if single AST node, it's not a SELECT
+      ? // If AST is an array of statements, none are SELECT
+        ast.every((node: Select) => node.type !== "select")
+      : // Or, if single AST node, it's not a SELECT
+        ast.type !== "select");
 
   if (isTypingSelect && hasNoSelectInAst) {
-    // === STEP 2: Suggest the SELECT keyword ===
     return {
-      from: word ? word.from : pos, // Where the suggestion starts from
+      from: word ? word.from : pos,
       options: [
         {
-          label: "SELECT", // The text shown in the autocomplete dropdown
-          type: "keyword", // Tells the UI it's a keyword
-          apply: "SELECT ", // What gets inserted if the user chooses this suggestion
-          detail: "Select data from a table", // Description shown in the autocomplete
+          label: "SELECT",
+          type: "keyword",
+          apply: "SELECT ",
+          detail: "Select data from a table",
         },
       ],
     };
   }
 
-  // === STEP 3: Otherwise, don't suggest anything ===
   return null;
 };

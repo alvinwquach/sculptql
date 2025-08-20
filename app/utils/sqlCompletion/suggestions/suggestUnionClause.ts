@@ -1,8 +1,6 @@
 import { CompletionResult } from "@codemirror/autocomplete";
 import { Select } from "node-sql-parser";
-import { stripQuotes } from "../stripQuotes";
 
-// This function suggests UNION, UNION ALL, WHERE, or ; based on SQL context
 export const suggestUnionClause = (
   docText: string,
   currentWord: string,
@@ -10,6 +8,16 @@ export const suggestUnionClause = (
   word: { from: number } | null,
   ast: Select | Select[] | null
 ): CompletionResult | null => {
+  // PSEUDOCODE:
+  // 1. Define type guards for Select node and table reference
+  // 2. Extract primary table or CTE alias from FROM clause using AST or regex
+  // 3. Check for absence of WHERE, GROUP BY, HAVING, ORDER BY, LIMIT, and UNION
+  // 4. If after FROM table_name or CTE alias, suggest UNION, UNION ALL, WHERE, or ;
+  // 5. If after JOIN clause or CROSS JOIN, suggest UNION, UNION ALL, WHERE, or ;
+  // 6. If after UNION or UNION ALL, suggest SELECT
+  // 7. If after UNION ALL, suggest UNION
+  // 8. Return null if no suggestions apply
+
   // Type guard for Select node
   const isSelectNode = (node: unknown): node is Select =>
     !!node &&
@@ -27,7 +35,7 @@ export const suggestUnionClause = (
     (typeof (fromItem as { table: unknown }).table === "string" ||
       (fromItem as { table: unknown }).table === null);
 
-  // Get the primary table from the FROM clause
+  // Get the primary table or CTE alias from the FROM clause
   let primaryTable: string | null = null;
   if (ast) {
     const selectNode = Array.isArray(ast)
@@ -60,7 +68,7 @@ export const suggestUnionClause = (
   const hasLimit = /\bLIMIT\b/i.test(docText);
   const hasUnion = /\bUNION\b/i.test(docText);
 
-  // Suggest UNION, UNION ALL, WHERE, or ; after FROM table_name
+  // Suggest UNION, UNION ALL, WHERE, or ; after FROM table_name or CTE alias
   const afterFromRegex = /\bFROM\s+[\w.]+\s*$/i;
   if (
     afterFromRegex.test(docText) &&
@@ -171,7 +179,7 @@ export const suggestUnionClause = (
     };
   }
 
-  // Suggest UNION ALL after UNION
+  // Suggest UNION after UNION ALL
   const afterUnionAllRegex = /\bUNION\s+ALL\s*$/i;
   if (afterUnionAllRegex.test(docText)) {
     return {
