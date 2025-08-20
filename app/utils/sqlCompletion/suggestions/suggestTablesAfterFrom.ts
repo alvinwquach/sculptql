@@ -53,7 +53,8 @@ export const suggestTablesAfterFrom = (
     typeof expr === "object" &&
     "type" in expr &&
     (expr as { type: unknown }).type === "column_ref" &&
-    "column" in (expr as any);
+    "column" in (expr as Record<string, unknown>);
+
 
   // Type guard for aggregate function expression
   const isAggrFuncExpr = (expr: unknown): expr is AggrFuncExpr =>
