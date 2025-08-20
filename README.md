@@ -1,6 +1,6 @@
 # sculptql
 
-`sculptql` is a lightweight tool that **connects your SQL database to a local web interface**, enabling you to query, explore, and visualize your data just like PopSQL — but all locally.  
+`sculptql` is a lightweight tool that **connects your SQL database to a local web interface**, enabling you to query, explore, and visualize your data.  
 
 The CLI sets up a persistent database connection and launches a web app for interactive querying.
 
