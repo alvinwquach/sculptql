@@ -3,12 +3,13 @@ import { Pool as PgPool } from "pg";
 import mysql, { Pool as MySqlPool } from "mysql2/promise";
 import sqlite3 from "sqlite3";
 import { open, Database as SqliteDatabase } from "sqlite";
+import * as mssql from "mssql";
 import chalk from "chalk";
 import { config as dotenvConfig } from "dotenv";
 
 dotenvConfig({ path: ".env" });
 
-type SupportedDialect = "postgres" | "mysql" | "sqlite";
+type SupportedDialect = "postgres" | "mysql" | "sqlite" | "mssql";
 
 interface CLIOptions {
   dialect: SupportedDialect;
@@ -26,7 +27,7 @@ program
   .name("sculptql")
   .description(
     "Maintain a persistent connection to your SQL database.\n" +
-      "Supported dialects: postgres | mysql | sqlite (default: postgres)\n" +
+      "Supported dialects: postgres | mysql | sqlite | mssql (default: postgres)\n" +
       "You can set the default via DB_DIALECT in .env or pass --dialect in CLI."
   )
   .option(
@@ -63,7 +64,7 @@ async function main() {
     db_file: options.db_file,
   });
 
-  let pool: PgPool | MySqlPool | SqliteDatabase;
+  let pool: PgPool | MySqlPool | SqliteDatabase | mssql.ConnectionPool;
 
   if (options.dialect === "postgres") {
     pool = new PgPool({
@@ -78,7 +79,6 @@ async function main() {
       connectionTimeoutMillis: 2000,
       application_name: "sculptql-cli",
     });
-
     pool.on("error", (err) =>
       console.error(chalk.red("Postgres pool error:"), err)
     );
@@ -102,6 +102,17 @@ async function main() {
       filename: options.db_file,
       driver: sqlite3.Database,
     });
+  } else if (options.dialect === "mssql") {
+    const config: mssql.config = {
+      server: options.host ?? "",
+      port: Number(options.port) || 1433,
+      user: options.user,
+      password: options.password,
+      database: options.database,
+      options: { encrypt: true, trustServerCertificate: true },
+      pool: { max: 5, min: 0, idleTimeoutMillis: 30000 },
+    };
+    pool = await new mssql.ConnectionPool(config).connect();
   } else {
     console.error(chalk.red("❌ Unsupported dialect:"), options.dialect);
     process.exit(1);
@@ -121,7 +132,9 @@ async function main() {
       } else if (options.dialect === "mysql") {
         await(pool as MySqlPool).end();
       } else if (options.dialect === "sqlite") {
-        await(pool as SqliteDatabase).close();
+        await (pool as SqliteDatabase).close();
+      } else if (options.dialect === "mssql") {
+        await (pool as mssql.ConnectionPool).close();
       }
       console.log(chalk.green("✅ Connection pool closed"));
     } catch (err: unknown) {
