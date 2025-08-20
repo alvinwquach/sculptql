@@ -1,3 +1,5 @@
+#!/usr/bin/env node
+
 import { Command } from "commander";
 import { Pool as PgPool } from "pg";
 import mysql, { Pool as MySqlPool } from "mysql2/promise";

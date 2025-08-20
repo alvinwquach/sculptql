@@ -1,15 +1,17 @@
 {
   "name": "sculptql",
   "version": "0.1.0",
-  "private": true,
   "type": "module",
   "bin": {
     "sculptql": "./dist/index.js"
   },
+  "files": [
+    "dist/**/*"
+  ],
   "scripts": {
     "dev": "next dev --turbopack",
     "build": "next build",
-    "build:cli": "tsc -p tsconfig.cli.json",
+    "build:cli": "tsc -p tsconfig.cli.json && chmod +x dist/index.js",
     "start": "next start",
     "lint": "next lint",
     "test": "jest",
