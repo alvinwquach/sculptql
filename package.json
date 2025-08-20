@@ -40,6 +40,7 @@
     "dotenv": "^17.2.1",
     "inquirer": "^12.9.0",
     "lucide-react": "^0.539.0",
+    "mysql2": "^3.14.3",
     "next": "15.4.5",
     "node-sql-parser": "^5.3.11",
     "pg": "^8.16.3",
