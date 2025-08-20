@@ -10,6 +10,7 @@ import {
   TableColumn,
   JoinClause,
   HavingCondition,
+  UnionClause,
 } from "@/app/types/query";
 import { needsQuotes } from "@/app/utils/sqlCompletion/needsQuotes";
 import { stripQuotes } from "@/app/utils/sqlCompletion/stripQuotes";
@@ -30,6 +31,7 @@ interface QueryState {
   fetchError: string | null;
   queryError: string | null;
   joinClauses: JoinClause[];
+  unionClauses: UnionClause[];
 }
 
 export const useQueryBuilder = (
@@ -70,6 +72,7 @@ export const useQueryBuilder = (
     fetchError: null,
     queryError: null,
     joinClauses: [],
+    unionClauses: [],
   });
 
   const operatorOptions: SelectOption[] = [
@@ -103,6 +106,7 @@ export const useQueryBuilder = (
       groupByColumns,
       limit,
       joinClauses,
+      unionClauses,
     } = queryState;
 
     let columns: string;
@@ -318,6 +322,18 @@ export const useQueryBuilder = (
       query += ` LIMIT ${limit.value}`;
     }
 
+    if (unionClauses.length > 0) {
+      query += unionClauses
+        .filter((union) => union.table?.value)
+        .map((union) => {
+          const table = needsQuotes(union.table!.value)
+            ? `"${union.table!.value}"`
+            : union.table!.value;
+          return ` UNION SELECT ${columns} FROM ${table}`;
+        })
+        .join("");
+    }
+
     return query;
   }, [queryState]);
 
@@ -446,6 +462,7 @@ export const useQueryBuilder = (
         uniqueValues: { condition1: [], condition2: [] },
         fetchError: null,
         joinClauses: [],
+        unionClauses: [],
       }));
       const query = newValue?.value
         ? `SELECT * FROM ${
@@ -491,6 +508,7 @@ export const useQueryBuilder = (
           uniqueValues: { condition1: [], condition2: [] },
           fetchError: null,
           joinClauses: [],
+          unionClauses: [],
         }));
         updateEditor("");
         return;
@@ -943,6 +961,42 @@ export const useQueryBuilder = (
     [buildQuery, updateEditor]
   );
 
+  const handleUnionTableSelect = useCallback(
+    (newValue: SingleValue<SelectOption>, unionIndex: number) => {
+      setQueryState((prev) => {
+        const newUnionClauses = [...prev.unionClauses];
+        newUnionClauses[unionIndex] = { table: newValue };
+        const query = buildQuery();
+        updateEditor(query);
+        return { ...prev, unionClauses: newUnionClauses };
+      });
+    },
+    [buildQuery, updateEditor]
+  );
+
+  const addUnionClause = useCallback(() => {
+    setQueryState((prev) => ({
+      ...prev,
+      unionClauses: [...prev.unionClauses, { table: null }],
+    }));
+    const query = buildQuery();
+    updateEditor(query);
+  }, [buildQuery, updateEditor]);
+
+  const removeUnionClause = useCallback(
+    (unionIndex: number) => {
+      setQueryState((prev) => {
+        const newUnionClauses = prev.unionClauses.filter(
+          (_, index) => index !== unionIndex
+        );
+        const query = buildQuery();
+        updateEditor(query);
+        return { ...prev, unionClauses: newUnionClauses };
+      });
+    },
+    [buildQuery, updateEditor]
+  );
+
   const updateQueryState = useCallback(
     (newQuery: string) => {
       if (containsRestrictedKeywords(newQuery)) {
@@ -954,8 +1008,24 @@ export const useQueryBuilder = (
         return;
       }
 
+      // Split query into UNION parts
+      const unionQueries = newQuery.split(/\s*UNION\s*/i);
+      const mainQuery = unionQueries[0];
+      const unionTables: UnionClause[] = unionQueries
+        .slice(1)
+        .map((part) => {
+          const tableMatch = part.match(
+            /SELECT\s+\*\s+FROM\s+([a-zA-Z_][a-zA-Z0-9_]*)/i
+          );
+          if (tableMatch && tableNames.includes(tableMatch[1])) {
+            return { table: { value: tableMatch[1], label: tableMatch[1] } };
+          }
+          return { table: null };
+        })
+        .filter((clause) => clause.table !== null);
+
       const tableNameMatch =
-        newQuery.match(/FROM\s+([a-zA-Z_][a-zA-Z0-9_]*)/i)?.[1] || null;
+        mainQuery.match(/FROM\s+([a-zA-Z_][a-zA-Z0-9_]*)/i)?.[1] || null;
       if (!tableNameMatch || !tableNames.includes(tableNameMatch)) {
         setQueryState((prev) => ({
           ...prev,
@@ -990,6 +1060,7 @@ export const useQueryBuilder = (
           fetchError: null,
           queryError: "Invalid or missing table name in query.",
           joinClauses: [],
+          unionClauses: [],
         }));
         return;
       }
@@ -997,10 +1068,11 @@ export const useQueryBuilder = (
       setQueryState((prev) => ({
         ...prev,
         selectedTable: { value: tableNameMatch, label: tableNameMatch },
+        unionTables,
         queryError: null,
       }));
 
-      const joinMatches = newQuery.matchAll(
+      const joinMatches = mainQuery.matchAll(
         /((INNER|LEFT|RIGHT|CROSS)\s+JOIN)\s+([a-zA-Z_][a-zA-Z0-9_]*)(?:\s+ON\s+([a-zA-Z_][a-zA-Z0-9_]*)\.([a-zA-Z_][a-zA-Z0-9_]*)\s*=\s*([a-zA-Z_][a-zA-Z0-9_]*)\.([a-zA-Z_][a-zA-Z0-9_]*))?/gi
       );
       const joinClauses: JoinClause[] = [];
@@ -1018,7 +1090,7 @@ export const useQueryBuilder = (
       }
       setQueryState((prev) => ({ ...prev, joinClauses }));
 
-      const columnMatch = newQuery.match(/SELECT\s+(.+?)\s+FROM/i);
+      const columnMatch = mainQuery.match(/SELECT\s+(.+?)\s+FROM/i);
       if (columnMatch) {
         const columns = columnMatch[1]
           .split(",")
@@ -1118,7 +1190,7 @@ export const useQueryBuilder = (
         }));
       }
 
-      const whereMatch = newQuery.match(
+      const whereMatch = mainQuery.match(
         /WHERE\s+((?:"[\w]+"|'[\w]+'|[\w_]+\.[\w_]+))\s*(IS NULL|IS NOT NULL|BETWEEN|[=!><]=?|LIKE)\s*('[^']*'|[0-9]+(?:\.[0-9]+)?)?(?:\s+AND\s+('[^']*'|[0-9]+(?:\.[0-9]+)?))?\s*(AND|OR)?\s*((?:"[\w]+"|'[\w]+'|[\w_]+\.[\w_]+))?\s*(IS NULL|IS NOT NULL|BETWEEN|[=!><]=?|LIKE)?\s*('[^']*'|[0-9]+(?:\.[0-9]+)?)?(?:\s+AND\s+('[^']*'|[0-9]+(?:\.[0-9]+)?))?/i
       );
       if (whereMatch) {
@@ -1221,13 +1293,13 @@ export const useQueryBuilder = (
         }));
       }
 
-      const groupByMatch = newQuery.match(/\bGROUP\s+BY\s+([^;]+)/i);
+      const groupByMatch = mainQuery.match(/\bGROUP\s+BY\s+([^;]+)/i);
       if (groupByMatch && tableNameMatch) {
         const groupByItems = groupByMatch[1]
           .split(",")
           .map((item) => stripQuotes(item.trim()))
           .filter((item) => item);
-        const selectMatch = newQuery.match(/SELECT\s+(.+?)\s+FROM/i);
+        const selectMatch = mainQuery.match(/SELECT\s+(.+?)\s+FROM/i);
         const selectColumns = selectMatch
           ? selectMatch[1]
               .split(",")
@@ -1285,8 +1357,7 @@ export const useQueryBuilder = (
         setQueryState((prev) => ({ ...prev, groupByColumns: [] }));
       }
 
-      // Update HAVING clause
-      const havingMatch = newQuery.match(
+      const havingMatch = mainQuery.match(
         /\bHAVING\s+(.+?)(?=\s*(ORDER\s+BY|LIMIT|$))/i
       );
       if (havingMatch && tableNameMatch) {
@@ -1299,7 +1370,7 @@ export const useQueryBuilder = (
 
         const havingConditions: HavingCondition[] = conditionStrings
           .map((condition, index) => {
-            const match = condition.match(
+            const match: RegExpMatchArray | null = condition.match(
               /(COUNT\(\*\)|(?:SUM|MAX|MIN|AVG|ROUND)\((.*?)\))\s*(=|>|<|>=|<=|!=)\s*([0-9]+(?:\.[0-9]+)?|\w+)/i
             );
             if (!match) return null;
@@ -1341,7 +1412,7 @@ export const useQueryBuilder = (
         }));
       }
 
-      const orderByMatch = newQuery.match(
+      const orderByMatch = mainQuery.match(
         /\bORDER\s+BY\s+((?:"[\w]+"|'[\w]+'|[\w_]+\.[\w_]+))\s*(ASC|DESC)?\s*(?:LIMIT\s+(\d+))?/i
       );
       if (orderByMatch) {
@@ -1407,7 +1478,9 @@ export const useQueryBuilder = (
     handleJoinOnColumn2Select,
     addJoinClause,
     removeJoinClause,
-
+    handleUnionTableSelect,
+    addUnionClause,
+    removeUnionClause,
     operatorOptions,
     logicalOperatorOptions,
   };

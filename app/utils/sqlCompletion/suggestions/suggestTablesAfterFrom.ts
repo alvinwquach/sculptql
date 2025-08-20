@@ -92,6 +92,12 @@ export const suggestTablesAfterFrom = (
             detail: "Combine all rows from both tables",
           },
           {
+            label: "UNION",
+            type: "keyword",
+            apply: "UNION ",
+            detail: "Combine results with another SELECT query",
+          },
+          {
             label: "WHERE",
             type: "keyword",
             apply: "WHERE ",

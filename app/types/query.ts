@@ -239,4 +239,9 @@ export interface QueryState {
   fetchError: string | null;
   queryError: string | null;
   joinClauses: JoinClause[];
+  unionClauses: UnionClause[];
+}
+
+export interface UnionClause {
+  table: SelectOption | null;
 }
