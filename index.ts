@@ -1,12 +1,24 @@
 import { Command } from "commander";
 import { Pool as PgPool } from "pg";
 import mysql, { Pool as MySqlPool } from "mysql2/promise";
+import sqlite3 from "sqlite3";
+import { open, Database as SqliteDatabase } from "sqlite";
 import chalk from "chalk";
 import { config as dotenvConfig } from "dotenv";
 
 dotenvConfig({ path: ".env" });
 
-type SupportedDialect = "postgres" | "mysql";
+type SupportedDialect = "postgres" | "mysql" | "sqlite";
+
+interface CLIOptions {
+  dialect: SupportedDialect;
+  host?: string;
+  port?: string;
+  database?: string;
+  user?: string;
+  password?: string;
+  db_file?: string;
+}
 
 const program = new Command();
 
@@ -14,73 +26,49 @@ program
   .name("sculptql")
   .description(
     "Maintain a persistent connection to your SQL database.\n" +
-      "Supported dialects: postgres | mysql (default: postgres)\n" +
+      "Supported dialects: postgres | mysql | sqlite (default: postgres)\n" +
       "You can set the default via DB_DIALECT in .env or pass --dialect in CLI."
   )
   .option(
     "--dialect <dialect>",
-    "Database dialect: postgres | mysql",
+    "Database dialect",
     process.env.DB_DIALECT ?? "postgres"
   )
   .option("--host <host>", "Database host", process.env.DB_HOST)
   .option("--port <port>", "Database port", process.env.DB_PORT)
-  .option(
-    "--database <database>",
-    "Database name",
-    process.env.DB_NAME ?? "postgres"
-  )
+  .option("--database <database>", "Database name", process.env.DB_NAME)
   .option("--user <user>", "Database user", process.env.DB_USER)
-  .option(
-    "--password <password>",
-    "Database password",
-    process.env.DB_PASSWORD
-  );
+  .option("--password <password>", "Database password", process.env.DB_PASSWORD)
+  .option("--db_file <db_file>", "SQLite file path", process.env.DB_FILE);
 
 program.parse(process.argv);
 
-const options = program.opts();
+const options = program.opts<CLIOptions>();
 
 async function main() {
-  const requiredFields = [
-    "dialect",
-    "host",
-    "port",
-    "database",
-    "user",
-    "password",
-  ] as const;
-
-  for (const field of requiredFields) {
-    if (!options[field]) {
-      console.error(
-        chalk.red(
-          `❌ Error: Missing required option --${field} or environment variable DB_${field.toUpperCase()}`
-        )
-      );
-      console.log(
-        chalk.yellow(
-          "Please provide credentials via CLI options or a .env file. See .env.template for guidance."
-        )
-      );
-      process.exit(1);
-    }
+  if (!options.dialect) {
+    console.error(
+      chalk.red("❌ Error: Missing required --dialect or DB_DIALECT")
+    );
+    process.exit(1);
   }
 
   console.log("Connecting with options:", {
     dialect: options.dialect,
     host: options.host,
-    port: Number(options.port),
+    port: options.port,
     database: options.database,
     user: options.user,
     password: options.password ? "******" : "",
+    db_file: options.db_file,
   });
 
-  let pool: PgPool | MySqlPool;
+  let pool: PgPool | MySqlPool | SqliteDatabase;
 
   if (options.dialect === "postgres") {
     pool = new PgPool({
       host: options.host,
-      port: Number(options.port),
+      port: Number(options.port) || 5432,
       database: options.database,
       user: options.user,
       password: options.password,
@@ -91,19 +79,28 @@ async function main() {
       application_name: "sculptql-cli",
     });
 
-    pool.on("error", (err) => {
-      console.error(chalk.red("❌ PostgreSQL pool error:"), err.message || err);
-    });
+    pool.on("error", (err) =>
+      console.error(chalk.red("Postgres pool error:"), err)
+    );
   } else if (options.dialect === "mysql") {
     pool = await mysql.createPool({
       host: options.host,
-      port: Number(options.port),
+      port: Number(options.port) || 3306,
       database: options.database,
       user: options.user,
       password: options.password,
       waitForConnections: true,
       connectionLimit: 5,
       queueLimit: 0,
+    });
+  } else if (options.dialect === "sqlite") {
+    if (!options.db_file) {
+      console.error(chalk.red("❌ SQLite requires --db_file"));
+      process.exit(1);
+    }
+    pool = await open({
+      filename: options.db_file,
+      driver: sqlite3.Database,
     });
   } else {
     console.error(chalk.red("❌ Unsupported dialect:"), options.dialect);
@@ -119,7 +116,13 @@ async function main() {
   const closePool = async () => {
     console.log(chalk.green("\n✅ Closing connection pool..."));
     try {
-      await pool.end();
+      if (options.dialect === "postgres") {
+        await(pool as PgPool).end();
+      } else if (options.dialect === "mysql") {
+        await(pool as MySqlPool).end();
+      } else if (options.dialect === "sqlite") {
+        await(pool as SqliteDatabase).close();
+      }
       console.log(chalk.green("✅ Connection pool closed"));
     } catch (err: unknown) {
       if (err instanceof Error) {
