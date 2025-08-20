@@ -1,37 +1,38 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# sculptql
 
-## Getting Started
+`sculptql` is a lightweight tool that **connects your SQL database to a local web interface**, enabling you to query, explore, and visualize your data just like PopSQL — but all locally.  
 
-First, run the development server:
+The CLI sets up a persistent database connection and launches a web app for interactive querying.
+
+---
+
+## Supported Database Dialects
+
+`sculptql` supports connecting to:
+
+- **Postgres**
+- **MySQL**
+- **SQLite**
+- **Microsoft SQL Server (MSSQL)**
+- **Oracle**
+
+> ⚠️ **Important:** You must specify the dialect explicitly using `--dialect` or via the `DB_DIALECT` environment variable. There is **no default dialect**.
+
+---
+
+## Features
+
+- Persistent connection pool to your database.
+- Launch a **local web app** to query and explore your data.
+- Supports connection via CLI arguments or environment variables.
+- Secure handling of credentials.
+- Graceful pool cleanup when exiting.
+
+---
+
+## Usage
+
+1. **Start the CLI and connect your database:**
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
-
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
-
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
-# sculptql
+npx sculptql --dialect <DIALECT> --host <HOST> --port <PORT> --database <DB> --user <USER> --password <PASSWORD>
