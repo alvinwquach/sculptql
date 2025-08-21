@@ -40,6 +40,50 @@ export const suggestTablesAfterFrom = (
   tableColumns: TableColumn,
   ast: Select | Select[] | null
 ): CompletionResult | null => {
+  // PSEUDOCODE:
+  // 1. Define type guards:
+  //    - isSelectNode: check if node is a Select AST node
+  //    - isColumnRefExpr: check if expression is a column reference
+  //    - isAggrFuncExpr: check if expression is an aggregate function
+  //
+  // 2. Define helper getSelectedColumns:
+  //    - If AST is available, iterate over columns
+  //      - If column is a column_ref → extract column name
+  //      - If column is a CASE expression → extract column(s) from WHEN conditions
+  //      - If column is an aggregate function (COUNT, SUM, etc.) → extract inner column
+  //    - Else fallback: parse raw SELECT text with regex/split
+  //    - Return cleaned list of selected column names
+  //
+  // 3. Define regex patterns for contexts:
+  //    - afterFromRegex: detect `SELECT ... FROM` position
+  //    - afterTableRegex: detect `SELECT ... FROM table_name` position
+  //    - afterCaseEndOrAliasRegex: detect `CASE ... END [AS alias] FROM`
+  //    - selectFromRegex: detect `SELECT * FROM` or `SELECT columns FROM`
+  //    - Also detect CTE subquery context (WITH ... AS (SELECT ...)) and count parentheses
+  //
+  // 4. Handle case: after `SELECT ... FROM`
+  //    - Extract selected columns (from AST or regex parsing)
+  //    - If query just closed a CTE, add CTE alias as valid table option
+  //    - Else, get valid tables for the first selected column (or fallback to all tables)
+  //    - Filter valid tables by current word typed
+  //    - If matches exist, return table suggestions
+  //
+  // 5. Handle case: after a specific table in FROM clause
+  //    - Match the table name in the FROM clause
+  //    - If valid, suggest next possible keywords:
+  //      - `)` (if still inside an open CTE subquery)
+  //      - `INNER JOIN`, `LEFT JOIN`, `RIGHT JOIN`, `CROSS JOIN`
+  //      - `WHERE`, `GROUP BY`
+  //    - Return filtered options
+  //
+  // 6. Handle case: after CASE END expression in SELECT
+  //    - Extract selected columns from AST
+  //    - Get valid tables for these columns (or fallback to all tables)
+  //    - Filter tables by current word typed
+  //    - If matches exist, return table suggestions
+  //
+  // 7. If no condition matched, return null (no suggestions)
+
   // Type guard for Select node
   const isSelectNode = (node: unknown): node is Select =>
     !!node &&
@@ -54,7 +98,6 @@ export const suggestTablesAfterFrom = (
     "type" in expr &&
     (expr as { type: unknown }).type === "column_ref" &&
     "column" in (expr as Record<string, unknown>);
-
 
   // Type guard for aggregate function expression
   const isAggrFuncExpr = (expr: unknown): expr is AggrFuncExpr =>
@@ -108,9 +151,74 @@ export const suggestTablesAfterFrom = (
   const afterFromRegex =
     /\bSELECT\s+(DISTINCT\s+)?(.+?)(?:\s+AS\s+"[^"]*")?\s+FROM\s*$/i;
   const afterTableRegex =
-    /\bSELECT\s+(DISTINCT\s+)?(.+?)\s+FROM\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*$/i;
+    /\bSELECT\s+(DISTINCT\s+)?(.+?)\s+FROM\s+([a-zA-Z_][a-zA-Z0-9_"]*)\s*$/i;
   const afterCaseEndOrAliasRegex =
     /\bCASE\s+.*?\bEND(\s+AS\s+"[^"]*")?\s+FROM\s*$/i;
+  // Regex to match SELECT * FROM or SELECT columns FROM in any context
+  const selectFromRegex = /\bSELECT\s*(DISTINCT\s*)?(.*?)\s+FROM\s*$/i;
+  // Check if inside a CTE subquery
+  const isInCteSubquery = /\bWITH\s+[\w"]*\s+AS\s*\(\s*SELECT\b.*$/i.test(
+    docText
+  );
+  // Count parentheses to ensure ) is only suggested with unbalanced parens
+  const parenCount = isInCteSubquery
+    ? (docText.match(/\(/g) || []).length - (docText.match(/\)/g) || []).length
+    : 0;
+
+  // Handle suggestions after SELECT * FROM or SELECT columns FROM
+  if (selectFromRegex.test(docText)) {
+    const match = docText.match(selectFromRegex);
+    let selectedColumns: string[] = [];
+    const selectNode = Array.isArray(ast)
+      ? ast.find(isSelectNode) ?? null
+      : ast;
+
+    if (match) {
+      selectedColumns = getSelectedColumns(match[2], selectNode);
+    }
+
+    // Get valid tables based on selected columns, ensuring CTE alias is included in main query
+    const isAfterCteClosed =
+      /\bWITH\s+[\w"]*\s+AS\s*\(\s*SELECT\b.*?\)\s*SELECT\s*(DISTINCT\s*)?(.*?)\s+FROM\s*$/i.test(
+        docText
+      );
+    let validTables: string[] = [];
+    if (isAfterCteClosed) {
+      const cteAliasMatch = docText.match(/\bWITH\s+([\w"]+)\s+AS\s*\(/i);
+      const cteAlias = cteAliasMatch
+        ? stripQuotes(cteAliasMatch[1])
+        : "previous_query";
+      validTables = [cteAlias, ...getValidTables(null, tableColumns)];
+    } else {
+      validTables = selectedColumns.length
+        ? getValidTables(selectedColumns[0], tableColumns)
+        : getValidTables(null, tableColumns);
+    }
+
+    // Filter tables based on current word
+    const filteredTables = validTables.filter((table) =>
+      currentWord
+        ? stripQuotes(table)
+            .toLowerCase()
+            .startsWith(stripQuotes(currentWord).toLowerCase())
+        : true
+    );
+
+    // Always suggest actual tables if available
+    if (filteredTables.length > 0) {
+      return {
+        from: word ? word.from : pos,
+        options: filteredTables.map((table) => ({
+          label: table,
+          type: "table",
+          apply: needsQuotes(table) ? `"${table}" ` : `${table} `,
+          detail: "Table name",
+        })),
+        filter: true,
+        validFor: /^["'\w]*$/,
+      };
+    }
+  }
 
   // Handle suggestions after a valid table in FROM clause
   if (afterTableRegex.test(docText)) {
@@ -120,80 +228,70 @@ export const suggestTablesAfterFrom = (
     );
 
     if (filteredTables.length > 0) {
+      const options = [
+        {
+          label: ")",
+          type: "keyword",
+          apply: ") ",
+          detail: "Close CTE subquery",
+        },
+        {
+          label: "INNER JOIN",
+          type: "keyword",
+          apply: "INNER JOIN ",
+          detail: "Join tables with matching records",
+        },
+        {
+          label: "LEFT JOIN",
+          type: "keyword",
+          apply: "LEFT JOIN ",
+          detail: "Join tables, keeping all records from the left table",
+        },
+        {
+          label: "RIGHT JOIN",
+          type: "keyword",
+          apply: "RIGHT JOIN ",
+          detail: "Join tables, keeping all records from the right table",
+        },
+        {
+          label: "CROSS JOIN",
+          type: "keyword",
+          apply: "CROSS JOIN ",
+          detail: "Combine all rows from both tables",
+        },
+        {
+          label: "WHERE",
+          type: "keyword",
+          apply: "WHERE ",
+          detail: "Filter results",
+        },
+        {
+          label: "GROUP BY",
+          type: "keyword",
+          apply: "GROUP BY ",
+          detail: "Group results by column",
+        },
+      ];
+
       return {
         from: word ? word.from : pos,
-        options: [
-          {
-            label: "INNER JOIN",
-            type: "keyword",
-            apply: "INNER JOIN ",
-            detail: "Join tables with matching records",
-          },
-          {
-            label: "LEFT JOIN",
-            type: "keyword",
-            apply: "LEFT JOIN ",
-            detail: "Join tables, keeping all records from the left table",
-          },
-          {
-            label: "RIGHT JOIN",
-            type: "keyword",
-            apply: "RIGHT JOIN ",
-            detail: "Join tables, keeping all records from the right table",
-          },
-          {
-            label: "CROSS JOIN",
-            type: "keyword",
-            apply: "CROSS JOIN ",
-            detail: "Combine all rows from both tables",
-          },
-          {
-            label: "UNION",
-            type: "keyword",
-            apply: "UNION ",
-            detail: "Combine results with another SELECT query",
-          },
-          {
-            label: "UNION ALL",
-            type: "keyword",
-            apply: "UNION ALL ",
-            detail:
-              "Combine results with another SELECT query, including duplicates",
-          },
-          {
-            label: "WHERE",
-            type: "keyword",
-            apply: "WHERE ",
-            detail: "Filter results",
-          },
-          {
-            label: ";",
-            type: "text",
-            apply: ";",
-            detail: "Complete query",
-          },
-        ],
+        options:
+          isInCteSubquery && parenCount > 0
+            ? options
+            : options.filter((opt) => opt.label !== ")"),
         filter: true,
         validFor:
-          /^(INNER\s+JOIN|LEFT\s+JOIN|RIGHT\s+JOIN|CROSS\s+JOIN|WHERE|UNION\s+ALL|UNION|;)$/i,
+          /^(INNER\s+JOIN|LEFT\s+JOIN|RIGHT\s+JOIN|CROSS\s+JOIN|WHERE|GROUP\s+BY|\))$/i,
       };
     }
   }
 
   // Handle suggestions after FROM or CASE END (with or without AS)
-  if (afterFromRegex.test(docText) || afterCaseEndOrAliasRegex.test(docText)) {
-    const match = docText.match(/\bSELECT\s+(DISTINCT\s+)?(.+?)\s+FROM\s*$/i);
-    let selectedColumns: string[] = [];
+  if (afterCaseEndOrAliasRegex.test(docText)) {
     const selectNode = Array.isArray(ast)
       ? ast.find(isSelectNode) ?? null
       : ast;
-
-    // Extract selected columns for table filtering
-    if (match) {
-      selectedColumns = getSelectedColumns(match[2], selectNode);
-    } else if (selectNode && afterCaseEndOrAliasRegex.test(docText)) {
-      selectedColumns = getSelectedColumns("", selectNode);
-    }
+    const selectedColumns = getSelectedColumns("", selectNode);
 
     // Get valid tables based on selected columns
     const validTables = selectedColumns.length
@@ -209,7 +307,7 @@ export const suggestTablesAfterFrom = (
         : true
     );
 
-    // Suggest tables or a placeholder if no valid tables
+    // Suggest actual tables if available
     if (filteredTables.length > 0) {
       return {
         from: word ? word.from : pos,
@@ -219,20 +317,6 @@ export const suggestTablesAfterFrom = (
           apply: needsQuotes(table) ? `"${table}" ` : `${table} `,
           detail: "Table name",
         })),
-        filter: true,
-        validFor: /^["'\w]*$/,
-      };
-    } else if (!currentWord) {
-      return {
-        from: word ? word.from : pos,
-        options: [
-          {
-            label: "table_name",
-            type: "table",
-            apply: "table_name ",
-            detail: "Enter a table name",
-          },
-        ],
         filter: true,
         validFor: /^["'\w]*$/,
       };

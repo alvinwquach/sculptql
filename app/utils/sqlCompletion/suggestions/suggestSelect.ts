@@ -8,27 +8,23 @@ export const suggestSelect = (
   word: { from: number } | null,
   ast: Select | Select[] | null
 ): CompletionResult | null => {
-  // PSEUDOCODE:
-  // 1. Check if user is typing SELECT or partial SELECT (e.g., "s", "se")
-  // 2. Verify no existing SELECT clause in AST
-  // 3. If conditions met, suggest SELECT keyword
-  // 4. Return null if no suggestions apply
-
   // Conditions:
-  // - Either the query is empty or the user is typing something like "s", "se", or "select"
-  // - AND there is no SELECT clause already in the parsed AST
-
-  const isTypingSelect = !docText || /^s(el(ect)?)?$/i.test(currentWord);
-
-  const hasNoSelectInAst =
+  // - Query is empty or user is typing something like "s", "se", "select", "w", "wi", "with"
+  // - AND there is no SELECT or WITH clause already in the parsed AST or text
+  const isTypingSelectOrWith =
+    !docText || /^[sw](el(ect)?|i(th)?)?$/i.test(currentWord);
+  const hasNoSelectOrWithInAst =
     !ast ||
     (Array.isArray(ast)
-      ? // If AST is an array of statements, none are SELECT
-        ast.every((node: Select) => node.type !== "select")
-      : // Or, if single AST node, it's not a SELECT
-        ast.type !== "select");
+      ? ast.every((node: Select) => node.type !== "select" && !node.with)
+      : ast.type !== "select" && !ast.with);
+  const hasNoSelectOrWithInText = !/\b(SELECT|WITH)\b/i.test(docText);
 
-  if (isTypingSelect && hasNoSelectInAst) {
+  if (
+    isTypingSelectOrWith &&
+    hasNoSelectOrWithInAst &&
+    hasNoSelectOrWithInText
+  ) {
     return {
       from: word ? word.from : pos,
       options: [
@@ -38,9 +34,16 @@ export const suggestSelect = (
           apply: "SELECT ",
           detail: "Select data from a table",
         },
+        {
+          label: "WITH",
+          type: "keyword",
+          apply: "WITH ",
+          detail: "Define a Common Table Expression (CTE)",
+        },
       ],
+      filter: true,
+      validFor: /^(SELECT|WITH)$/i,
     };
   }
-
   return null;
 };

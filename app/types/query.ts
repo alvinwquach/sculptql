@@ -1,4 +1,5 @@
 import { LucideIcon } from "lucide-react";
+import { Select } from "node-sql-parser";
 
 export interface QueryResult {
   rows: Record<string, unknown>[];
@@ -258,4 +259,10 @@ export interface CaseClause {
   conditions: CaseCondition[];
   elseValue: SelectOption | null;
   alias: string | null;
+}
+
+export interface CteNode {
+  name: { value: string } | null;
+  stmt: Select | Select[] | null;
+  [key: string]: unknown;
 }

@@ -13,19 +13,14 @@ export const suggestLimitClause = (
   // 4. If after LIMIT with no number, suggest numeric values (1, 3, 5, etc.)
   // 5. Return null if no suggestions apply
 
-  // Get the table name from the FROM clause using regex
   const fromMatch = docText.match(/\bFROM\s+(\w+)/i);
   const selectedTable = fromMatch ? fromMatch[1] : null;
 
-  // Ensure a valid table is present
   if (!selectedTable || !tableNames.includes(selectedTable)) {
     return null;
   }
 
-  // Check if LIMIT (with or without a number) exists in the query
   const hasLimit = /\bLIMIT\b/i.test(docText);
-
-  // Suggest LIMIT after FROM, WHERE, or ORDER BY (ASC/DESC) if no LIMIT exists
   const afterFromOrWhereOrOrderByRegex =
     /\b(FROM\s+\w+(\s+WHERE\s+[^;]*?)?(\s+ORDER\s+BY\s+((?:"[\w]+"|'[\w]+'|[\w_]+))\s*(ASC|DESC)?)?\s*)$/i;
   if (!hasLimit && afterFromOrWhereOrOrderByRegex.test(docText)) {
@@ -44,7 +39,6 @@ export const suggestLimitClause = (
     };
   }
 
-  // Suggest numeric values after LIMIT, but only if no number follows LIMIT
   const afterLimitRegex = /\bLIMIT\s*(\d*)$/i;
   const hasNumberAfterLimit = /\bLIMIT\s+\d+\b/i.test(docText);
   if (afterLimitRegex.test(docText) && !hasNumberAfterLimit) {

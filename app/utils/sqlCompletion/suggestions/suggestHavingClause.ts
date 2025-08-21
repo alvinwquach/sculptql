@@ -26,14 +26,12 @@ export const suggestHavingClause = (
   //    g. After valid HAVING condition, suggest AND, OR, ORDER BY, or ;
   // 5. Return null if no suggestions apply
 
-  // Type guard for Select node
   const isSelectNode = (node: unknown): node is Select =>
     !!node &&
     typeof node === "object" &&
     "type" in node &&
     (node as { type: unknown }).type === "select";
 
-  // Type guard for FROM clause
   const isTableReference = (
     fromItem: unknown
   ): fromItem is { table: string | null } =>
@@ -43,7 +41,6 @@ export const suggestHavingClause = (
     (typeof (fromItem as { table: unknown }).table === "string" ||
       (fromItem as { table: unknown }).table === null);
 
-  // Get the table name from the FROM clause
   let selectedTable: string | null = null;
   if (ast) {
     const selectNode = Array.isArray(ast)
@@ -68,10 +65,7 @@ export const suggestHavingClause = (
     return null;
   }
 
-  // Check if HAVING already exists
   const hasHaving = /\bHAVING\b/i.test(docText);
-
-  // Suggest HAVING after GROUP BY if no HAVING exists
   const afterGroupByRegex = /\bGROUP\s+BY\s+[^;]*?(\s*)$/i;
   if (!hasHaving && afterGroupByRegex.test(docText)) {
     return {
@@ -89,7 +83,6 @@ export const suggestHavingClause = (
     };
   }
 
-  // Suggest aggregates immediately after HAVING
   const afterHavingRegex = /\bHAVING\s*([^;]*)$/i;
   if (hasHaving && afterHavingRegex.test(docText)) {
     const havingText = afterHavingRegex.exec(docText)![1].trim();
@@ -101,7 +94,6 @@ export const suggestHavingClause = (
           .filter((item) => item && !item.match(/AND|OR/i))
       : [];
 
-    // Suggest aggregates when HAVING is followed by nothing or a comma
     if (lastCharIsComma || havingText === "") {
       const aggregateOptions = [
         "COUNT(*)",
@@ -132,7 +124,6 @@ export const suggestHavingClause = (
       };
     }
 
-    // Suggest columns after aggregate functions
     const afterAggregateRegex =
       /\bHAVING\s+.*?(COUNT|SUM|AVG|MIN|MAX|ROUND)\(\s*([^\s,)]*)$/i;
     if (afterAggregateRegex.test(docText)) {
@@ -159,7 +150,6 @@ export const suggestHavingClause = (
       };
     }
 
-    // Suggest closing parenthesis after column in ROUND
     const afterRoundColumnRegex =
       /\bHAVING\s+.*?\bROUND\(\s*([^\s,)]+)\s*([^\s,)]*)$/i;
     if (afterRoundColumnRegex.test(docText)) {
@@ -187,7 +177,6 @@ export const suggestHavingClause = (
       }
     }
 
-    // Suggest decimals after ROUND(column,
     const afterRoundCommaRegex =
       /\bHAVING\s+.*?\bROUND\(\s*[^\s,)]+\s*,\s*([^\s,)]*)$/i;
     if (afterRoundCommaRegex.test(docText)) {
@@ -218,7 +207,6 @@ export const suggestHavingClause = (
       };
     }
 
-    // Suggest operators after aggregate or column
     const afterAggregateOrColumnRegex =
       /\bHAVING\s+.*?(COUNT|SUM|AVG|MIN|MAX|ROUND)\([^)]+\)\s*([^\s;]*)$/i;
     if (
@@ -242,7 +230,6 @@ export const suggestHavingClause = (
       };
     }
 
-    // Suggest values after an operator
     const afterOperatorRegex =
       /\bHAVING\s+.*?(COUNT|SUM|AVG|MIN|MAX|ROUND)\([^)]+\)\s*(=|>|<|>=|<=|<>)\s*([^\s;]*)$/i;
     const afterCountStarOperatorRegex =
@@ -278,7 +265,6 @@ export const suggestHavingClause = (
       };
     }
 
-    // Suggest AND, OR, ORDER BY, or ; after a valid HAVING condition
     const afterHavingConditionRegex = /\bHAVING\s+([^;]+?)(\s*)$/i;
     const match = docText.match(afterHavingConditionRegex);
     if (match) {

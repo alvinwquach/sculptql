@@ -15,13 +15,16 @@ export const suggestJoinClause = (
 ): CompletionResult | null => {
   // PSEUDOCODE:
   // 1. Define type guards for Select node and table reference
-  // 2. Extract primary table from AST or regex
-  // 3. If after FROM or another JOIN, suggest INNER JOIN, LEFT JOIN, RIGHT JOIN, CROSS JOIN
-  // 4. If after JOIN keyword, suggest table names (excluding primary table)
-  // 5. If after ON, suggest columns from primary table
-  // 6. If after ON table1.column =, suggest columns from joined table
-  // 7. If after complete JOIN clause or CROSS JOIN, suggest WHERE or ;
-  // 8. Return null if no suggestions apply
+  // 2. Extract primary table from FROM clause using AST or regex
+  // 3. Check if in a CTE subquery and count parentheses
+  // 4. If after FROM table_name or another JOIN, suggest JOIN types or ) (if in CTE)
+  // 5. If after JOIN type, suggest table names
+  // 6. If after JOIN table_name, suggest ON or ) (if CROSS JOIN)
+  // 7. If after ON, suggest column names from primary table or joined table
+  // 8. If after column, suggest = operator
+  // 9. If after =, suggest column names from the other table
+  // 10. If after complete ON condition, suggest JOIN, WHERE, or ) (if in CTE)
+  // 11. Return null if no suggestions apply
 
   // Type guard for Select node
   const isSelectNode = (node: unknown): node is Select =>
@@ -40,7 +43,15 @@ export const suggestJoinClause = (
     (typeof (fromItem as { table: unknown }).table === "string" ||
       (fromItem as { table: unknown }).table === null);
 
-  // Get the primary table from the FROM clause
+  // Check if in a CTE subquery and count parentheses
+  const isInCteSubquery = /\bWITH\s+[\w"]*\s+AS\s*\(\s*SELECT\b.*$/i.test(
+    docText
+  );
+  const parenCount = isInCteSubquery
+    ? (docText.match(/\(/g) || []).length - (docText.match(/\)/g) || []).length
+    : 0;
+
+  // Extract primary table
   let primaryTable: string | null = null;
   if (ast) {
     const selectNode = Array.isArray(ast)
@@ -61,60 +72,77 @@ export const suggestJoinClause = (
     primaryTable = fromMatch ? fromMatch[1] : null;
   }
 
-  if (!primaryTable) {
+  if (!primaryTable || !tableColumns[primaryTable]) {
     return null;
   }
 
-  // Suggest INNER JOIN, LEFT JOIN, RIGHT JOIN, and CROSS JOIN after FROM or another JOIN
-  const afterFromOrJoinRegex = /\b(FROM|JOIN)\s+[\w.]+\s*$/i;
+  // Suggest JOIN types after FROM or another JOIN
+  const afterFromOrJoinRegex =
+    /\bFROM\s+\w+\s*$|\b(INNER|LEFT|RIGHT|CROSS)\s+JOIN\s+[\w.]+\s*(ON\s+[\w.]+\.[\w.]+\s*=\s*[\w.]+\.[\w.]+)?\s*$/i;
   if (afterFromOrJoinRegex.test(docText)) {
+    const options = [
+      {
+        label: "INNER JOIN",
+        type: "keyword",
+        apply: "INNER JOIN ",
+        detail: "Join with matching rows",
+      },
+      {
+        label: "LEFT JOIN",
+        type: "keyword",
+        apply: "LEFT JOIN ",
+        detail: "Include all rows from left table",
+      },
+      {
+        label: "RIGHT JOIN",
+        type: "keyword",
+        apply: "RIGHT JOIN ",
+        detail: "Include all rows from right table",
+      },
+      {
+        label: "CROSS JOIN",
+        type: "keyword",
+        apply: "CROSS JOIN ",
+        detail: "Cartesian product of tables",
+      },
+    ];
+
+    if (isInCteSubquery && parenCount > 0) {
+      options.push({
+        label: ")",
+        type: "keyword",
+        apply: ") ",
+        detail: "Close CTE subquery",
+      });
+    }
+
     return {
       from: word ? word.from : pos,
-      options: [
-        {
-          label: "INNER JOIN",
-          type: "keyword",
-          apply: "INNER JOIN ",
-          detail: "Join tables with matching records",
-        },
-        {
-          label: "LEFT JOIN",
-          type: "keyword",
-          apply: "LEFT JOIN ",
-          detail: "Join tables, keeping all records from the left table",
-        },
-        {
-          label: "RIGHT JOIN",
-          type: "keyword",
-          apply: "RIGHT JOIN ",
-          detail: "Join tables, keeping all records from the right table",
-        },
-        {
-          label: "CROSS JOIN",
-          type: "keyword",
-          apply: "CROSS JOIN ",
-          detail: "Combine all rows from both tables",
-        },
-      ],
+      options,
       filter: true,
-      validFor: /^(INNER\s+JOIN|LEFT\s+JOIN|RIGHT\s+JOIN|CROSS\s+JOIN)$/i,
+      validFor: /^(INNER|LEFT|RIGHT|CROSS|\))$/i,
     };
   }
 
-  // Suggest table names after INNER JOIN, LEFT JOIN, RIGHT JOIN, or CROSS JOIN
-  const afterJoinRegex = /\b(INNER|LEFT|RIGHT|CROSS)\s+JOIN\s+(\w*)$/i;
-  if (afterJoinRegex.test(docText)) {
-    const availableTables = tableNames.filter(
-      (table) => table !== primaryTable
+  // Suggest table names after JOIN type
+  const afterJoinTypeRegex = /\b(INNER|LEFT|RIGHT|CROSS)\s+JOIN\s+(\w*)$/i;
+  if (afterJoinTypeRegex.test(docText)) {
+    const filteredTables = tableNames.filter(
+      (table) =>
+        table !== primaryTable &&
+        (currentWord
+          ? stripQuotes(table)
+              .toLowerCase()
+              .startsWith(stripQuotes(currentWord).toLowerCase())
+          : true)
     );
+
     return {
       from: word ? word.from : pos,
-      options: availableTables.map((table) => ({
+      options: filteredTables.map((table) => ({
         label: table,
         type: "table",
-        apply: needsQuotes(table)
-          ? `"${table}"${docText.match(/\bCROSS\s+JOIN/i) ? " " : " ON "}`
-          : `${table}${docText.match(/\bCROSS\s+JOIN/i) ? " " : " ON "}`,
+        apply: needsQuotes(table) ? `"${table}" ` : `${table} `,
         detail: "Table name",
       })),
       filter: true,
@@ -122,83 +150,190 @@ export const suggestJoinClause = (
     };
   }
 
-  // Suggest columns for ON clause (first column from primary table)
-  const afterOnRegex = /\b(INNER|LEFT|RIGHT)\s+JOIN\s+[\w.]+\s+ON\s+(\w*)$/i;
-  if (
-    afterOnRegex.test(docText) &&
-    primaryTable &&
-    tableColumns[primaryTable]
-  ) {
-    const columns = tableColumns[primaryTable].filter((column) =>
-      currentWord
-        ? stripQuotes(column)
-            .toLowerCase()
-            .startsWith(stripQuotes(currentWord).toLowerCase())
-        : true
-    );
-    return {
-      from: word ? word.from : pos,
-      options: columns.map((column) => ({
-        label: column,
-        type: "field",
-        apply: `${primaryTable}.${
-          needsQuotes(column) ? `"${column}"` : column
-        } = `,
-        detail: "Column from primary table",
-      })),
-      filter: true,
-      validFor: /^["'\w]*$/,
-    };
-  }
-
-  // Suggest columns for second table in ON clause
-  const afterOnEqualRegex =
-    /\b(INNER|LEFT|RIGHT)\s+JOIN\s+([\w.]+)\s+ON\s+[\w.]+\.[\w.]+\s*=\s*(\w*)$/i;
-  const match = docText.match(afterOnEqualRegex);
-  if (match && match[2] && tableColumns[match[2]]) {
-    const joinTable = match[2];
-    const columns = tableColumns[joinTable].filter((column) =>
-      currentWord
-        ? stripQuotes(column)
-            .toLowerCase()
-            .startsWith(stripQuotes(currentWord).toLowerCase())
-        : true
-    );
-    return {
-      from: word ? word.from : pos,
-      options: columns.map((column) => ({
-        label: column,
-        type: "field",
-        apply: `${joinTable}.${needsQuotes(column) ? `"${column}"` : column} `,
-        detail: `Column from ${joinTable}`,
-      })),
-      filter: true,
-      validFor: /^["'\w]*$/,
-    };
-  }
-
-  // Suggest WHERE or ; after complete ON clause or CROSS JOIN
-  const afterJoinClauseRegex =
-    /\b(INNER|LEFT|RIGHT)\s+JOIN\s+[\w.]+\s+ON\s+[\w.]+\.[\w.]+\s*=\s*[\w.]+\.[\w.]+\s*$|\bCROSS\s+JOIN\s+[\w.]+\s*$/i;
-  if (afterJoinClauseRegex.test(docText)) {
+  // Suggest ON or ) after JOIN table_name
+  const afterJoinTableRegex = /\b(INNER|LEFT|RIGHT)\s+JOIN\s+[\w.]+\s*$/i;
+  const afterCrossJoinRegex = /\bCROSS\s+JOIN\s+[\w.]+\s*$/i;
+  if (afterJoinTableRegex.test(docText)) {
     return {
       from: word ? word.from : pos,
       options: [
         {
-          label: "WHERE",
+          label: "ON",
           type: "keyword",
-          apply: "WHERE ",
-          detail: "Filter results",
-        },
-        {
-          label: ";",
-          type: "text",
-          apply: ";",
-          detail: "Complete query",
+          apply: "ON ",
+          detail: "Specify join condition",
         },
       ],
       filter: true,
-      validFor: /^(WHERE|;)$/i,
+      validFor: /^ON$/i,
+    };
+  } else if (afterCrossJoinRegex.test(docText)) {
+    const options = [
+      {
+        label: "WHERE",
+        type: "keyword",
+        apply: "WHERE ",
+        detail: "Filter results",
+      },
+      {
+        label: ";",
+        type: "text",
+        apply: ";",
+        detail: "Complete query",
+      },
+    ];
+
+    if (isInCteSubquery && parenCount > 0) {
+      options.push({
+        label: ")",
+        type: "keyword",
+        apply: ") ",
+        detail: "Close CTE subquery",
+      });
+    }
+
+    return {
+      from: word ? word.from : pos,
+      options,
+      filter: true,
+      validFor: /^(WHERE|;|\))$/i,
+    };
+  }
+
+  // Suggest columns after ON
+  const afterOnRegex = /\b(INNER|LEFT|RIGHT)\s+JOIN\s+([\w.]+)\s+ON\s+(\w*)$/i;
+  if (afterOnRegex.test(docText)) {
+    const joinedTable = stripQuotes(afterOnRegex.exec(docText)![2]);
+    const columns = [
+      ...(tableColumns[primaryTable] || []),
+      ...(tableColumns[joinedTable] || []),
+    ];
+
+    const filteredColumns = columns.filter((column) =>
+      currentWord
+        ? stripQuotes(column)
+            .toLowerCase()
+            .startsWith(stripQuotes(currentWord).toLowerCase())
+        : true
+    );
+
+    return {
+      from: word ? word.from : pos,
+      options: filteredColumns.map((column) => ({
+        label: column,
+        type: "field",
+        apply: needsQuotes(column) ? `"${column}" ` : `${column} `,
+        detail: `Column from ${primaryTable} or ${joinedTable}`,
+      })),
+      filter: true,
+      validFor: /^["'\w]*$/,
+    };
+  }
+
+  // Suggest = after column
+  const afterOnColumnRegex =
+    /\b(INNER|LEFT|RIGHT)\s+JOIN\s+[\w.]+\s+ON\s+((?:"[\w]+"|'[\w]+'|[\w_]+))\s*(\w*)$/i;
+  if (afterOnColumnRegex.test(docText)) {
+    return {
+      from: word ? word.from : pos,
+      options: [
+        {
+          label: "=",
+          type: "keyword",
+          apply: "= ",
+          detail: "Join condition operator",
+        },
+      ],
+      filter: true,
+      validFor: /^=$/,
+    };
+  }
+
+  // Suggest columns from the other table after =
+  const afterOnEqualsRegex =
+    /\b(INNER|LEFT|RIGHT)\s+JOIN\s+([\w.]+)\s+ON\s+((?:"[\w]+"|'[\w]+'|[\w_]+))\s*=\s*(\w*)$/i;
+  if (afterOnEqualsRegex.test(docText)) {
+    const joinedTable = stripQuotes(afterOnEqualsRegex.exec(docText)![2]);
+    const firstColumn = stripQuotes(afterOnEqualsRegex.exec(docText)![3]);
+    const firstTable = tableColumns[primaryTable]?.includes(firstColumn)
+      ? primaryTable
+      : joinedTable;
+    const secondTable =
+      firstTable === primaryTable ? joinedTable : primaryTable;
+
+    const columns = tableColumns[secondTable] || [];
+    const filteredColumns = columns.filter((column) =>
+      currentWord
+        ? stripQuotes(column)
+            .toLowerCase()
+            .startsWith(stripQuotes(currentWord).toLowerCase())
+        : true
+    );
+
+    return {
+      from: word ? word.from : pos,
+      options: filteredColumns.map((column) => ({
+        label: column,
+        type: "field",
+        apply: needsQuotes(column) ? `"${column}" ` : `${column} `,
+        detail: `Column from ${secondTable}`,
+      })),
+      filter: true,
+      validFor: /^["'\w]*$/,
+    };
+  }
+
+  // Suggest JOIN, WHERE, or ) after complete ON condition
+  const afterOnConditionRegex =
+    /\b(INNER|LEFT|RIGHT)\s+JOIN\s+[\w.]+\s+ON\s+[\w.]+\.[\w.]+\s*=\s*[\w.]+\.[\w.]+\s*$/i;
+  if (afterOnConditionRegex.test(docText)) {
+    const options = [
+      {
+        label: "INNER JOIN",
+        type: "keyword",
+        apply: "INNER JOIN ",
+        detail: "Join with matching rows",
+      },
+      {
+        label: "LEFT JOIN",
+        type: "keyword",
+        apply: "LEFT JOIN ",
+        detail: "Include all rows from left table",
+      },
+      {
+        label: "RIGHT JOIN",
+        type: "keyword",
+        apply: "RIGHT JOIN ",
+        detail: "Include all rows from right table",
+      },
+      {
+        label: "CROSS JOIN",
+        type: "keyword",
+        apply: "CROSS JOIN ",
+        detail: "Cartesian product of tables",
+      },
+      {
+        label: "WHERE",
+        type: "keyword",
+        apply: "WHERE ",
+        detail: "Filter results",
+      },
+    ];
+
+    if (isInCteSubquery && parenCount > 0) {
+      options.push({
+        label: ")",
+        type: "keyword",
+        apply: ") ",
+        detail: "Close CTE subquery",
+      });
+    }
+
+    return {
+      from: word ? word.from : pos,
+      options,
+      filter: true,
+      validFor: /^(INNER|LEFT|RIGHT|CROSS|WHERE|\))$/i,
     };
   }
 
