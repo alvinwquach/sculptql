@@ -16,8 +16,9 @@ export const suggestCaseClause = (
   // PSEUDOCODE:
   // 1. Define type guards for Select node and table reference
   // 2. Extract table and columns from AST or regex
-  // 3. If after SELECT (not SELECT *), suggest CASE
-  // 4. If inside CASE statement:
+  // 3. Check if in a CTE subquery and count parentheses
+  // 4. If after SELECT (not SELECT *), suggest CASE
+  // 5. If inside CASE statement:
   //    a. After CASE, suggest WHEN
   //    b. After WHEN, suggest columns
   //    c. After column, suggest operators
@@ -28,26 +29,39 @@ export const suggestCaseClause = (
   //    h. After ELSE, suggest values
   //    i. After ELSE value, suggest END or AS
   //    j. After AS "", suggest FROM
-  // 5. Return null if no suggestions apply
+  // 6. If in a CTE subquery with unbalanced parentheses, include ) in suggestions
+  // 7. Return null if no suggestions apply
 
+  // Type guard for Select node
   const isSelectNode = (node: unknown): node is Select =>
     !!node &&
     typeof node === "object" &&
     "type" in node &&
     (node as { type: unknown }).type === "select";
 
-
+  // Type guard for FROM clause
   const isTableReference = (
     fromItem: unknown
   ): fromItem is { table: string | null } =>
-    !!fromItem && typeof fromItem === "object" && "table" in fromItem;
+    !!fromItem &&
+    typeof fromItem === "object" &&
+    "table" in fromItem &&
+    (typeof (fromItem as { table: unknown }).table === "string" ||
+      (fromItem as { table: unknown }).table === null);
 
+  // Check if in a CTE subquery and count parentheses
+  const isInCteSubquery = /\bWITH\s+[\w"]*\s+AS\s*\(\s*SELECT\b.*$/i.test(
+    docText
+  );
+  const parenCount = isInCteSubquery
+    ? (docText.match(/\(/g) || []).length - (docText.match(/\)/g) || []).length
+    : 0;
 
+  // Extract table and columns
   let selectedTable: string | null = null;
   let columns: string[] = [];
 
   if (ast) {
-    // AST is available → pull table from FROM clause
     const selectNode = Array.isArray(ast)
       ? ast.find(isSelectNode)
       : isSelectNode(ast)
@@ -66,7 +80,6 @@ export const suggestCaseClause = (
       }
     }
   } else {
-    // AST missing → fall back to regex for incorrect FROM (e.g., SELECT * FROM users CASE)
     const fromMatch = docText.match(
       /\bFROM\s+([a-zA-Z_][a-zA-Z0-9_]*)\s+CASE\b/i
     );
@@ -109,25 +122,37 @@ export const suggestCaseClause = (
   if (
     afterSelectOrCommaRegex.test(docText) &&
     !caseMatch &&
-    !isSelectStar && 
+    !isSelectStar &&
     !docText.match(
       /\bFROM\s+.*\b(WHERE|GROUP\s+BY|HAVING|ORDER\s+BY|LIMIT|UNION)\b/i
     ) &&
     !docText.match(/\bFROM\s+[a-zA-Z_][a-zA-Z0-9_]*\s+CASE\b/i)
   ) {
+    const options = [
+      {
+        label: "CASE",
+        type: "keyword",
+        apply: "CASE ",
+        detail: "Start a conditional CASE statement",
+        boost: 10,
+      },
+    ];
+
+    if (isInCteSubquery && parenCount > 0) {
+      options.push({
+        label: ")",
+        type: "keyword",
+        apply: ") ",
+        detail: "Close CTE subquery",
+        boost: 5,
+      });
+    }
+
     return {
       from: word ? word.from : pos,
-      options: [
-        {
-          label: "CASE",
-          type: "keyword",
-          apply: "CASE ",
-          detail: "Start a conditional CASE statement",
-          boost: 10,
-        },
-      ],
+      options,
       filter: true,
-      validFor: /^CASE$/i,
+      validFor: /^(CASE|\))$/i,
     };
   }
 
@@ -298,24 +323,35 @@ export const suggestCaseClause = (
 
     // Suggest ELSE or END
     if (/\bCASE\s+.*?\bTHEN\s*('[^']*'|[0-9]+)\s*(\w*)$/i.test(docText)) {
+      const options = [
+        {
+          label: "ELSE",
+          type: "keyword",
+          apply: "ELSE ",
+          detail: "Default result",
+        },
+        {
+          label: "END",
+          type: "keyword",
+          apply: "END ",
+          detail: "Complete CASE",
+        },
+      ];
+
+      if (isInCteSubquery && parenCount > 0) {
+        options.push({
+          label: ")",
+          type: "keyword",
+          apply: ") ",
+          detail: "Close CTE subquery",
+        });
+      }
+
       return {
         from: word ? word.from : pos,
-        options: [
-          {
-            label: "ELSE",
-            type: "keyword",
-            apply: "ELSE ",
-            detail: "Default result",
-          },
-          {
-            label: "END",
-            type: "keyword",
-            apply: "END ",
-            detail: "Complete CASE",
-          },
-        ],
+        options,
         filter: true,
-        validFor: /^(ELSE|END)$/i,
+        validFor: /^(ELSE|END|\))$/i,
       };
     }
 
@@ -339,42 +375,65 @@ export const suggestCaseClause = (
 
     // Suggest END or AS
     if (/\bCASE\s+.*?\bELSE\s*('[^']*'|[0-9]+)\s*(\w*)$/i.test(docText)) {
+      const options = [
+        {
+          label: "END",
+          type: "keyword",
+          apply: "END ",
+          detail: "Complete CASE statement",
+        },
+        {
+          label: "AS",
+          type: "keyword",
+          apply: 'AS "" ',
+          detail: "Alias the CASE expression",
+        },
+      ];
+
+      if (isInCteSubquery && parenCount > 0) {
+        options.push({
+          label: ")",
+          type: "keyword",
+          apply: ") ",
+          detail: "Close CTE subquery",
+        });
+      }
+
       return {
         from: word ? word.from : pos,
-        options: [
-          {
-            label: "END",
-            type: "keyword",
-            apply: "END ",
-            detail: "Complete CASE statement",
-          },
-          {
-            label: "AS",
-            type: "keyword",
-            apply: 'AS "" ',
-            detail: "Alias the CASE expression",
-          },
-        ],
+        options,
         filter: true,
-        validFor: /^(END|AS)$/i,
+        validFor: /^(END|AS|\))$/i,
       };
     }
 
     // Suggest FROM after AS ""
     if (/\bCASE\s+.*?\bAS\s+""\s*$/i.test(docText)) {
+      const options = [
+        {
+          label: "FROM",
+          type: "keyword",
+          apply: "FROM ",
+          detail: "Start FROM clause",
+          boost: 10,
+        },
+      ];
+
+      if (isInCteSubquery && parenCount > 0) {
+        options.push({
+          label: ")",
+          type: "keyword",
+          apply: ") ",
+          detail: "Close CTE subquery",
+          boost: 5,
+        });
+      }
+
       return {
         from: word ? word.from : pos,
-        options: [
-          {
-            label: "FROM",
-            type: "keyword",
-            apply: "FROM ",
-            detail: "Start FROM clause",
-            boost: 10,
-          },
-        ],
+        options,
         filter: true,
-        validFor: /^FROM$/i,
+        validFor: /^(FROM|\))$/i,
       };
     }
   }

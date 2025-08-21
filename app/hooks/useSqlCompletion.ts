@@ -18,9 +18,10 @@ import { suggestHavingClause } from "../utils/sqlCompletion/suggestions/suggestH
 import { suggestJoinClause } from "../utils/sqlCompletion/suggestions/suggestJoinClause";
 import { suggestUnionClause } from "../utils/sqlCompletion/suggestions/suggestUnionClause";
 import { suggestCaseClause } from "../utils/sqlCompletion/suggestions/suggestCaseClause";
+import { suggestWithClause } from "../utils/sqlCompletion/suggestions/suggestWithClause";
 
 /**
- * 
+ *
  * Hook: useSqlCompletion
  * This custom React hook provides autocomplete logic for SQL using CodeMirror's API.
  * It integrates multiple context-aware suggestion strategies to guide users while writing SQL.
@@ -80,6 +81,17 @@ export const useSqlCompletion = (
 
       return (
         suggestSelect(docText, currentWord, pos, word, ast) ||
+        suggestWithClause(
+          docText,
+          currentWord,
+          pos,
+          word,
+          ast,
+          tableNames,
+          tableColumns,
+          stripQuotes,
+          needsQuotes
+        ) ||
         suggestColumnsAfterSelect(
           docText,
           currentWord,

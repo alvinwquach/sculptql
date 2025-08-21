@@ -15,11 +15,12 @@ export const suggestGroupByClause = (
   // PSEUDOCODE:
   // 1. Define type guards for Select node and table reference
   // 2. Extract table name from AST or regex
-  // 3. Get selected columns from SELECT clause
-  // 4. If after FROM or WHERE and no GROUP BY, suggest GROUP BY
-  // 5. If after GROUP BY and no HAVING, suggest columns or column numbers
-  // 6. If after a valid GROUP BY item, suggest comma, HAVING, ORDER BY, or ;
-  // 7. Return null if no suggestions apply
+  // 3. Check if in a CTE subquery and count parentheses
+  // 4. Get selected columns from SELECT clause
+  // 5. If after FROM or WHERE and no GROUP BY, suggest GROUP BY or ) (if in CTE)
+  // 6. If after GROUP BY and no HAVING, suggest columns or column numbers
+  // 7. If after a valid GROUP BY item, suggest comma, HAVING, ORDER BY, ;, or ) (if in CTE)
+  // 8. Return null if no suggestions apply
 
   // Type guard for Select node
   const isSelectNode = (node: unknown): node is Select =>
@@ -38,7 +39,15 @@ export const suggestGroupByClause = (
     (typeof (fromItem as { table: unknown }).table === "string" ||
       (fromItem as { table: unknown }).table === null);
 
-  // Get the table name from the FROM clause
+  // Check if in a CTE subquery and count parentheses
+  const isInCteSubquery = /\bWITH\s+[\w"]*\s+AS\s*\(\s*SELECT\b.*$/i.test(
+    docText
+  );
+  const parenCount = isInCteSubquery
+    ? (docText.match(/\(/g) || []).length - (docText.match(/\)/g) || []).length
+    : 0;
+
+  // Extract table name
   let selectedTable: string | null = null;
   if (ast) {
     const selectNode = Array.isArray(ast)
@@ -75,29 +84,37 @@ export const suggestGroupByClause = (
         )
     : [];
 
-  // Check if GROUP BY already exists in the query
   const hasGroupBy = /\bGROUP\s+BY\b/i.test(docText);
   const hasHaving = /\bHAVING\b/i.test(docText);
 
-  // Suggest GROUP BY after FROM or WHERE if no GROUP BY exists
+  // Suggest GROUP BY or ) after FROM or WHERE if no GROUP BY
   const afterTableOrWhereRegex = /\bFROM\s+\w+(\s+WHERE\s+[^;]*?)?\s*$/i;
   if (!hasGroupBy && afterTableOrWhereRegex.test(docText)) {
+    const options = [
+      {
+        label: "GROUP BY",
+        type: "keyword",
+        apply: "GROUP BY ",
+        detail: "Group results by column or column number",
+      },
+    ];
+
+    if (isInCteSubquery && parenCount > 0) {
+      options.push({
+        label: ")",
+        type: "keyword",
+        apply: ") ",
+        detail: "Close CTE subquery",
+      });
+    }
+
     return {
       from: word ? word.from : pos,
-      options: [
-        {
-          label: "GROUP BY",
-          type: "keyword",
-          apply: "GROUP BY ",
-          detail: "Group results by column or column number",
-        },
-      ],
+      options,
       filter: true,
-      validFor: /^GROUP\s*BY$/i,
+      validFor: /^(GROUP\s+BY|\))$/i,
     };
   }
-
-  // Suggest columns or column numbers after GROUP BY
   const afterGroupByRegex = /\bGROUP\s+BY\s*([^;]*)$/i;
   if (!hasHaving && afterGroupByRegex.test(docText)) {
     const groupByText = afterGroupByRegex.exec(docText)![1].trim();
@@ -159,7 +176,6 @@ export const suggestGroupByClause = (
     }
   }
 
-  // Suggest comma, HAVING, ORDER BY, or ; after a valid GROUP BY item
   const afterGroupByItemRegex = /\bGROUP\s+BY\s+([^;]+?)(\s*)$/i;
   const match = docText.match(afterGroupByItemRegex);
   if (!hasHaving && match) {

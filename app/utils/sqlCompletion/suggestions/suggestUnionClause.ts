@@ -12,10 +12,10 @@ export const suggestUnionClause = (
   // 1. Define type guards for Select node and table reference
   // 2. Extract primary table or CTE alias from FROM clause using AST or regex
   // 3. Check for absence of WHERE, GROUP BY, HAVING, ORDER BY, LIMIT, and UNION
-  // 4. If after FROM table_name or CTE alias, suggest UNION, UNION ALL, WHERE, or ;
-  // 5. If after JOIN clause or CROSS JOIN, suggest UNION, UNION ALL, WHERE, or ;
+  // 4. If after FROM table_name or CTE alias, suggest UNION, UNION ALL, WHERE, ;, or ) (if in CTE)
+  // 5. If after JOIN clause or CROSS JOIN, suggest UNION, UNION ALL, WHERE, ;, or ) (if in CTE)
   // 6. If after UNION or UNION ALL, suggest SELECT
-  // 7. If after UNION ALL, suggest UNION
+  // 7. If after UNION ALL, also suggest UNION
   // 8. Return null if no suggestions apply
 
   // Type guard for Select node
@@ -34,6 +34,14 @@ export const suggestUnionClause = (
     "table" in fromItem &&
     (typeof (fromItem as { table: unknown }).table === "string" ||
       (fromItem as { table: unknown }).table === null);
+
+  // Check if in a CTE subquery and count parentheses
+  const isInCteSubquery = /\bWITH\s+[\w"]*\s+AS\s*\(\s*SELECT\b.*$/i.test(
+    docText
+  );
+  const parenCount = isInCteSubquery
+    ? (docText.match(/\(/g) || []).length - (docText.match(/\)/g) || []).length
+    : 0;
 
   // Get the primary table or CTE alias from the FROM clause
   let primaryTable: string | null = null;
@@ -68,7 +76,7 @@ export const suggestUnionClause = (
   const hasLimit = /\bLIMIT\b/i.test(docText);
   const hasUnion = /\bUNION\b/i.test(docText);
 
-  // Suggest UNION, UNION ALL, WHERE, or ; after FROM table_name or CTE alias
+  // Suggest UNION, UNION ALL, WHERE, ;, or ) after FROM table_name or CTE alias
   const afterFromRegex = /\bFROM\s+[\w.]+\s*$/i;
   if (
     afterFromRegex.test(docText) &&
@@ -79,42 +87,52 @@ export const suggestUnionClause = (
     !hasLimit &&
     !hasUnion
   ) {
+    const options = [
+      {
+        label: "UNION",
+        type: "keyword",
+        apply: "UNION ",
+        detail:
+          "Combine results with another SELECT query (removes duplicates)",
+      },
+      {
+        label: "UNION ALL",
+        type: "keyword",
+        apply: "UNION ALL ",
+        detail: "Combine results with another SELECT query (keeps duplicates)",
+      },
+      {
+        label: "WHERE",
+        type: "keyword",
+        apply: "WHERE ",
+        detail: "Filter results",
+      },
+      {
+        label: ";",
+        type: "text",
+        apply: ";",
+        detail: "Complete query",
+      },
+    ];
+
+    if (isInCteSubquery && parenCount > 0) {
+      options.push({
+        label: ")",
+        type: "keyword",
+        apply: ") ",
+        detail: "Close CTE subquery",
+      });
+    }
+
     return {
       from: word ? word.from : pos,
-      options: [
-        {
-          label: "UNION",
-          type: "keyword",
-          apply: "UNION ",
-          detail:
-            "Combine results with another SELECT query (removes duplicates)",
-        },
-        {
-          label: "UNION ALL",
-          type: "keyword",
-          apply: "UNION ALL ",
-          detail:
-            "Combine results with another SELECT query (keeps duplicates)",
-        },
-        {
-          label: "WHERE",
-          type: "keyword",
-          apply: "WHERE ",
-          detail: "Filter results",
-        },
-        {
-          label: ";",
-          type: "text",
-          apply: ";",
-          detail: "Complete query",
-        },
-      ],
+      options,
       filter: true,
-      validFor: /^(UNION|UNION\s+ALL|WHERE|;)$/i,
+      validFor: /^(UNION|UNION\s+ALL|WHERE|;|\))$/i,
     };
   }
 
-  // Suggest UNION, UNION ALL, WHERE, or ; after complete JOIN clause or CROSS JOIN
+  // Suggest UNION, UNION ALL, WHERE, ;, or ) after complete JOIN clause or CROSS JOIN
   const afterJoinClauseRegex =
     /\b(INNER|LEFT|RIGHT)\s+JOIN\s+[\w.]+\s+ON\s+[\w.]+\.[\w.]+\s*=\s*[\w.]+\.[\w.]+\s*$|\bCROSS\s+JOIN\s+[\w.]+\s*$/i;
   if (
@@ -126,38 +144,48 @@ export const suggestUnionClause = (
     !hasLimit &&
     !hasUnion
   ) {
+    const options = [
+      {
+        label: "UNION",
+        type: "keyword",
+        apply: "UNION ",
+        detail:
+          "Combine results with another SELECT query (removes duplicates)",
+      },
+      {
+        label: "UNION ALL",
+        type: "keyword",
+        apply: "UNION ALL ",
+        detail: "Combine results with another SELECT query (keeps duplicates)",
+      },
+      {
+        label: "WHERE",
+        type: "keyword",
+        apply: "WHERE ",
+        detail: "Filter results",
+      },
+      {
+        label: ";",
+        type: "text",
+        apply: ";",
+        detail: "Complete query",
+      },
+    ];
+
+    if (isInCteSubquery && parenCount > 0) {
+      options.push({
+        label: ")",
+        type: "keyword",
+        apply: ") ",
+        detail: "Close CTE subquery",
+      });
+    }
+
     return {
       from: word ? word.from : pos,
-      options: [
-        {
-          label: "UNION",
-          type: "keyword",
-          apply: "UNION ",
-          detail:
-            "Combine results with another SELECT query (removes duplicates)",
-        },
-        {
-          label: "UNION ALL",
-          type: "keyword",
-          apply: "UNION ALL ",
-          detail:
-            "Combine results with another SELECT query (keeps duplicates)",
-        },
-        {
-          label: "WHERE",
-          type: "keyword",
-          apply: "WHERE ",
-          detail: "Filter results",
-        },
-        {
-          label: ";",
-          type: "text",
-          apply: ";",
-          detail: "Complete query",
-        },
-      ],
+      options,
       filter: true,
-      validFor: /^(UNION|UNION\s+ALL|WHERE|;)$/i,
+      validFor: /^(UNION|UNION\s+ALL|WHERE|;|\))$/i,
     };
   }
 

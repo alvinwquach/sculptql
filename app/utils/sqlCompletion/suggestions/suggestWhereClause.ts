@@ -17,14 +17,15 @@ export const suggestWhereClause = (
   // 1. Define type guards for Select node, table reference, and WITH clause
   // 2. Extract table name or CTE alias from FROM clause using AST or regex
   // 3. If FROM references a CTE, extract columns from CTE's SELECT statement
-  // 4. If after WHERE, AND, or OR, suggest columns (from table or CTE)
-  // 5. If after a valid column, suggest comparison operators
-  // 6. If after an operator, suggest values (LIKE patterns, BETWEEN values, etc.)
-  // 7. If after BETWEEN first value, suggest AND
-  // 8. If after BETWEEN AND, suggest second value
-  // 9. If after a complete condition, suggest AND, OR, or ORDER BY
-  // 10. If after AND/OR with a condition, suggest columns
-  // 11. Return null if no suggestions apply
+  // 4. If after FROM or JOIN and no WHERE, suggest WHERE or ) (if in CTE)
+  // 5. If after WHERE, AND, or OR, suggest columns (from table or CTE)
+  // 6. If after a valid column, suggest comparison operators
+  // 7. If after an operator, suggest values (LIKE patterns, BETWEEN values, etc.)
+  // 8. If after BETWEEN first value, suggest AND
+  // 9. If after BETWEEN AND, suggest second value
+  // 10. If after a complete condition, suggest AND, OR, ORDER BY, or ) (if in CTE)
+  // 11. If after AND/OR with a condition, suggest columns
+  // 12. Return null if no suggestions apply
 
   // Type guard for Select node
   const isSelectNode = (node: unknown): node is Select =>
@@ -51,6 +52,14 @@ export const suggestWhereClause = (
     typeof withItem === "object" &&
     "name" in withItem &&
     "stmt" in withItem;
+
+  // Check if in a CTE subquery and count parentheses
+  const isInCteSubquery = /\bWITH\s+[\w"]*\s+AS\s*\(\s*SELECT\b.*$/i.test(
+    docText
+  );
+  const parenCount = isInCteSubquery
+    ? (docText.match(/\(/g) || []).length - (docText.match(/\)/g) || []).length
+    : 0;
 
   // Get the table name or CTE alias from the FROM clause and its columns
   let selectedTable: string | null = null;
@@ -114,6 +123,37 @@ export const suggestWhereClause = (
 
   if (!selectedTable || columns.length === 0) {
     return null;
+  }
+
+  // Suggest WHERE or ) after FROM or JOIN if no WHERE exists
+  const hasWhere = /\bWHERE\b/i.test(docText);
+  const afterFromOrJoinRegex =
+    /\bFROM\s+[\w.]+\s*$|\b(INNER|LEFT|RIGHT|CROSS)\s+JOIN\s+[\w.]+\s*(ON\s+[\w.]+\.[\w.]+\s*=\s*[\w.]+\.[\w.]+)?\s*$/i;
+  if (!hasWhere && afterFromOrJoinRegex.test(docText)) {
+    const options = [
+      {
+        label: "WHERE",
+        type: "keyword",
+        apply: "WHERE ",
+        detail: "Filter results",
+      },
+    ];
+
+    if (isInCteSubquery && parenCount > 0) {
+      options.push({
+        label: ")",
+        type: "keyword",
+        apply: ") ",
+        detail: "Close CTE subquery",
+      });
+    }
+
+    return {
+      from: word ? word.from : pos,
+      options,
+      filter: true,
+      validFor: /^(WHERE|\))$/i,
+    };
   }
 
   // Suggest columns if immediately after WHERE, AND, or OR
@@ -220,31 +260,42 @@ export const suggestWhereClause = (
         operator.toUpperCase() === "IS NULL" ||
         operator.toUpperCase() === "IS NOT NULL"
       ) {
-        // Suggest AND, OR, or ORDER BY after IS NULL or IS NOT NULL
+        // Suggest AND, OR, ORDER BY, or ) after IS NULL or IS NOT NULL
+        const options = [
+          {
+            label: "AND",
+            type: "keyword",
+            apply: "AND ",
+            detail: "Add another condition (all must be true)",
+          },
+          {
+            label: "OR",
+            type: "keyword",
+            apply: "OR ",
+            detail: "Add another condition (any can be true)",
+          },
+          {
+            label: "ORDER BY",
+            type: "keyword",
+            apply: "ORDER BY ",
+            detail: "Sort results",
+          },
+        ];
+
+        if (isInCteSubquery && parenCount > 0) {
+          options.push({
+            label: ")",
+            type: "keyword",
+            apply: ") ",
+            detail: "Close CTE subquery",
+          });
+        }
+
         return {
           from: word ? word.from : pos,
-          options: [
-            {
-              label: "AND",
-              type: "keyword",
-              apply: "AND ",
-              detail: "Add another condition (all must be true)",
-            },
-            {
-              label: "OR",
-              type: "keyword",
-              apply: "OR ",
-              detail: "Add another condition (any can be true)",
-            },
-            {
-              label: "ORDER BY",
-              type: "keyword",
-              apply: "ORDER BY ",
-              detail: "Sort results",
-            },
-          ],
+          options,
           filter: true,
-          validFor: /^(AND|OR|ORDER\s+BY)$/i,
+          validFor: /^(AND|OR|ORDER\s+BY|\))$/i,
         };
       } else if (operator.toUpperCase() === "BETWEEN") {
         // Suggest first value for BETWEEN
@@ -352,7 +403,7 @@ export const suggestWhereClause = (
     }
   }
 
-  // Suggest AND, OR, or ORDER BY after a complete condition
+  // Suggest AND, OR, ORDER BY, or ) after a complete condition
   const afterConditionRegex =
     /\b(WHERE|AND|OR)\s+((?:"[\w]+"|'[\w]+'|[\w_]+))\s*([=!><]=?|LIKE|IS\s+NULL|IS\s+NOT\s+NULL)\s*('[^']*'|[0-9]+(?:\.[0-9]+)?)\s*$/i;
   const afterBetweenRegex =
@@ -367,30 +418,41 @@ export const suggestWhereClause = (
           stripQuotes(c).toLowerCase() === stripQuotes(column).toLowerCase()
       )
     ) {
+      const options = [
+        {
+          label: "AND",
+          type: "keyword",
+          apply: "AND ",
+          detail: "Add another condition (all must be true)",
+        },
+        {
+          label: "OR",
+          type: "keyword",
+          apply: "OR ",
+          detail: "Add another condition (any can be true)",
+        },
+        {
+          label: "ORDER BY",
+          type: "keyword",
+          apply: "ORDER BY ",
+          detail: "Sort results",
+        },
+      ];
+
+      if (isInCteSubquery && parenCount > 0) {
+        options.push({
+          label: ")",
+          type: "keyword",
+          apply: ") ",
+          detail: "Close CTE subquery",
+        });
+      }
+
       return {
         from: word ? word.from : pos,
-        options: [
-          {
-            label: "AND",
-            type: "keyword",
-            apply: "AND ",
-            detail: "Add another condition (all must be true)",
-          },
-          {
-            label: "OR",
-            type: "keyword",
-            apply: "OR ",
-            detail: "Add another condition (any can be true)",
-          },
-          {
-            label: "ORDER BY",
-            type: "keyword",
-            apply: "ORDER BY ",
-            detail: "Sort results",
-          },
-        ],
+        options,
         filter: true,
-        validFor: /^(AND|OR|ORDER\s+BY)$/i,
+        validFor: /^(AND|OR|ORDER\s+BY|\))$/i,
       };
     }
   }

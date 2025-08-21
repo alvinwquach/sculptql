@@ -1,20 +1,19 @@
 export const getOperatorDetail = (operator: string): string => {
-  switch (operator.toUpperCase()) {
-    case "=":
-      return "Equals";
-    case "!=":
-      return "Does not equal";
-    case ">":
-      return "Greater than";
-    case "<":
-      return "Less than";
-    case ">=":
-      return "Greater than or equal to";
-    case "<=":
-      return "Less than or equal to";
-    case "LIKE":
-      return "Pattern matching";
-    default:
-      return "";
-  }
+  // PSEUDOCODE:
+  // 1. Map operators to their descriptions
+  // 2. Return description for the given operator
+
+  const operatorDetails: { [key: string]: string } = {
+    "=": "Equal to",
+    "!=": "Not equal to",
+    ">": "Greater than",
+    "<": "Less than",
+    ">=": "Greater than or equal to",
+    "<=": "Less than or equal to",
+    LIKE: "Pattern matching",
+    "IS NULL": "Check for null",
+    "IS NOT NULL": "Check for non-null",
+    BETWEEN: "Range check",
+  };
+  return operatorDetails[operator.toUpperCase()] || "Operator";
 };

@@ -15,19 +15,18 @@ export const suggestOrderByClause = (
   // PSEUDOCODE:
   // 1. Define type guards for Select node and table reference
   // 2. Extract table name from AST or regex
-  // 3. If after FROM or WHERE and no ORDER BY, suggest ORDER BY
-  // 4. If after ORDER BY, suggest columns
-  // 5. If after a valid column, suggest ASC, DESC, or LIMIT
-  // 6. Return null if no suggestions apply
+  // 3. If after FROM, WHERE, or GROUP BY/HAVING and no ORDER BY, suggest ORDER BY
+  // 4. If after ORDER BY, suggest columns or column numbers
+  // 5. If after a valid ORDER BY column, suggest ASC, DESC, comma, LIMIT, or ;
+  // 6. If in a CTE subquery with unbalanced parentheses, include ) in suggestions
+  // 7. Return null if no suggestions apply
 
-  // Type guard for Select node
   const isSelectNode = (node: unknown): node is Select =>
     !!node &&
     typeof node === "object" &&
     "type" in node &&
     (node as { type: unknown }).type === "select";
 
-  // Type guard for FROM clause
   const isTableReference = (
     fromItem: unknown
   ): fromItem is { table: string | null } =>
@@ -37,7 +36,13 @@ export const suggestOrderByClause = (
     (typeof (fromItem as { table: unknown }).table === "string" ||
       (fromItem as { table: unknown }).table === null);
 
-  // Get the table name from the FROM clause
+  const isInCteSubquery = /\bWITH\s+[\w"]*\s+AS\s*\(\s*SELECT\b.*$/i.test(
+    docText
+  );
+  const parenCount = isInCteSubquery
+    ? (docText.match(/\(/g) || []).length - (docText.match(/\)/g) || []).length
+    : 0;
+
   let selectedTable: string | null = null;
   if (ast) {
     const selectNode = Array.isArray(ast)
@@ -62,12 +67,10 @@ export const suggestOrderByClause = (
     return null;
   }
 
-  // Check if ORDER BY already exists in the query
   const hasOrderBy = /\bORDER\s+BY\b/i.test(docText);
-
-  // Suggest ORDER BY only after FROM or WHERE and if no ORDER BY exists
-  const afterTableOrWhereRegex = /\bFROM\s+\w+(\s+WHERE\s+[^;]*?)?\s*$/i;
-  if (!hasOrderBy && afterTableOrWhereRegex.test(docText)) {
+  const afterTableOrWhereOrGroupByRegex =
+    /\bFROM\s+\w+(\s+(WHERE|GROUP\s+BY)\s+[^;]*?)?\s*$/i;
+  if (!hasOrderBy && afterTableOrWhereOrGroupByRegex.test(docText)) {
     return {
       from: word ? word.from : pos,
       options: [
@@ -83,67 +86,136 @@ export const suggestOrderByClause = (
     };
   }
 
-  // Suggest columns after ORDER BY
-  const afterOrderByRegex = /\bORDER\s+BY\s*(\w*)$/i;
+  const afterOrderByRegex = /\bORDER\s+BY\s*([^;]*)$/i;
   if (afterOrderByRegex.test(docText)) {
-    const columns = tableColumns[selectedTable].filter((column) =>
-      currentWord
-        ? stripQuotes(column)
-            .toLowerCase()
-            .startsWith(stripQuotes(currentWord).toLowerCase())
-        : true
-    );
+    const orderByText = afterOrderByRegex.exec(docText)![1].trim();
+    const lastCharIsComma = orderByText.endsWith(",");
+    const currentOrderByItems = orderByText
+      ? orderByText
+          .split(",")
+          .map((item) => item.trim())
+          .filter((item) => item)
+      : [];
 
-    if (columns.length > 0) {
-      return {
-        from: word ? word.from : pos,
-        options: columns.map((column) => ({
+    if (lastCharIsComma || orderByText === "") {
+      const selectMatch = docText.match(/SELECT\s+(.+?)\s+FROM/i);
+      const selectColumns = selectMatch
+        ? selectMatch[1]
+            .split(",")
+            .map((col) => stripQuotes(col.trim()))
+            .filter((col) => col)
+        : [];
+
+      const columns = tableColumns[selectedTable].filter(
+        (column) =>
+          !currentOrderByItems.includes(column) &&
+          !currentOrderByItems.includes(
+            selectColumns.findIndex((col) => col === column).toString()
+          ) &&
+          (currentWord
+            ? stripQuotes(column)
+                .toLowerCase()
+                .startsWith(stripQuotes(currentWord).toLowerCase())
+            : true)
+      );
+
+      const columnNumberOptions = selectColumns
+        .map((_, index) => index + 1)
+        .filter(
+          (num) =>
+            !currentOrderByItems.includes(num.toString()) &&
+            (currentWord ? num.toString().startsWith(currentWord) : true)
+        );
+
+      const options = [
+        ...columns.map((column) => ({
           label: column,
           type: "field",
           apply: needsQuotes(column) ? `"${column}" ` : `${column} `,
-          detail: "Column name",
+          detail: `Column name (Position ${selectColumns.indexOf(column) + 1})`,
         })),
-        filter: true,
-        validFor: /^["'\w]*$/,
-      };
+        ...columnNumberOptions.map((num) => ({
+          label: num.toString(),
+          type: "text",
+          apply: `${num} `,
+          detail: `Column number (${selectColumns[num - 1] || "N/A"})`,
+        })),
+      ];
+
+      if (options.length > 0) {
+        return {
+          from: word ? word.from : pos,
+          options,
+          filter: true,
+          validFor: /^["'\w\d]*$/,
+        };
+      }
     }
   }
 
-  // Suggest ASC, DESC, or LIMIT after a valid column
-  const afterOrderByColumnRegex =
-    /\bORDER\s+BY\s+((?:"[\w]+"|'[\w]+'|[\w_]+))\s*(\w*)$/i;
-  const match = docText.match(afterOrderByColumnRegex);
+  const afterOrderByItemRegex = /\bORDER\s+BY\s+([^;]+?)(\s*)$/i;
+  const match = docText.match(afterOrderByItemRegex);
   if (match) {
-    const column = stripQuotes(match[1]);
-    if (
+    const orderByItems = match[1]
+      .split(",")
+      .map((item) => item.trim())
+      .filter((item) => item);
+    const lastItem = orderByItems[orderByItems.length - 1];
+    const isValidItem =
+      !isNaN(parseInt(lastItem)) ||
       tableColumns[selectedTable].some(
-        (c) => stripQuotes(c).toLowerCase() === column.toLowerCase()
-      )
-    ) {
+        (c) =>
+          stripQuotes(c).toLowerCase() === stripQuotes(lastItem).toLowerCase()
+      );
+
+    if (isValidItem) {
+      const options = [
+        {
+          label: "ASC",
+          type: "keyword",
+          apply: "ASC ",
+          detail: "Sort in ascending order",
+        },
+        {
+          label: "DESC",
+          type: "keyword",
+          apply: "DESC ",
+          detail: "Sort in descending order",
+        },
+        {
+          label: ",",
+          type: "text",
+          apply: ", ",
+          detail: "Add another ORDER BY column",
+        },
+        {
+          label: "LIMIT",
+          type: "keyword",
+          apply: "LIMIT ",
+          detail: "Limit the number of rows returned",
+        },
+        {
+          label: ";",
+          type: "text",
+          apply: ";",
+          detail: "Complete query",
+        },
+      ];
+
+      if (isInCteSubquery && parenCount > 0) {
+        options.push({
+          label: ")",
+          type: "keyword",
+          apply: ") ",
+          detail: "Close CTE subquery",
+        });
+      }
+
       return {
         from: word ? word.from : pos,
-        options: [
-          {
-            label: "ASC",
-            type: "keyword",
-            apply: "ASC ",
-            detail: "Sort in ascending order (A-Z, low-high)",
-          },
-          {
-            label: "DESC",
-            type: "keyword",
-            apply: "DESC ",
-            detail: "Sort in descending order (Z-A, high-low)",
-          },
-          {
-            label: "LIMIT",
-            type: "keyword",
-            apply: "LIMIT ",
-            detail: "Limit the number of rows returned",
-          },
-        ],
+        options,
         filter: true,
-        validFor: /^(ASC|DESC|LIMIT)$/i,
+        validFor: /^(ASC|DESC|,|LIMIT|;|\))$/i,
       };
     }
   }
