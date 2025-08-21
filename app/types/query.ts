@@ -79,6 +79,8 @@ export interface ColumnSchema {
   is_nullable: string;
   column_default: string | null;
   is_primary_key?: boolean;
+  is_indexed: boolean | string;
+  index_names?: string[];
 }
 
 export interface ForeignKeySchema {
@@ -287,3 +289,26 @@ export interface CteClause {
 }
 
 export type ColumnType = string | SelectOption;
+
+export interface TableSchema {
+  table_catalog: string;
+  table_schema: string;
+  table_name: string;
+  table_type: string;
+  comment: string | null;
+  columns: ColumnSchema[];
+  primary_keys: string[];
+  foreign_keys: {
+    column_name: string;
+    referenced_table: string;
+    referenced_column: string;
+    constraint_name: string;
+  }[];
+}
+
+export interface ForeignKey {
+  column_name: string;
+  referenced_table: string;
+  referenced_column: string;
+  constraint_name: string;
+}
