@@ -10,6 +10,7 @@ import WhereClauseSelector from "./WhereClauseSelector";
 import OrderByLimitSelector from "./OrderByLimitSelector";
 import JoinSelector from "./JoinSelector";
 import UnionSelector from "./UnionSelector";
+import CaseSelector from "./CaseSelector";
 import CodeMirrorSetup from "./CodeMirrorSetup";
 import HavingClauseSelector from "./HavingClauseSelector";
 import { Tab, TableColumn } from "@/app/types/query";
@@ -86,6 +87,14 @@ export default function EditorPane({
     handleUnionTableSelect,
     addUnionClause,
     removeUnionClause,
+    handleCaseColumnSelect,
+    handleCaseOperatorSelect,
+    handleCaseValueSelect,
+    handleCaseResultSelect,
+    handleElseResultSelect,
+    handleCaseAliasChange,
+    addCaseCondition,
+    removeCaseCondition,
     operatorOptions,
     logicalOperatorOptions,
   } = useQueryBuilder(tableNames, tableColumns, onQueryChange, editorRef);
@@ -173,6 +182,23 @@ export default function EditorPane({
           onColumnSelect={handleColumnSelect}
           joinClauses={queryState.joinClauses}
           onGroupByColumnsSelect={handleGroupByColumnsSelect}
+          metadataLoading={metadataLoading}
+        />
+        <CaseSelector
+          selectedTable={queryState.selectedTable}
+          tableColumns={tableColumns}
+          caseClause={queryState.caseClause}
+          uniqueValues={queryState.uniqueValues}
+          joinClauses={queryState.joinClauses}
+          operatorOptions={operatorOptions}
+          onCaseColumnSelect={handleCaseColumnSelect}
+          onCaseOperatorSelect={handleCaseOperatorSelect}
+          onCaseValueSelect={handleCaseValueSelect}
+          onCaseResultSelect={handleCaseResultSelect}
+          onElseResultSelect={handleElseResultSelect}
+          onCaseAliasChange={handleCaseAliasChange}
+          onAddCaseCondition={addCaseCondition}
+          onRemoveCaseCondition={removeCaseCondition}
           metadataLoading={metadataLoading}
         />
         <WhereClauseSelector
