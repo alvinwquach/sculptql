@@ -2,8 +2,8 @@
 
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
-import { Trash2, Pin, Bookmark, Tag } from "lucide-react";
-import { useState, useCallback } from "react";
+import { Trash2, Pin, Bookmark, Tag, Search } from "lucide-react";
+import { useState, useCallback, useMemo } from "react";
 import {
   QueryHistoryItem,
   PinnedQuery,
@@ -46,6 +46,7 @@ export default function QueryHistory({
 }: QueryHistoryProps) {
   const [labelInput, setLabelInput] = useState<string>("");
   const [labelingQuery, setLabelingQuery] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState<string>("");
 
   const handleLabelQuery = useCallback(
     (query: string) => {
@@ -86,34 +87,86 @@ export default function QueryHistory({
     [labelInput, addLabeledQuery]
   );
 
+  const filteredPinnedQueries = useMemo(
+    () =>
+      pinnedQueries.filter((item) =>
+        item.query.toLowerCase().includes(searchTerm.toLowerCase())
+      ),
+    [pinnedQueries, searchTerm]
+  );
+
+  const filteredBookmarkedQueries = useMemo(
+    () =>
+      bookmarkedQueries.filter((item) =>
+        item.query.toLowerCase().includes(searchTerm.toLowerCase())
+      ),
+    [bookmarkedQueries, searchTerm]
+  );
+
+  const filteredLabeledQueries = useMemo(
+    () =>
+      labeledQueries.filter(
+        (item) =>
+          item.query.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          item.label.toLowerCase().includes(searchTerm.toLowerCase())
+      ),
+    [labeledQueries, searchTerm]
+  );
+
+  const filteredHistory = useMemo(
+    () =>
+      history.filter((item) =>
+        item.query.toLowerCase().includes(searchTerm.toLowerCase())
+      ),
+    [history, searchTerm]
+  );
+
   return (
     <div
       className={`w-64 h-full bg-[#1e293b] border-r border-slate-700 ${
         showHistory ? "block" : "hidden"
       } flex-shrink-0`}
     >
-      <div className="flex justify-between items-center p-2 border-b border-slate-700">
-        <h2 className="text-sm font-bold text-green-300">Query History</h2>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={clearHistory}
-          className="text-red-400 hover:bg-slate-700/50 hover:text-red-400 p-1.5 rounded"
-          title="Clear history"
-        >
-          <Trash2 className="w-4 h-4" />
-        </Button>
+      <div className="flex flex-col p-2 border-b border-slate-700">
+        <div className="flex justify-between items-center">
+          <h2 className="text-sm font-bold text-green-300">Query History</h2>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={clearHistory}
+            className="text-red-400 hover:bg-slate-700/50 hover:text-red-400 p-1.5 rounded"
+            title="Clear history"
+          >
+            <Trash2 className="w-4 h-4" />
+          </Button>
+        </div>
+        <div className="mt-2">
+          <div className="relative">
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search queries..."
+              className="w-full p-1.5 text-sm bg-[#2d3748] text-white border border-slate-600 rounded pl-8"
+            />
+            <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+          </div>
+        </div>
       </div>
-      <ScrollArea className="h-[calc(100%-3rem)] p-2">
+      <ScrollArea className="h-[calc(100%-5rem)] p-2">
         <div className="space-y-4">
           <div className="border-b border-slate-700 pb-2">
             <h3 className="text-xs font-bold text-green-300">Pinned Query</h3>
-            {pinnedQueries.length === 0 ? (
-              <p className="text-xs text-gray-400 py-1">No pinned query set</p>
+            {filteredPinnedQueries.length === 0 ? (
+              <p className="text-xs text-gray-400 py-1">
+                No pinned queries found
+              </p>
             ) : (
               <div
                 className="p-1 border-b border-slate-700 hover:bg-[#2d3748] cursor-pointer flex flex-col"
-                onClick={() => loadQueryFromHistory(pinnedQueries[0].query)}
+                onClick={() =>
+                  loadQueryFromHistory(filteredPinnedQueries[0].query)
+                }
               >
                 <div className="flex items-start">
                   <Pin
@@ -123,12 +176,14 @@ export default function QueryHistory({
                   />
                   <ScrollArea className="max-h-16 w-full overflow-x-auto">
                     <p className="text-sm text-green-300 break-words whitespace-pre-wrap max-w-full">
-                      {pinnedQueries[0].query}
+                      {filteredPinnedQueries[0].query}
                     </p>
                   </ScrollArea>
                 </div>
                 <p className="text-xs text-gray-400 mt-1">
-                  {new Date(pinnedQueries[0].timestamp).toLocaleString()}
+                  {new Date(
+                    filteredPinnedQueries[0].timestamp
+                  ).toLocaleString()}
                 </p>
                 <div className="flex space-x-1 mt-1">
                   <Button
@@ -136,7 +191,7 @@ export default function QueryHistory({
                     size="sm"
                     onClick={(e) => {
                       e.stopPropagation();
-                      runQueryFromHistory(pinnedQueries[0].query);
+                      runQueryFromHistory(filteredPinnedQueries[0].query);
                     }}
                     className="text-green-400 hover:bg-slate-700/50 p-0 h-auto"
                   >
@@ -147,7 +202,7 @@ export default function QueryHistory({
                     size="sm"
                     onClick={(e) => {
                       e.stopPropagation();
-                      removePinnedQuery(pinnedQueries[0].query);
+                      removePinnedQuery(filteredPinnedQueries[0].query);
                     }}
                     className="text-yellow-400 hover:bg-slate-700/50 p-0 h-auto"
                   >
@@ -159,12 +214,12 @@ export default function QueryHistory({
           </div>
           <div className="border-b border-slate-700 pb-2">
             <h3 className="text-xs font-bold text-green-300">Bookmarks</h3>
-            {bookmarkedQueries.length === 0 ? (
+            {filteredBookmarkedQueries.length === 0 ? (
               <p className="text-xs text-gray-400 py-1">
-                No bookmarked queries
+                No bookmarked queries found
               </p>
             ) : (
-              bookmarkedQueries.map((item, index) => (
+              filteredBookmarkedQueries.map((item, index) => (
                 <div
                   key={`bookmark-${index}`}
                   className="p-1 border-b border-slate-700 hover:bg-[#2d3748] cursor-pointer flex flex-col"
@@ -217,10 +272,12 @@ export default function QueryHistory({
             <h3 className="text-xs font-bold text-green-300">
               Labeled Queries
             </h3>
-            {labeledQueries.length === 0 ? (
-              <p className="text-xs text-gray-400 py-1">No labeled queries</p>
+            {filteredLabeledQueries.length === 0 ? (
+              <p className="text-xs text-gray-400 py-1">
+                No labeled queries found
+              </p>
             ) : (
-              labeledQueries.map((item, index) => (
+              filteredLabeledQueries.map((item, index) => (
                 <div
                   key={`labeled-${index}`}
                   className="p-1 border-b border-slate-700 hover:bg-[#2d3748] cursor-pointer flex flex-col"
@@ -273,12 +330,10 @@ export default function QueryHistory({
             <p className="text-xs text-gray-400 py-1">
               Showing up to 200 recent queries
             </p>
-            {history.length === 0 ? (
-              <p className="text-xs text-gray-400 py-1">
-                No queries in history
-              </p>
+            {filteredHistory.length === 0 ? (
+              <p className="text-xs text-gray-400 py-1">No queries found</p>
             ) : (
-              history.map((item, index) => (
+              filteredHistory.map((item, index) => (
                 <div
                   key={`history-${index}`}
                   className="p-1 border-b border-slate-700 hover:bg-[#2d3748] cursor-pointer flex flex-col"
