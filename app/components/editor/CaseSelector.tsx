@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback } from "react";
-import Select, { SingleValue, StylesConfig } from "react-select";
+import Select, { SingleValue } from "react-select";
 import {
   CaseClause,
   SelectOption,
