@@ -1,9 +1,15 @@
 "use client";
 
 import { useRef } from "react";
+import { AlertCircle } from "lucide-react";
+import { CompletionSource } from "@codemirror/autocomplete";
 import { EditorView } from "@codemirror/view";
+import { useQueryBuilder } from "./useQueryBuilder";
+import { useEditorSync } from "./useEditorSync";
+import CodeMirrorSetup from "./CodeMirrorSetup";
 import QueryTabs from "./QueryTabs";
 import TableSelector from "./TableSelector";
+import WithSelector from "./WithSelector";
 import AggregateSelector from "./AggregateSelector";
 import ColumnSelector from "./ColumnSelector";
 import WhereClauseSelector from "./WhereClauseSelector";
@@ -11,13 +17,8 @@ import OrderByLimitSelector from "./OrderByLimitSelector";
 import JoinSelector from "./JoinSelector";
 import UnionSelector from "./UnionSelector";
 import CaseSelector from "./CaseSelector";
-import CodeMirrorSetup from "./CodeMirrorSetup";
 import HavingClauseSelector from "./HavingClauseSelector";
 import { Tab, TableColumn } from "@/app/types/query";
-import { CompletionSource } from "@codemirror/autocomplete";
-import { useQueryBuilder } from "./useQueryBuilder";
-import { useEditorSync } from "./useEditorSync";
-import { AlertCircle } from "lucide-react";
 import { format as formatSQL } from "sql-formatter";
 
 interface EditorPaneProps {
@@ -97,6 +98,15 @@ export default function EditorPane({
     removeCaseCondition,
     operatorOptions,
     logicalOperatorOptions,
+    handleCteAliasChange,
+    handleCteTableSelect,
+    handleCteColumnSelect,
+    handleCteLogicalOperatorSelect,
+    handleCteWhereColumnSelect,
+    handleCteOperatorSelect,
+    handleCteValueSelect,
+    addCteClause,
+    removeCteClause,
   } = useQueryBuilder(tableNames, tableColumns, onQueryChange, editorRef);
 
   useEditorSync({
@@ -134,6 +144,25 @@ export default function EditorPane({
             <span>{fetchError || queryError}</span>
           </div>
         )}
+        <WithSelector
+          selectedTable={queryState.selectedTable}
+          tableNames={tableNames}
+          tableColumns={tableColumns}
+          cteClauses={queryState.cteClauses}
+          uniqueValues={queryState.uniqueValues}
+          operatorOptions={operatorOptions}
+          logicalOperatorOptions={logicalOperatorOptions}
+          onCteAliasChange={handleCteAliasChange}
+          onCteTableSelect={handleCteTableSelect}
+          onCteColumnSelect={handleCteColumnSelect}
+          onCteLogicalOperatorSelect={handleCteLogicalOperatorSelect}
+          onCteWhereColumnSelect={handleCteWhereColumnSelect}
+          onCteOperatorSelect={handleCteOperatorSelect}
+          onCteValueSelect={handleCteValueSelect}
+          onAddCteClause={addCteClause}
+          onRemoveCteClause={removeCteClause}
+          metadataLoading={metadataLoading}
+        />
         <TableSelector
           tableNames={tableNames}
           selectedTable={queryState.selectedTable}

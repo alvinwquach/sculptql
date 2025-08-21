@@ -13,12 +13,15 @@ import {
   UnionClause,
   CaseClause,
   CaseCondition,
+  CteClause,
+  ColumnType,
 } from "@/app/types/query";
 import { needsQuotes } from "@/app/utils/sqlCompletion/needsQuotes";
 import { stripQuotes } from "@/app/utils/sqlCompletion/stripQuotes";
 import { containsRestrictedKeywords } from "../../utils/restrictedKeywords";
 
 interface QueryState {
+  cteClauses: CteClause[];
   selectedTable: SelectOption | null;
   selectedColumns: SelectOption[];
   selectedAggregate: SelectOption | null;
@@ -44,6 +47,7 @@ export const useQueryBuilder = (
   editorRef: React.RefObject<EditorView | null>
 ) => {
   const [queryState, setQueryState] = useState<QueryState>({
+    cteClauses: [],
     selectedTable: null,
     selectedColumns: [],
     selectedAggregate: null,
@@ -76,6 +80,8 @@ export const useQueryBuilder = (
       condition2: [],
       caseCondition1: [],
       caseCondition2: [],
+      cteCondition1: [],
+      cteCondition2: [],
     },
     fetchError: null,
     queryError: null,
@@ -108,6 +114,7 @@ export const useQueryBuilder = (
 
   const buildQuery = useCallback(() => {
     const {
+      cteClauses,
       selectedTable,
       selectedColumns,
       selectedAggregate,
@@ -123,15 +130,118 @@ export const useQueryBuilder = (
       caseClause,
     } = queryState;
 
+    let query = "";
+
+    // Build CTEs
+    if (cteClauses.length > 0) {
+      const cteQueries = cteClauses
+        .filter((cte) => cte.alias && cte.fromTable?.value)
+        .map((cte) => {
+          const columns = cte.selectedColumns.length
+            ? cte.selectedColumns
+                .map((col) =>
+                  col.value.includes(".")
+                    ? col.value
+                    : needsQuotes(col.value)
+                    ? `"${col.value}"`
+                    : col.value
+                )
+                .join(", ")
+            : "*";
+          const table = needsQuotes(cte.fromTable!.value)
+            ? `"${cte.fromTable!.value}"`
+            : cte.fromTable!.value;
+          let cteQuery = `${
+            needsQuotes(cte.alias!) ? `"${cte.alias}"` : cte.alias
+          } AS (SELECT ${columns} FROM ${table}`;
+
+          const validCteConditions = cte.whereClause.conditions.filter(
+            (c) =>
+              c.column?.value &&
+              c.operator?.value &&
+              (c.operator.value === "IS NULL" ||
+                c.operator.value === "IS NOT NULL" ||
+                (c.value?.value && c.value.value.trim() !== ""))
+          );
+
+          if (validCteConditions.length > 0) {
+            cteQuery += " WHERE ";
+            cteQuery += validCteConditions
+              .map((condition, index) => {
+                const column = condition.column!.value.includes(".")
+                  ? condition.column!.value
+                  : needsQuotes(condition.column!.value)
+                  ? `"${condition.column!.value}"`
+                  : condition.column!.value;
+                let conditionStr = `${column} ${condition.operator!.value}`;
+                if (
+                  condition.operator!.value === "BETWEEN" &&
+                  condition.value?.value &&
+                  condition.value2?.value &&
+                  condition.value.value.trim() !== "" &&
+                  condition.value2.value.trim() !== ""
+                ) {
+                  conditionStr += ` '${condition.value.value}' AND '${condition.value2.value}'`;
+                } else if (
+                  condition.value?.value &&
+                  condition.operator!.value !== "IS NULL" &&
+                  condition.operator!.value !== "IS NOT NULL" &&
+                  condition.operator!.value !== "BETWEEN"
+                ) {
+                  conditionStr += ` '${condition.value.value}'`;
+                }
+                return index === 0 || !condition.logicalOperator?.value
+                  ? conditionStr
+                  : `${condition.logicalOperator.value} ${conditionStr}`;
+              })
+              .join(" ");
+          }
+
+          return `${cteQuery})`;
+        })
+        .join(", ");
+      if (cteQueries) {
+        query += `WITH ${cteQueries}`;
+      }
+
+      // If only CTEs are defined and no main query components are selected, return just the CTEs
+      if (
+        !selectedTable &&
+        selectedColumns.length === 0 &&
+        !selectedAggregate &&
+        !aggregateColumn &&
+        !caseClause.conditions.length &&
+        !caseClause.elseValue &&
+        !caseClause.alias &&
+        joinClauses.length === 0 &&
+        unionClauses.length === 0 &&
+        groupByColumns.length === 0 &&
+        !orderByClause.column &&
+        !limit &&
+        whereClause.conditions.every(
+          (c) =>
+            !c.column?.value &&
+            !c.operator?.value &&
+            (!c.value?.value || c.value.value.trim() === "")
+        ) &&
+        havingClause.conditions.length === 0
+      ) {
+        return query.trim();
+      }
+    }
+
     let columns: string;
-    // Handle CASE clause first
+    // Handle CASE clause
     if (
       caseClause.conditions.length > 0 ||
       caseClause.elseValue ||
       caseClause.alias
     ) {
       const caseConditions = caseClause.conditions
-        .filter((c: CaseCondition) => c.column?.value && c.operator?.value && c.result?.value)
+        .filter(
+          (c: CaseCondition) =>
+            c.column?.value && c.operator?.value && c.result?.value
+        )
         .map((c: CaseCondition) => {
           const column = c.column!.value.includes(".")
             ? c.column!.value
@@ -169,7 +279,6 @@ export const useQueryBuilder = (
         caseConditions || elsePart
           ? `CASE ${caseConditions}${elsePart}${aliasPart}`
           : "*";
-      // Append selected columns if any
       if (selectedColumns.length > 0 && selectedColumns[0].value !== "*") {
         columns +=
           ", " +
@@ -236,13 +345,18 @@ export const useQueryBuilder = (
         : "*";
     }
 
-    let query = selectedTable?.value
-      ? `SELECT ${columns} FROM ${
-          needsQuotes(selectedTable.value)
-            ? `"${selectedTable.value}"`
-            : selectedTable.value
-        } `
-      : "";
+    // Use CTE alias in FROM if CTEs are present and no selectedTable, otherwise use selectedTable
+    const fromTable =
+      cteClauses.length > 0 && cteClauses[0].alias && !selectedTable
+        ? needsQuotes(cteClauses[0].alias)
+          ? `"${cteClauses[0].alias}"`
+          : cteClauses[0].alias
+        : selectedTable?.value
+        ? needsQuotes(selectedTable.value)
+          ? `"${selectedTable.value}"`
+          : selectedTable.value
+        : "";
+    query += fromTable ? `SELECT ${columns} FROM ${fromTable} ` : "";
 
     if (joinClauses.length > 0) {
       query += joinClauses
@@ -265,7 +379,9 @@ export const useQueryBuilder = (
             ? `"${join.onColumn2!.value}"`
             : join.onColumn2!.value;
           return `${joinType} ${table} ON ${
-            selectedTable?.value
+            cteClauses.length > 0 && cteClauses[0].alias && !selectedTable
+              ? cteClauses[0].alias
+              : selectedTable?.value
           }.${onColumn1} = ${join.table!.value}.${onColumn2}`;
         })
         .filter((clause) => clause !== "")
@@ -408,7 +524,7 @@ export const useQueryBuilder = (
         .join("");
     }
 
-    return query;
+    return query.trim();
   }, [queryState]);
 
   const updateEditor = useCallback(
@@ -431,15 +547,21 @@ export const useQueryBuilder = (
     async (
       conditionIndex: number,
       isHaving: boolean = false,
-      isCase: boolean = false
+      isCase: boolean = false,
+      isCte: boolean = false,
+      cteIndex: number = 0
     ) => {
-      const targetTable = queryState.selectedTable?.value;
+      const targetTable = isCte
+        ? queryState.cteClauses[cteIndex]?.fromTable?.value
+        : queryState.selectedTable?.value;
       const conditions = isHaving
         ? queryState.havingClause.conditions
         : isCase
         ? queryState.caseClause.conditions
+        : isCte
+        ? queryState.cteClauses[cteIndex]?.whereClause.conditions
         : queryState.whereClause.conditions;
-      const condition = conditions[conditionIndex];
+      const condition = conditions?.[conditionIndex];
 
       if (!targetTable || !condition?.column?.value) return;
 
@@ -466,6 +588,8 @@ export const useQueryBuilder = (
               ? `having${conditionIndex + 1}`
               : isCase
               ? `caseCondition${conditionIndex + 1}`
+              : isCte
+              ? `cte${cteIndex}Condition${conditionIndex + 1}`
               : `condition${conditionIndex + 1}`]: unique,
           },
           fetchError: null,
@@ -475,7 +599,13 @@ export const useQueryBuilder = (
           e instanceof Error ? e.message : "Failed to fetch unique values";
         console.error(
           `Error fetching unique values for ${
-            isHaving ? "having" : isCase ? "case condition" : "condition"
+            isHaving
+              ? "having"
+              : isCase
+              ? "case condition"
+              : isCte
+              ? `CTE ${cteIndex + 1} condition`
+              : "condition"
           } ${conditionIndex + 1}:`,
           message
         );
@@ -488,6 +618,8 @@ export const useQueryBuilder = (
               ? `having${conditionIndex + 1}`
               : isCase
               ? `caseCondition${conditionIndex + 1}`
+              : isCte
+              ? `cte${cteIndex}Condition${conditionIndex + 1}`
               : `condition${conditionIndex + 1}`]: [],
           },
         }));
@@ -498,6 +630,7 @@ export const useQueryBuilder = (
       queryState.whereClause.conditions,
       queryState.havingClause.conditions,
       queryState.caseClause.conditions,
+      queryState.cteClauses,
     ]
   );
 
@@ -509,11 +642,17 @@ export const useQueryBuilder = (
     queryState.caseClause.conditions.forEach((_, i) =>
       fetchUniqueValues(i, false, true)
     );
+    queryState.cteClauses.forEach((cte, cteIndex) =>
+      cte.whereClause.conditions.forEach((_, i) =>
+        fetchUniqueValues(i, false, false, true, cteIndex)
+      )
+    );
   }, [
     queryState.selectedTable,
     queryState.whereClause.conditions,
     queryState.havingClause.conditions,
     queryState.caseClause.conditions,
+    queryState.cteClauses,
     fetchUniqueValues,
   ]);
 
@@ -553,11 +692,14 @@ export const useQueryBuilder = (
           condition2: [],
           caseCondition1: [],
           caseCondition2: [],
+          cteCondition1: [],
+          cteCondition2: [],
         },
         fetchError: null,
         joinClauses: [],
         unionClauses: [],
         caseClause: { conditions: [], elseValue: null, alias: null },
+        cteClauses: [], // Reset CTE clauses when table changes
       }));
       const query = newValue?.value
         ? `SELECT * FROM ${
@@ -571,7 +713,10 @@ export const useQueryBuilder = (
 
   const handleColumnSelect = useCallback(
     (newValue: MultiValue<SelectOption>) => {
-      if (!queryState.selectedTable?.value) {
+      if (
+        !queryState.selectedTable?.value &&
+        !queryState.cteClauses[0]?.alias
+      ) {
         setQueryState((prev) => ({
           ...prev,
           selectedColumns: [],
@@ -605,6 +750,8 @@ export const useQueryBuilder = (
             condition2: [],
             caseCondition1: [],
             caseCondition2: [],
+            cteCondition1: [],
+            cteCondition2: [],
           },
           fetchError: null,
           joinClauses: [],
@@ -618,10 +765,15 @@ export const useQueryBuilder = (
       const includesStar = newValue.some((option) => option.value === "*");
       const columnsToSelect = includesStar
         ? [
-            ...(tableColumns[queryState.selectedTable.value]?.map((col) => ({
-              value: `${queryState.selectedTable!.value}.${col}`,
-              label: `${queryState.selectedTable!.value}.${col}`,
-            })) || []),
+            ...(queryState.cteClauses[0]?.alias &&
+            queryState.cteClauses[0]?.selectedColumns
+              ? queryState.cteClauses[0].selectedColumns
+              : tableColumns[queryState.selectedTable?.value || ""]?.map(
+                  (col) => ({
+                    value: `${queryState.selectedTable!.value}.${col}`,
+                    label: `${queryState.selectedTable!.value}.${col}`,
+                  })
+                ) || []),
             ...queryState.joinClauses
               .filter((join) => join.table?.value)
               .flatMap(
@@ -640,6 +792,7 @@ export const useQueryBuilder = (
     },
     [
       queryState.selectedTable,
+      queryState.cteClauses,
       queryState.joinClauses,
       tableColumns,
       buildQuery,
@@ -1071,7 +1224,6 @@ export const useQueryBuilder = (
     [buildQuery, updateEditor]
   );
 
-  
   const handleOrderByColumnSelect = useCallback(
     (newValue: SingleValue<SelectOption>) => {
       setQueryState((prev) => {
@@ -1293,6 +1445,311 @@ export const useQueryBuilder = (
     [buildQuery, updateEditor]
   );
 
+  const addCteClause = useCallback(() => {
+    setQueryState((prev) => ({
+      ...prev,
+      cteClauses: [
+        ...prev.cteClauses,
+        {
+          alias: null,
+          selectedColumns: [],
+          fromTable: null,
+          whereClause: {
+            conditions: [
+              {
+                column: null,
+                operator: null,
+                value: null,
+                value2: null,
+                logicalOperator: { value: "AND", label: "AND" },
+              },
+              {
+                column: null,
+                operator: null,
+                value: null,
+                value2: null,
+                logicalOperator: null,
+              },
+            ],
+          },
+        },
+      ],
+      uniqueValues: {
+        ...prev.uniqueValues,
+        [`cte${prev.cteClauses.length}Condition1`]: [],
+        [`cte${prev.cteClauses.length}Condition2`]: [],
+      },
+    }));
+    const query = buildQuery();
+    updateEditor(query);
+  }, [buildQuery, updateEditor]);
+
+  const removeCteClause = useCallback(
+    (cteIndex: number) => {
+      setQueryState((prev) => {
+        const newCteClauses = prev.cteClauses.filter(
+          (_, index) => index !== cteIndex
+        );
+        const newUniqueValues = { ...prev.uniqueValues };
+        delete newUniqueValues[`cte${cteIndex}Condition1`];
+        delete newUniqueValues[`cte${cteIndex}Condition2`];
+        const query = buildQuery();
+        updateEditor(query);
+        return {
+          ...prev,
+          cteClauses: newCteClauses,
+          uniqueValues: newUniqueValues,
+        };
+      });
+    },
+    [buildQuery, updateEditor]
+  );
+
+  const handleCteAliasChange = useCallback(
+    (cteIndex: number, alias: string | null) => {
+      const cleanAlias = alias ? stripQuotes(alias.trim()) : null;
+      if (cleanAlias && containsRestrictedKeywords(cleanAlias)) {
+        setQueryState((prev) => ({
+          ...prev,
+          queryError: "CTE alias contains restricted keywords.",
+        }));
+        return;
+      }
+      if (
+        cleanAlias &&
+        queryState.cteClauses.some(
+          (cte, i) => i !== cteIndex && cte.alias === cleanAlias
+        )
+      ) {
+        setQueryState((prev) => ({
+          ...prev,
+          queryError: "Duplicate CTE alias detected.",
+        }));
+        return;
+      }
+      setQueryState((prev) => {
+        const newCteClauses = [...prev.cteClauses];
+        newCteClauses[cteIndex] = {
+          ...newCteClauses[cteIndex],
+          alias: cleanAlias,
+        };
+        const query = buildQuery();
+        updateEditor(query);
+        return { ...prev, cteClauses: newCteClauses, queryError: null };
+      });
+    },
+    [queryState.cteClauses, buildQuery, updateEditor]
+  );
+
+  const handleCteTableSelect = useCallback(
+    (cteIndex: number, newValue: SingleValue<SelectOption>) => {
+      setQueryState((prev) => {
+        const newCteClauses = [...prev.cteClauses];
+        newCteClauses[cteIndex] = {
+          ...newCteClauses[cteIndex],
+          fromTable: newValue,
+          selectedColumns: [],
+          whereClause: {
+            conditions: [
+              {
+                column: null,
+                operator: null,
+                value: null,
+                value2: null,
+                logicalOperator: { value: "AND", label: "AND" },
+              },
+              {
+                column: null,
+                operator: null,
+                value: null,
+                value2: null,
+                logicalOperator: null,
+              },
+            ],
+          },
+        };
+        const query = buildQuery();
+        updateEditor(query);
+        return {
+          ...prev,
+          cteClauses: newCteClauses,
+          uniqueValues: {
+            ...prev.uniqueValues,
+            [`cte${cteIndex}Condition1`]: [],
+            [`cte${cteIndex}Condition2`]: [],
+          },
+        };
+      });
+    },
+    [buildQuery, updateEditor]
+  );
+
+  const handleCteColumnSelect = useCallback(
+    (cteIndex: number, newValue: MultiValue<SelectOption>) => {
+      setQueryState((prev) => {
+        const newCteClauses = [...prev.cteClauses];
+        const includesStar = newValue.some((option) => option.value === "*");
+        const columnsToSelect = includesStar
+          ? tableColumns[newCteClauses[cteIndex].fromTable?.value || ""]?.map(
+              (col) => ({
+                value: col,
+                label: col,
+              })
+            ) || []
+          : (newValue as SelectOption[]);
+        newCteClauses[cteIndex] = {
+          ...newCteClauses[cteIndex],
+          selectedColumns: columnsToSelect,
+        };
+        const query = buildQuery();
+        updateEditor(query);
+        return { ...prev, cteClauses: newCteClauses };
+      });
+    },
+    [buildQuery, updateEditor, tableColumns]
+  );
+
+  const handleCteLogicalOperatorSelect = useCallback(
+    (cteIndex: number, newValue: SingleValue<SelectOption>) => {
+      setQueryState((prev) => {
+        const newCteClauses = [...prev.cteClauses];
+        const newConditions = [
+          ...newCteClauses[cteIndex].whereClause.conditions,
+        ];
+        newConditions[0] = { ...newConditions[0], logicalOperator: newValue };
+        newCteClauses[cteIndex] = {
+          ...newCteClauses[cteIndex],
+          whereClause: { conditions: newConditions },
+        };
+        const query = buildQuery();
+        updateEditor(query);
+        return { ...prev, cteClauses: newCteClauses };
+      });
+    },
+    [buildQuery, updateEditor]
+  );
+
+  const handleCteWhereColumnSelect = useCallback(
+    (
+      cteIndex: number,
+      conditionIndex: number,
+      newValue: SingleValue<SelectOption>
+    ) => {
+      setQueryState((prev) => {
+        const newCteClauses = [...prev.cteClauses];
+        const newConditions = [
+          ...newCteClauses[cteIndex].whereClause.conditions,
+        ];
+        newConditions[conditionIndex] = {
+          ...newConditions[conditionIndex],
+          column: newValue,
+          operator: null,
+          value: null,
+          value2: null,
+        };
+        newCteClauses[cteIndex] = {
+          ...newCteClauses[cteIndex],
+          whereClause: { conditions: newConditions },
+        };
+        const query = buildQuery();
+        updateEditor(query);
+        return {
+          ...prev,
+          cteClauses: newCteClauses,
+          uniqueValues: {
+            ...prev.uniqueValues,
+            [`cte${cteIndex}Condition${conditionIndex + 1}`]: [],
+          },
+          fetchError: null,
+        };
+      });
+      if (newValue)
+        fetchUniqueValues(conditionIndex, false, false, true, cteIndex);
+    },
+    [buildQuery, updateEditor, fetchUniqueValues]
+  );
+
+  const handleCteOperatorSelect = useCallback(
+    (
+      cteIndex: number,
+      conditionIndex: number,
+      newValue: SingleValue<SelectOption>
+    ) => {
+      setQueryState((prev) => {
+        const newCteClauses = [...prev.cteClauses];
+        const newConditions = [
+          ...newCteClauses[cteIndex].whereClause.conditions,
+        ];
+        newConditions[conditionIndex] = {
+          ...newConditions[conditionIndex],
+          operator: newValue,
+          value: null,
+          value2: null,
+        };
+        newCteClauses[cteIndex] = {
+          ...newCteClauses[cteIndex],
+          whereClause: { conditions: newConditions },
+        };
+        const query = buildQuery();
+        updateEditor(query);
+        return { ...prev, cteClauses: newCteClauses };
+      });
+    },
+    [buildQuery, updateEditor]
+  );
+
+  const handleCteValueSelect = useCallback(
+    (
+      cteIndex: number,
+      conditionIndex: number,
+      newValue: SingleValue<SelectOption>,
+      isValue2: boolean
+    ) => {
+      setQueryState((prev) => {
+        const newCteClauses = [...prev.cteClauses];
+        const newConditions = [
+          ...newCteClauses[cteIndex].whereClause.conditions,
+        ];
+        if (
+          !newConditions[conditionIndex].operator?.value ||
+          !newConditions[conditionIndex].column?.value ||
+          (newValue && newValue.value.trim() === "")
+        ) {
+          newConditions[conditionIndex] = {
+            ...newConditions[conditionIndex],
+            value: isValue2 ? newConditions[conditionIndex].value : null,
+            value2: isValue2 ? null : newConditions[conditionIndex].value2,
+          };
+        } else if (isValue2) {
+          if (newConditions[conditionIndex].operator?.value !== "BETWEEN") {
+            return prev;
+          }
+          newConditions[conditionIndex] = {
+            ...newConditions[conditionIndex],
+            value2: newValue,
+          };
+        } else {
+          newConditions[conditionIndex] = {
+            ...newConditions[conditionIndex],
+            value: newValue,
+            value2:
+              newConditions[conditionIndex].operator?.value !== "BETWEEN"
+                ? null
+                : newConditions[conditionIndex].value2,
+          };
+        }
+        newCteClauses[cteIndex] = {
+          ...newCteClauses[cteIndex],
+          whereClause: { conditions: newConditions },
+        };
+        const query = buildQuery();
+        updateEditor(query);
+        return { ...prev, cteClauses: newCteClauses };
+      });
+    },
+    [buildQuery, updateEditor]
+  );
+
   const updateQueryState = useCallback(
     (newQuery: string) => {
       if (containsRestrictedKeywords(newQuery)) {
@@ -1304,8 +1761,142 @@ export const useQueryBuilder = (
         return;
       }
 
+      // Parse CTEs
+      const cteMatch = newQuery.match(
+        /WITH\s+((?:[\w"]+\s+AS\s+\([^)]+\)(?:\s*,\s*)?)+)\s*SELECT/i
+      );
+      let cteClauses: CteClause[] = [];
+      if (cteMatch) {
+        const cteText = cteMatch[1];
+        const cteMatches = cteText.matchAll(
+          /([\w"]+)\s+AS\s+\(SELECT\s+(.+?)\s+FROM\s+([a-zA-Z_][a-zA-Z0-9_]*)(?:\s+WHERE\s+(.+?))?\)/gi
+        );
+        cteClauses = Array.from(cteMatches).map((match) => {
+          const [, alias, columns, table, whereText] = match;
+          const columnOptions = columns
+            .split(",")
+            .map((col) => col.trim())
+            .filter((col) => col && col !== "*")
+            .map((col) => ({
+              value: stripQuotes(col),
+              label: stripQuotes(col),
+            }));
+
+          let whereConditions: WhereClause["conditions"] = [
+            {
+              column: null,
+              operator: null,
+              value: null,
+              value2: null,
+              logicalOperator: { value: "AND", label: "AND" },
+            },
+            {
+              column: null,
+              operator: null,
+              value: null,
+              value2: null,
+              logicalOperator: null,
+            },
+          ];
+
+          if (whereText) {
+            const whereMatch = whereText.match(
+              /((?:"[\w]+"|'[\w]+'|[\w_]+\.[\w_]+))\s*(IS NULL|IS NOT NULL|BETWEEN|[=!><]=?|LIKE)\s*('[^']*'|[0-9]+(?:\.[0-9]+)?)?(?:\s+AND\s+('[^']*'|[0-9]+(?:\.[0-9]+)?))?\s*(AND|OR)?\s*((?:"[\w]+"|'[\w]+'|[\w_]+\.[\w_]+))?\s*(IS NULL|IS NOT NULL|BETWEEN|[=!><]=?|LIKE)?\s*('[^']*'|[0-9]+(?:\.[0-9]+)?)?(?:\s+AND\s+('[^']*'|[0-9]+(?:\.[0-9]+)?))?/i
+            );
+            if (whereMatch) {
+              const [
+                ,
+                column1,
+                operator1,
+                value1,
+                value2_1,
+                logicalOp,
+                column2,
+                operator2,
+                value2,
+                value2_2,
+              ] = whereMatch;
+              whereConditions = [
+                {
+                  column: column1
+                    ? {
+                        value: stripQuotes(column1),
+                        label: stripQuotes(column1),
+                      }
+                    : null,
+                  operator: operator1
+                    ? { value: operator1, label: operator1 }
+                    : null,
+                  value:
+                    operator1 === "IS NULL" ||
+                    operator1 === "IS NOT NULL" ||
+                    !value1 ||
+                    value1 === "''"
+                      ? null
+                      : {
+                          value: stripQuotes(value1),
+                          label: stripQuotes(value1),
+                        },
+                  value2:
+                    operator1 === "BETWEEN" && value2_1 && value2_1 !== "''"
+                      ? {
+                          value: stripQuotes(value2_1),
+                          label: stripQuotes(value2_1),
+                        }
+                      : null,
+                  logicalOperator: logicalOp
+                    ? { value: logicalOp, label: logicalOp }
+                    : { value: "AND", label: "AND" },
+                },
+                {
+                  column: column2
+                    ? {
+                        value: stripQuotes(column2),
+                        label: stripQuotes(column2),
+                      }
+                    : null,
+                  operator: operator2
+                    ? { value: operator2, label: operator2 }
+                    : null,
+                  value:
+                    operator2 === "IS NULL" ||
+                    operator2 === "IS NOT NULL" ||
+                    !value2 ||
+                    value2 === "''"
+                      ? null
+                      : {
+                          value: stripQuotes(value2),
+                          label: stripQuotes(value2),
+                        },
+                  value2:
+                    operator2 === "BETWEEN" && value2_2 && value2_2 !== "''"
+                      ? {
+                          value: stripQuotes(value2_2),
+                          label: stripQuotes(value2_2),
+                        }
+                      : null,
+                  logicalOperator: null,
+                },
+              ];
+            }
+          }
+
+          return {
+            alias: stripQuotes(alias),
+            selectedColumns: columnOptions,
+            fromTable: tableNames.includes(table)
+              ? { value: table, label: table }
+              : null,
+            whereClause: { conditions: whereConditions },
+          };
+        });
+      }
+
       // Split query into UNION parts
-      const unionQueries = newQuery.split(/\s*UNION\s*(ALL)?\s*/i);
+      const mainQueryText = cteMatch
+        ? newQuery.replace(cteMatch[0], "SELECT")
+        : newQuery;
+      const unionQueries = mainQueryText.split(/\s*UNION\s*(ALL)?\s*/i);
       const mainQuery = unionQueries[0];
       const unionTables: UnionClause[] = unionQueries
         .slice(1)
@@ -1328,9 +1919,21 @@ export const useQueryBuilder = (
 
       const tableNameMatch =
         mainQuery.match(/FROM\s+([a-zA-Z_][a-zA-Z0-9_]*)/i)?.[1] || null;
-      if (!tableNameMatch || !tableNames.includes(tableNameMatch)) {
+      const selectedTable =
+        tableNameMatch &&
+        (tableNames.includes(tableNameMatch) ||
+          cteClauses.some((cte) => cte.alias === tableNameMatch))
+          ? { value: tableNameMatch, label: tableNameMatch }
+          : null;
+
+      if (
+        !tableNameMatch ||
+        (!tableNames.includes(tableNameMatch) &&
+          !cteClauses.some((cte) => cte.alias === tableNameMatch))
+      ) {
         setQueryState((prev) => ({
           ...prev,
+          cteClauses,
           selectedTable: null,
           selectedColumns: [],
           selectedAggregate: null,
@@ -1363,6 +1966,8 @@ export const useQueryBuilder = (
             condition2: [],
             caseCondition1: [],
             caseCondition2: [],
+            cteCondition1: [],
+            cteCondition2: [],
           },
           fetchError: null,
           queryError: "Invalid or missing table name in query.",
@@ -1375,7 +1980,8 @@ export const useQueryBuilder = (
 
       setQueryState((prev) => ({
         ...prev,
-        selectedTable: { value: tableNameMatch, label: tableNameMatch },
+        cteClauses,
+        selectedTable,
         unionClauses: unionTables,
         queryError: null,
       }));
@@ -1484,6 +2090,7 @@ export const useQueryBuilder = (
           }));
         }
 
+        // Parse aggregate
         const aggregateMatch = columns.find(
           (col) =>
             col.toUpperCase() === "COUNT(*)" ||
@@ -1550,36 +2157,46 @@ export const useQueryBuilder = (
           }));
         }
 
-        const allAvailableColumns = [
-          ...(tableColumns[tableNameMatch]?.map(
-            (col) => `${tableNameMatch}.${col}`
-          ) || []),
+        const allAvailableColumns: SelectOption[] = [
+          ...(cteClauses[0]?.alias && cteClauses[0]?.selectedColumns
+            ? (cteClauses[0].selectedColumns as SelectOption[])
+            : tableColumns[tableNameMatch]?.map((col) => ({
+                value: `${tableNameMatch}.${col}`,
+                label: `${tableNameMatch}.${col}`,
+              })) || []),
           ...joinClauses
             .filter((join) => join.table?.value)
             .flatMap(
               (join) =>
-                tableColumns[join.table!.value]?.map(
-                  (col) => `${join.table!.value}.${col}`
-                ) || []
+                tableColumns[join.table!.value]?.map((col) => ({
+                  value: `${join.table!.value}.${col}`,
+                  label: `${join.table!.value}.${col}`,
+                })) || []
             ),
         ];
 
         setQueryState((prev) => ({
           ...prev,
           selectedColumns:
-            columns.length > 0 && columns[0] !== "*"
-              ? columns
+            columns.length > 0 &&
+            (typeof columns[0] === "string"
+              ? columns[0] !== "*"
+              : (columns[0] as SelectOption).value !== "*")
+              ? (columns as ColumnType[])
                   .filter((col) =>
-                    allAvailableColumns.includes(stripQuotes(col))
+                    allAvailableColumns.some((avail) => {
+                      const colValue =
+                        typeof col === "string" ? stripQuotes(col) : col.value;
+                      return colValue === avail.value;
+                    })
                   )
                   .map((col) => ({
-                    value: stripQuotes(col),
-                    label: stripQuotes(col),
+                    value:
+                      typeof col === "string" ? stripQuotes(col) : col.value,
+                    label:
+                      typeof col === "string" ? stripQuotes(col) : col.label,
                   }))
-              : allAvailableColumns.map((col) => ({
-                  value: col,
-                  label: col,
-                })),
+              : allAvailableColumns,
         }));
       }
 
@@ -1711,9 +2328,11 @@ export const useQueryBuilder = (
           : [];
 
         const allAvailableColumns = [
-          ...(tableColumns[tableNameMatch]?.map(
-            (col) => `${tableNameMatch}.${col}`
-          ) || []),
+          ...(cteClauses[0]?.alias && cteClauses[0]?.selectedColumns
+            ? cteClauses[0].selectedColumns.map((col) => col.value)
+            : tableColumns[tableNameMatch]?.map(
+                (col) => `${tableNameMatch}.${col}`
+              ) || []),
           ...joinClauses
             .filter((join) => join.table?.value)
             .flatMap(
@@ -1886,6 +2505,15 @@ export const useQueryBuilder = (
     handleCaseAliasChange,
     addCaseCondition,
     removeCaseCondition,
+    addCteClause,
+    removeCteClause,
+    handleCteAliasChange,
+    handleCteTableSelect,
+    handleCteColumnSelect,
+    handleCteLogicalOperatorSelect,
+    handleCteWhereColumnSelect,
+    handleCteOperatorSelect,
+    handleCteValueSelect,
     operatorOptions,
     logicalOperatorOptions,
   };
