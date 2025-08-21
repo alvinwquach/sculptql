@@ -278,3 +278,12 @@ export interface CteNode {
   stmt: Select | Select[] | null;
   [key: string]: unknown;
 }
+
+export interface CteClause {
+  alias: string | null;
+  selectedColumns: SelectOption[];
+  fromTable: SelectOption | null;
+  whereClause: WhereClause;
+}
+
+export type ColumnType = string | SelectOption;
