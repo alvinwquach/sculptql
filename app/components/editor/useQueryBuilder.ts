@@ -11,6 +11,8 @@ import {
   JoinClause,
   HavingCondition,
   UnionClause,
+  CaseClause,
+  CaseCondition,
 } from "@/app/types/query";
 import { needsQuotes } from "@/app/utils/sqlCompletion/needsQuotes";
 import { stripQuotes } from "@/app/utils/sqlCompletion/stripQuotes";
@@ -32,6 +34,7 @@ interface QueryState {
   queryError: string | null;
   joinClauses: JoinClause[];
   unionClauses: UnionClause[];
+  caseClause: CaseClause;
 }
 
 export const useQueryBuilder = (
@@ -68,11 +71,21 @@ export const useQueryBuilder = (
     orderByClause: { column: null, direction: null },
     groupByColumns: [],
     limit: null,
-    uniqueValues: { condition1: [], condition2: [] },
+    uniqueValues: {
+      condition1: [],
+      condition2: [],
+      caseCondition1: [],
+      caseCondition2: [],
+    },
     fetchError: null,
     queryError: null,
     joinClauses: [],
     unionClauses: [],
+    caseClause: {
+      conditions: [],
+      elseValue: null,
+      alias: null,
+    },
   });
 
   const operatorOptions: SelectOption[] = [
@@ -107,10 +120,70 @@ export const useQueryBuilder = (
       limit,
       joinClauses,
       unionClauses,
+      caseClause,
     } = queryState;
 
     let columns: string;
-    if (selectedAggregate?.value) {
+    // Handle CASE clause first
+    if (
+      caseClause.conditions.length > 0 ||
+      caseClause.elseValue ||
+      caseClause.alias
+    ) {
+      const caseConditions = caseClause.conditions
+        .filter((c: CaseCondition) => c.column?.value && c.operator?.value && c.result?.value)
+        .map((c: CaseCondition) => {
+          const column = c.column!.value.includes(".")
+            ? c.column!.value
+            : needsQuotes(c.column!.value)
+            ? `"${c.column!.value}"`
+            : c.column!.value;
+          const value =
+            c.operator!.value === "IS NULL" ||
+            c.operator!.value === "IS NOT NULL"
+              ? ""
+              : c.value && needsQuotes(c.value.value)
+              ? `'${c.value.value}'`
+              : c.value?.value || "";
+          const result = needsQuotes(c.result!.value)
+            ? `'${c.result!.value}'`
+            : c.result!.value;
+          return `WHEN ${column} ${c.operator!.value} ${value} THEN ${result}`;
+        })
+        .join(" ");
+      const elsePart = caseClause.elseValue?.value
+        ? ` ELSE ${
+            needsQuotes(caseClause.elseValue.value)
+              ? `'${caseClause.elseValue.value}'`
+              : caseClause.elseValue.value
+          }`
+        : "";
+      const aliasPart = caseClause.alias
+        ? ` AS ${
+            needsQuotes(caseClause.alias)
+              ? `"${caseClause.alias}"`
+              : caseClause.alias
+          }`
+        : "";
+      columns =
+        caseConditions || elsePart
+          ? `CASE ${caseConditions}${elsePart}${aliasPart}`
+          : "*";
+      // Append selected columns if any
+      if (selectedColumns.length > 0 && selectedColumns[0].value !== "*") {
+        columns +=
+          ", " +
+          selectedColumns
+            .map((col) =>
+              col.value.includes(".")
+                ? col.value
+                : needsQuotes(col.value)
+                ? `"${col.value}"`
+                : col.value
+            )
+            .join(", ");
+      }
+    } else if (selectedAggregate?.value) {
       if (selectedAggregate.value === "COUNT(*)") {
         columns = selectedAggregate.value;
       } else if (
@@ -355,10 +428,16 @@ export const useQueryBuilder = (
   );
 
   const fetchUniqueValues = useCallback(
-    async (conditionIndex: number, isHaving: boolean = false) => {
+    async (
+      conditionIndex: number,
+      isHaving: boolean = false,
+      isCase: boolean = false
+    ) => {
       const targetTable = queryState.selectedTable?.value;
       const conditions = isHaving
         ? queryState.havingClause.conditions
+        : isCase
+        ? queryState.caseClause.conditions
         : queryState.whereClause.conditions;
       const condition = conditions[conditionIndex];
 
@@ -385,6 +464,8 @@ export const useQueryBuilder = (
             ...prev.uniqueValues,
             [isHaving
               ? `having${conditionIndex + 1}`
+              : isCase
+              ? `caseCondition${conditionIndex + 1}`
               : `condition${conditionIndex + 1}`]: unique,
           },
           fetchError: null,
@@ -394,7 +475,7 @@ export const useQueryBuilder = (
           e instanceof Error ? e.message : "Failed to fetch unique values";
         console.error(
           `Error fetching unique values for ${
-            isHaving ? "having" : "condition"
+            isHaving ? "having" : isCase ? "case condition" : "condition"
           } ${conditionIndex + 1}:`,
           message
         );
@@ -405,6 +486,8 @@ export const useQueryBuilder = (
             ...prev.uniqueValues,
             [isHaving
               ? `having${conditionIndex + 1}`
+              : isCase
+              ? `caseCondition${conditionIndex + 1}`
               : `condition${conditionIndex + 1}`]: [],
           },
         }));
@@ -414,6 +497,7 @@ export const useQueryBuilder = (
       queryState.selectedTable,
       queryState.whereClause.conditions,
       queryState.havingClause.conditions,
+      queryState.caseClause.conditions,
     ]
   );
 
@@ -422,10 +506,14 @@ export const useQueryBuilder = (
     queryState.havingClause.conditions.forEach((_, i) =>
       fetchUniqueValues(i, true)
     );
+    queryState.caseClause.conditions.forEach((_, i) =>
+      fetchUniqueValues(i, false, true)
+    );
   }, [
     queryState.selectedTable,
     queryState.whereClause.conditions,
     queryState.havingClause.conditions,
+    queryState.caseClause.conditions,
     fetchUniqueValues,
   ]);
 
@@ -460,10 +548,16 @@ export const useQueryBuilder = (
         orderByClause: { column: null, direction: null },
         groupByColumns: [],
         limit: null,
-        uniqueValues: { condition1: [], condition2: [] },
+        uniqueValues: {
+          condition1: [],
+          condition2: [],
+          caseCondition1: [],
+          caseCondition2: [],
+        },
         fetchError: null,
         joinClauses: [],
         unionClauses: [],
+        caseClause: { conditions: [], elseValue: null, alias: null },
       }));
       const query = newValue?.value
         ? `SELECT * FROM ${
@@ -506,10 +600,16 @@ export const useQueryBuilder = (
           orderByClause: { column: null, direction: null },
           groupByColumns: [],
           limit: null,
-          uniqueValues: { condition1: [], condition2: [] },
+          uniqueValues: {
+            condition1: [],
+            condition2: [],
+            caseCondition1: [],
+            caseCondition2: [],
+          },
           fetchError: null,
           joinClauses: [],
           unionClauses: [],
+          caseClause: { conditions: [], elseValue: null, alias: null },
         }));
         updateEditor("");
         return;
@@ -702,6 +802,195 @@ export const useQueryBuilder = (
     [buildQuery, updateEditor]
   );
 
+  const handleCaseColumnSelect = useCallback(
+    (newValue: SingleValue<SelectOption>, conditionIndex: number) => {
+      setQueryState((prev) => {
+        const newConditions = [...prev.caseClause.conditions];
+        newConditions[conditionIndex] = {
+          ...newConditions[conditionIndex],
+          column: newValue,
+          operator: null,
+          value: null,
+          result: newConditions[conditionIndex]?.result || null,
+        };
+        const query = buildQuery();
+        updateEditor(query);
+        return {
+          ...prev,
+          caseClause: {
+            ...prev.caseClause,
+            conditions: newConditions,
+          },
+          uniqueValues: {
+            ...prev.uniqueValues,
+            [`caseCondition${conditionIndex + 1}`]: [],
+          },
+          fetchError: null,
+        };
+      });
+      if (newValue) fetchUniqueValues(conditionIndex, false, true);
+    },
+    [buildQuery, updateEditor, fetchUniqueValues]
+  );
+
+  const handleCaseOperatorSelect = useCallback(
+    (newValue: SingleValue<SelectOption>, conditionIndex: number) => {
+      setQueryState((prev) => {
+        const newConditions = [...prev.caseClause.conditions];
+        newConditions[conditionIndex] = {
+          ...newConditions[conditionIndex],
+          operator: newValue,
+          value: null,
+        };
+        const query = buildQuery();
+        updateEditor(query);
+        return {
+          ...prev,
+          caseClause: {
+            ...prev.caseClause,
+            conditions: newConditions,
+          },
+        };
+      });
+    },
+    [buildQuery, updateEditor]
+  );
+
+  const handleCaseValueSelect = useCallback(
+    (newValue: SingleValue<SelectOption>, conditionIndex: number) => {
+      setQueryState((prev) => {
+        const newConditions = [...prev.caseClause.conditions];
+        if (
+          !newConditions[conditionIndex]?.operator?.value ||
+          !newConditions[conditionIndex]?.column?.value ||
+          (newValue && newValue.value.trim() === "")
+        ) {
+          newConditions[conditionIndex] = {
+            ...newConditions[conditionIndex],
+            value: null,
+          };
+        } else {
+          const valueOption = newValue
+            ? { value: newValue.value, label: newValue.label || newValue.value }
+            : null;
+          newConditions[conditionIndex] = {
+            ...newConditions[conditionIndex],
+            value: valueOption,
+          };
+        }
+        const query = buildQuery();
+        updateEditor(query);
+        return {
+          ...prev,
+          caseClause: {
+            ...prev.caseClause,
+            conditions: newConditions,
+          },
+        };
+      });
+    },
+    [buildQuery, updateEditor]
+  );
+
+  const handleCaseResultSelect = useCallback(
+    (newValue: SingleValue<SelectOption>, conditionIndex: number) => {
+      setQueryState((prev) => {
+        const newConditions = [...prev.caseClause.conditions];
+        const valueOption = newValue
+          ? { value: newValue.value, label: newValue.label || newValue.value }
+          : null;
+        newConditions[conditionIndex] = {
+          ...newConditions[conditionIndex],
+          result: valueOption,
+        };
+        const query = buildQuery();
+        updateEditor(query);
+        return {
+          ...prev,
+          caseClause: {
+            ...prev.caseClause,
+            conditions: newConditions,
+          },
+        };
+      });
+    },
+    [buildQuery, updateEditor]
+  );
+
+  const handleElseResultSelect = useCallback(
+    (newValue: SingleValue<SelectOption>) => {
+      setQueryState((prev) => {
+        const valueOption = newValue
+          ? { value: newValue.value, label: newValue.label || newValue.value }
+          : null;
+        const query = buildQuery();
+        updateEditor(query);
+        return {
+          ...prev,
+          caseClause: {
+            ...prev.caseClause,
+            elseValue: valueOption,
+          },
+        };
+      });
+    },
+    [buildQuery, updateEditor]
+  );
+
+  const handleCaseAliasChange = useCallback(
+    (alias: string | null) => {
+      setQueryState((prev) => ({
+        ...prev,
+        caseClause: {
+          ...prev.caseClause,
+          alias: alias ? stripQuotes(alias) : null,
+        },
+      }));
+      const query = buildQuery();
+      updateEditor(query);
+    },
+    [buildQuery, updateEditor]
+  );
+
+  const addCaseCondition = useCallback(() => {
+    setQueryState((prev) => ({
+      ...prev,
+      caseClause: {
+        ...prev.caseClause,
+        conditions: [
+          ...prev.caseClause.conditions,
+          { column: null, operator: null, value: null, result: null },
+        ],
+      },
+    }));
+    const query = buildQuery();
+    updateEditor(query);
+  }, [buildQuery, updateEditor]);
+
+  const removeCaseCondition = useCallback(
+    (conditionIndex: number) => {
+      setQueryState((prev) => {
+        const newConditions = prev.caseClause.conditions.filter(
+          (_, index) => index !== conditionIndex
+        );
+        const query = buildQuery();
+        updateEditor(query);
+        return {
+          ...prev,
+          caseClause: {
+            ...prev.caseClause,
+            conditions: newConditions,
+          },
+          uniqueValues: {
+            ...prev.uniqueValues,
+            [`caseCondition${conditionIndex + 1}`]: [],
+          },
+        };
+      });
+    },
+    [buildQuery, updateEditor]
+  );
+
   const handleHavingAggregateSelect = useCallback(
     (index: number, newValue: SingleValue<SelectOption>) => {
       setQueryState((prev) => {
@@ -782,22 +1071,7 @@ export const useQueryBuilder = (
     [buildQuery, updateEditor]
   );
 
-  const handleHavingLogicalOperatorSelect = useCallback(
-    (index: number, newValue: SingleValue<SelectOption>) => {
-      setQueryState((prev) => {
-        const newConditions = [...prev.havingClause.conditions];
-        newConditions[index] = {
-          ...newConditions[index],
-          logicalOperator: newValue,
-        };
-        const query = buildQuery();
-        updateEditor(query);
-        return { ...prev, havingClause: { conditions: newConditions } };
-      });
-    },
-    [buildQuery, updateEditor]
-  );
-
+  
   const handleOrderByColumnSelect = useCallback(
     (newValue: SingleValue<SelectOption>) => {
       setQueryState((prev) => {
@@ -853,7 +1127,6 @@ export const useQueryBuilder = (
         newJoinClauses[joinIndex] = {
           ...newJoinClauses[joinIndex],
           joinType: newValue,
-          // Clear columns for CROSS JOIN, preserve for others
           onColumn1:
             newValue?.value === "CROSS JOIN"
               ? null
@@ -1032,16 +1305,22 @@ export const useQueryBuilder = (
       }
 
       // Split query into UNION parts
-      const unionQueries = newQuery.split(/\s*UNION\s*/i);
+      const unionQueries = newQuery.split(/\s*UNION\s*(ALL)?\s*/i);
       const mainQuery = unionQueries[0];
       const unionTables: UnionClause[] = unionQueries
         .slice(1)
-        .map((part) => {
+        .map((part, index) => {
           const tableMatch = part.match(
             /SELECT\s+\*\s+FROM\s+([a-zA-Z_][a-zA-Z0-9_]*)/i
           );
           if (tableMatch && tableNames.includes(tableMatch[1])) {
-            return { table: { value: tableMatch[1], label: tableMatch[1] } };
+            return {
+              table: { value: tableMatch[1], label: tableMatch[1] },
+              unionType:
+                unionQueries[index * 2] === "ALL"
+                  ? { value: "UNION ALL", label: "UNION ALL" }
+                  : { value: "UNION", label: "UNION" },
+            };
           }
           return { table: null };
         })
@@ -1079,11 +1358,17 @@ export const useQueryBuilder = (
           orderByClause: { column: null, direction: null },
           groupByColumns: [],
           limit: null,
-          uniqueValues: { condition1: [], condition2: [] },
+          uniqueValues: {
+            condition1: [],
+            condition2: [],
+            caseCondition1: [],
+            caseCondition2: [],
+          },
           fetchError: null,
           queryError: "Invalid or missing table name in query.",
           joinClauses: [],
           unionClauses: [],
+          caseClause: { conditions: [], elseValue: null, alias: null },
         }));
         return;
       }
@@ -1091,7 +1376,7 @@ export const useQueryBuilder = (
       setQueryState((prev) => ({
         ...prev,
         selectedTable: { value: tableNameMatch, label: tableNameMatch },
-        unionTables,
+        unionClauses: unionTables,
         queryError: null,
       }));
 
@@ -1117,8 +1402,88 @@ export const useQueryBuilder = (
       if (columnMatch) {
         const columns = columnMatch[1]
           .split(",")
-          .map((col) => stripQuotes(col.trim()))
+          .map((col) => col.trim())
           .filter((col) => col !== "");
+
+        // Parse CASE clause
+        const caseMatch = columns.find((col) =>
+          col.match(/CASE\s+WHEN.*END(?:\s+AS\s+\w+)?/i)
+        );
+        if (caseMatch) {
+          const caseClauseMatch = caseMatch.match(
+            /CASE\s+((?:WHEN\s+(.*?)\s+THEN\s+([^;]+?)\s*)+)(?:ELSE\s+([^;]+?))?\s*END(?:\s+AS\s+(['"]?[\w]+['"]?))?/i
+          );
+          if (caseClauseMatch) {
+            const [, whenClauses, , elseValue, alias] = caseClauseMatch;
+            const whenMatches = whenClauses.matchAll(
+              /WHEN\s+((?:[a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)*\s*(?:=|>|<|>=|<=|!=|IS NULL|IS NOT NULL|LIKE)\s*(?:'[^']*'|[0-9]+(?:\.[0-9]+)?)?\s*(?:OR\s+[a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)*\s*(?:=|>|<|>=|<=|!=|IS NULL|IS NOT NULL|LIKE)\s*(?:'[^']*'|[0-9]+(?:\.[0-9]+)?)?)*))\s*THEN\s*('[^']*'|[0-9]+(?:\.[0-9]+)?|[a-zA-Z_][a-zA-Z0-9_]*)/gi
+            );
+            const conditionsParsed: CaseCondition[] = Array.from(whenMatches)
+              .flatMap((match) => {
+                const [, conditionsStr, result] = match;
+                const conditionMatches = conditionsStr.matchAll(
+                  /([a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)*)\s*(=|>|<|>=|<=|!=|IS NULL|IS NOT NULL|LIKE)\s*('[^']*'|[0-9]+(?:\.[0-9]+)?)?/gi
+                );
+                return Array.from(conditionMatches).map((condMatch) => {
+                  const [, column, operator, value] = condMatch;
+                  return {
+                    column: column
+                      ? {
+                          value: stripQuotes(column),
+                          label: stripQuotes(column),
+                        }
+                      : null,
+                    operator: operator
+                      ? { value: operator, label: operator }
+                      : null,
+                    value:
+                      operator === "IS NULL" ||
+                      operator === "IS NOT NULL" ||
+                      !value ||
+                      value === "''"
+                        ? null
+                        : {
+                            value: stripQuotes(value),
+                            label: stripQuotes(value),
+                          },
+                    result: result
+                      ? {
+                          value: stripQuotes(result),
+                          label: stripQuotes(result),
+                        }
+                      : null,
+                  };
+                });
+              })
+              .filter((c) => c.column && c.operator && c.result);
+
+            setQueryState((prev) => ({
+              ...prev,
+              caseClause: {
+                conditions: conditionsParsed,
+                elseValue: elseValue
+                  ? {
+                      value: stripQuotes(elseValue),
+                      label: stripQuotes(elseValue),
+                    }
+                  : null,
+                alias: alias ? stripQuotes(alias) : null,
+              },
+            }));
+            columns.splice(columns.indexOf(caseMatch), 1);
+          } else {
+            setQueryState((prev) => ({
+              ...prev,
+              caseClause: { conditions: [], elseValue: null, alias: null },
+            }));
+          }
+        } else {
+          setQueryState((prev) => ({
+            ...prev,
+            caseClause: { conditions: [], elseValue: null, alias: null },
+          }));
+        }
+
         const aggregateMatch = columns.find(
           (col) =>
             col.toUpperCase() === "COUNT(*)" ||
@@ -1204,8 +1569,13 @@ export const useQueryBuilder = (
           selectedColumns:
             columns.length > 0 && columns[0] !== "*"
               ? columns
-                  .filter((col) => allAvailableColumns.includes(col))
-                  .map((col) => ({ value: col, label: col }))
+                  .filter((col) =>
+                    allAvailableColumns.includes(stripQuotes(col))
+                  )
+                  .map((col) => ({
+                    value: stripQuotes(col),
+                    label: stripQuotes(col),
+                  }))
               : allAvailableColumns.map((col) => ({
                   value: col,
                   label: col,
@@ -1311,7 +1681,11 @@ export const useQueryBuilder = (
               },
             ],
           },
-          uniqueValues: { condition1: [], condition2: [] },
+          uniqueValues: {
+            ...prev.uniqueValues,
+            condition1: [],
+            condition2: [],
+          },
           fetchError: null,
         }));
       }
@@ -1327,7 +1701,7 @@ export const useQueryBuilder = (
           ? selectMatch[1]
               .split(",")
               .map((col) => stripQuotes(col.trim()))
-              .filter((col) => col)
+              .filter((col) => col && !col.match(/CASE\s+WHEN.*END/i))
               .map((col) =>
                 col.replace(
                   /^(SUM|MAX|MIN|AVG|ROUND|COUNT)\((.*?)(?:,\s*\d+)?\)$/i,
@@ -1491,7 +1865,6 @@ export const useQueryBuilder = (
     handleHavingColumnSelect,
     handleHavingOperatorSelect,
     handleHavingValueChange,
-    handleHavingLogicalOperatorSelect,
     handleOrderByColumnSelect,
     handleOrderByDirectionSelect,
     handleLimitSelect,
@@ -1505,6 +1878,14 @@ export const useQueryBuilder = (
     handleUnionTypeSelect,
     addUnionClause,
     removeUnionClause,
+    handleCaseColumnSelect,
+    handleCaseOperatorSelect,
+    handleCaseValueSelect,
+    handleCaseResultSelect,
+    handleElseResultSelect,
+    handleCaseAliasChange,
+    addCaseCondition,
+    removeCaseCondition,
     operatorOptions,
     logicalOperatorOptions,
   };

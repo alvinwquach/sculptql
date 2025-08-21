@@ -255,6 +255,18 @@ export interface CaseCondition {
   result: SelectOption | null;
 }
 
+export interface WhenClause {
+  conditions: CaseCondition[];
+  result: SelectOption | null;
+}
+
+export interface CaseCondition {
+  column: SelectOption | null;
+  operator: SelectOption | null;
+  value: SelectOption | null;
+  result: SelectOption | null;
+}
+
 export interface CaseClause {
   conditions: CaseCondition[];
   elseValue: SelectOption | null;
