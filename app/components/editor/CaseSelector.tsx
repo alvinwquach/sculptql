@@ -112,7 +112,7 @@ export default function CaseSelector({
       </div>
       {caseClause.conditions.length === 0 && (
         <p className="text-xs text-slate-400">
-          No CASE conditions defined. Click "Add Condition" to start.
+          No CASE conditions defined. Click &quot;Add Condition&quot; to start.
         </p>
       )}
       {caseClause.conditions.map((condition, index) => (
