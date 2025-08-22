@@ -78,7 +78,7 @@ export interface ColumnSchema {
   data_type: string;
   is_nullable: string;
   column_default: string | null;
-  is_primary_key?: boolean;
+  is_primary_key: boolean | undefined; 
   is_indexed: boolean | string;
   index_names?: string[];
 }
@@ -311,4 +311,24 @@ export interface ForeignKey {
   referenced_table: string;
   referenced_column: string;
   constraint_name: string;
+}
+
+export interface ERDNode {
+  id: string;
+  type: string;
+  data: {
+    label: string;
+    columns: ColumnSchema[];
+    primary_keys: string[];
+  };
+  position: { x: number; y: number };
+}
+
+export interface ERDEdge {
+  id: string;
+  source: string;
+  target: string;
+  label: string;
+  type?: string;
+  animated?: boolean;
 }

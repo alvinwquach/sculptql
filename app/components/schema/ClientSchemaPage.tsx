@@ -1,19 +1,21 @@
 "use client";
 
-import { useState } from "react";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
+import { useDebounce } from "use-debounce";
+import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Input } from "@/components/ui/input";
-import { Search, ChevronDown, ChevronUp } from "lucide-react";
+import {
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+  TooltipProvider,
+} from "@/components/ui/tooltip";
+import { TableIcon, Share2Icon } from "lucide-react";
 import { TableSchema } from "@/app/types/query";
+import { filterSchema } from "./FilterSchema";
+import TableView from "./TableView";
+import ERDView from "./ERDView";
 
 interface ClientSchemaPageProps {
   initialSchema: TableSchema[];
@@ -23,170 +25,6 @@ interface ClientSchemaPageProps {
   error: string | null;
 }
 
-function filterSchema(
-  schema: TableSchema[],
-  tableSearch: string,
-  columnSearch: string
-): TableSchema[] {
-  let filtered = schema;
-
-  if (tableSearch) {
-    const lowerTableTerm = tableSearch.toLowerCase();
-    filtered = filtered.filter((table) =>
-      table.table_name.toLowerCase().includes(lowerTableTerm)
-    );
-  }
-
-  if (columnSearch) {
-    const lowerColumnTerm = columnSearch.toLowerCase();
-    filtered = filtered
-      .map((table) => ({
-        ...table,
-        columns: table.columns.filter(
-          (column) =>
-            column.column_name.toLowerCase().includes(lowerColumnTerm) ||
-            column.data_type.toLowerCase().includes(lowerColumnTerm) ||
-            (column.is_primary_key && "primary".includes(lowerColumnTerm)) ||
-            (table.foreign_keys.some(
-              (fk) => fk.column_name === column.column_name
-            ) &&
-              "foreign".includes(lowerColumnTerm))
-        ),
-      }))
-      .filter((table) => table.columns.length > 0);
-  }
-
-  return filtered;
-}
-
-function TableView({ schema }: { schema: TableSchema[] }) {
-  const [openTables, setOpenTables] = useState<string[]>([]);
-
-  const toggleTable = (tableName: string) => {
-    setOpenTables((prev) =>
-      prev.includes(tableName)
-        ? prev.filter((t) => t !== tableName)
-        : [...prev, tableName]
-    );
-  };
-
-  return (
-    <div className="space-y-4">
-      {schema.length > 0 ? (
-        schema.map((table) => {
-          const isOpen = openTables.includes(table.table_name);
-          return (
-            <Card
-              key={table.table_name}
-              className="bg-[#1e293b] border-slate-700/50 shadow-lg"
-            >
-              <CardHeader
-                className="flex justify-between items-center cursor-pointer"
-                onClick={() => toggleTable(table.table_name)}
-              >
-                <h3 className="text-green-400 text-lg font-semibold">
-                  {table.table_name}
-                </h3>
-                {isOpen ? (
-                  <ChevronUp className="text-green-400" />
-                ) : (
-                  <ChevronDown className="text-green-400" />
-                )}
-              </CardHeader>
-              {isOpen && (
-                <CardContent>
-                  <Table>
-                    <TableHeader className="bg-[#111827]">
-                      <TableRow>
-                        <TableHead className="text-green-400">
-                          Column Name
-                        </TableHead>
-                        <TableHead className="text-green-400">
-                          Data Type
-                        </TableHead>
-                        <TableHead className="text-green-400">
-                          Nullable
-                        </TableHead>
-                        <TableHead className="text-green-400">
-                          Primary Key
-                        </TableHead>
-                        <TableHead className="text-green-400">
-                          Foreign Key
-                        </TableHead>
-                        <TableHead className="text-green-400">
-                          Referenced Table
-                        </TableHead>
-                        <TableHead className="text-green-400">
-                          References
-                        </TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {table.columns.map((column) => {
-                        const fk = table.foreign_keys.find(
-                          (fk) => fk.column_name === column.column_name
-                        );
-                        return (
-                          <TableRow
-                            key={column.column_name}
-                            className="border-slate-600 hover:bg-slate-700/50 transition-colors"
-                          >
-                            <TableCell className="text-green-300">
-                              {column.column_name}
-                            </TableCell>
-                            <TableCell>
-                              <span className="px-2 py-1 rounded bg-green-700 text-green-100 text-xs font-mono">
-                                {column.data_type}
-                              </span>
-                            </TableCell>
-                            <TableCell className="text-green-300">
-                              {column.is_nullable ? "Yes" : "No"}
-                            </TableCell>
-                            <TableCell>
-                              {column.is_primary_key && (
-                                <span className="px-2 py-1 rounded bg-blue-600 text-blue-100 text-xs">
-                                  PK
-                                </span>
-                              )}
-                            </TableCell>
-                            <TableCell>
-                              {fk && (
-                                <span className="px-2 py-1 rounded bg-purple-600 text-purple-100 text-xs">
-                                  FK
-                                </span>
-                              )}
-                            </TableCell>
-                            <TableCell className="text-green-300">
-                              {fk ? fk.referenced_table : "-"}
-                            </TableCell>
-                            <TableCell className="text-green-300">
-                              {fk
-                                ? `${fk.referenced_table}.${fk.referenced_column}`
-                                : "-"}
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })}
-                    </TableBody>
-                  </Table>
-                </CardContent>
-              )}
-            </Card>
-          );
-        })
-      ) : (
-        <Card className="bg-[#1e293b] border-slate-700/50 shadow-lg">
-          <CardContent className="flex items-center justify-center h-32">
-            <p className="text-gray-400">
-              No tables match the search criteria.
-            </p>
-          </CardContent>
-        </Card>
-      )}
-    </div>
-  );
-}
-
 export default function ClientSchemaPage({
   initialSchema,
   initialTableSearch,
@@ -194,45 +32,47 @@ export default function ClientSchemaPage({
   initialViewMode,
   error,
 }: ClientSchemaPageProps) {
-  const [tableSearch, setTableSearch] = useState(initialTableSearch);
-  const [columnSearch, setColumnSearch] = useState(initialColumnSearch);
-  const [viewMode, setViewMode] = useState<"table" | "erd">(initialViewMode);
+  const searchParams = useSearchParams();
 
-  const filteredSchema = filterSchema(initialSchema, tableSearch, columnSearch);
+  const [tableSearch, setTableSearch] = useState(
+    searchParams.get("tableSearch") || initialTableSearch
+  );
+  const [columnSearch, setColumnSearch] = useState(
+    searchParams.get("columnSearch") || initialColumnSearch
+  );
 
-  const handleTableSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setTableSearch(e.target.value);
-    updateUrl({ tableSearch: e.target.value, columnSearch, viewMode });
-  };
+  const validViewModes = ["table", "erd"] as const;
+  const [viewMode, setViewMode] = useState<"table" | "erd">(
+    validViewModes.includes(searchParams.get("view") as any)
+      ? (searchParams.get("view") as "table" | "erd")
+      : initialViewMode
+  );
 
-  const handleColumnSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setColumnSearch(e.target.value);
-    updateUrl({ tableSearch, columnSearch: e.target.value, viewMode });
-  };
+  const [debouncedTableSearch] = useDebounce(tableSearch, 300);
+  const [debouncedColumnSearch] = useDebounce(columnSearch, 300);
 
-  const updateUrl = ({
-    tableSearch,
-    columnSearch,
-    viewMode,
-  }: {
-    tableSearch: string;
-    columnSearch: string;
-    viewMode: string;
-  }) => {
+  useEffect(() => {
     const url = new URL(window.location.href);
     url.searchParams.set("tableSearch", tableSearch);
     url.searchParams.set("columnSearch", columnSearch);
     url.searchParams.set("view", viewMode);
-    window.history.pushState({}, "", url);
-  };
+    window.history.replaceState({}, "", url);
+  }, [tableSearch, columnSearch, viewMode]);
+
+  const filteredSchema = filterSchema(
+    initialSchema,
+    debouncedTableSearch,
+    debouncedColumnSearch
+  );
 
   const handleTabChange = (value: string) => {
-    setViewMode(value as "table" | "erd");
-    updateUrl({ tableSearch, columnSearch, viewMode: value });
+    if (validViewModes.includes(value as any)) {
+      setViewMode(value as "table" | "erd");
+    }
   };
 
   return (
-    <div className="min-h-screen bg-[#0f172a] p-6">
+    <div className="bg-[#0f172a] p-4 sm:p-6">
       {error ? (
         <Card className="bg-red-900/20 border-red-500/30 shadow-lg">
           <CardContent className="pt-6">
@@ -241,54 +81,69 @@ export default function ClientSchemaPage({
         </Card>
       ) : (
         <div className="max-w-7xl mx-auto">
-          <form className="mb-6 flex flex-col sm:flex-row gap-4">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-green-400" />
-              <Input
-                type="text"
-                placeholder="Search tables..."
-                value={tableSearch}
-                onChange={handleTableSearch}
-                className="pl-10 bg-[#111827] text-green-300 border-slate-600 focus:border-green-400 focus:ring focus:ring-green-500/30 transition-all"
-                aria-label="Search tables"
-              />
-            </div>
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-green-400" />
-              <Input
-                type="text"
-                placeholder="Search columns..."
-                value={columnSearch}
-                onChange={handleColumnSearch}
-                className="pl-10 bg-[#111827] text-green-300 border-slate-600 focus:border-green-400 focus:ring focus:ring-green-500/30 transition-all"
-                aria-label="Search columns"
-              />
-            </div>
-          </form>
-          <Tabs
-            value={viewMode}
-            onValueChange={handleTabChange}
-            className="w-full"
-          >
-            <TabsList className="bg-[#111827] mb-6 grid grid-cols-2 gap-2 p-2 shadow-inner rounded-lg">
-              <TabsTrigger
-                value="table"
-                className="data-[state=active]:bg-green-400 data-[state=active]:text-[#111827] text-green-400 py-2 px-6 text-center font-semibold shadow-sm transition-all duration-200 hover:bg-green-500 hover:text-[#111827] rounded-md"
-              >
-                Table View
-              </TabsTrigger>
-              <TabsTrigger
-                value="erd"
-                className="data-[state=active]:bg-green-400 data-[state=active]:text-[#111827] text-green-400 py-2 px-6 text-center font-semibold shadow-sm transition-all duration-200 hover:bg-green-500 hover:text-[#111827] rounded-md"
-              >
-                ERD View
-              </TabsTrigger>
-            </TabsList>
-            <TabsContent value="table" className="mt-0">
-              <TableView schema={filteredSchema} />
-            </TabsContent>
-            <TabsContent value="erd" className="mt-0"></TabsContent>
-          </Tabs>
+          <TooltipProvider>
+            <Tabs
+              value={viewMode}
+              onValueChange={handleTabChange}
+              className="w-full"
+            >
+              <TabsList className="bg-slate-800/70 sm:mb-6 grid grid-cols-2 shadow-inner rounded-lg">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <TabsTrigger
+                      value="table"
+                      className="data-[state=active]:bg-green-400 data-[state=active]:text-[#111827] text-green-400  flex items-center justify-center rounded-md hover:bg-green-500 hover:text-[#111827] transition-all duration-200"
+                    >
+                      <TableIcon className="w-5 h-5" />
+                    </TabsTrigger>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="text-sm">
+                    Table View
+                  </TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <TabsTrigger
+                      value="erd"
+                      className="data-[state=active]:bg-green-400  data-[state=active]:text-[#111827] text-green-400 flex items-center justify-center rounded-md hover:bg-green-500 hover:text-[#111827] transition-all duration-200"
+                    >
+                      <Share2Icon className="w-5 h-5" />
+                    </TabsTrigger>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="text-sm">
+                    ERD View
+                  </TooltipContent>
+                </Tooltip>
+              </TabsList>
+              <TabsContent value="table" className="mt-0">
+                <TableView
+                  schema={filteredSchema}
+                  tableSearch={tableSearch}
+                  columnSearch={columnSearch}
+                  updateUrl={({
+                    tableSearch,
+                    columnSearch,
+                    viewMode,
+                  }: {
+                    tableSearch: string;
+                    columnSearch: string;
+                    viewMode: string;
+                  }) => {
+                    setTableSearch(tableSearch);
+                    setColumnSearch(columnSearch);
+                    if (validViewModes.includes(viewMode as any)) {
+                      setViewMode(viewMode as "table" | "erd");
+                    }
+                  }}
+                  viewMode={viewMode}
+                />
+              </TabsContent>
+
+              <TabsContent value="erd" className="mt-0">
+                <ERDView schema={filteredSchema} />
+              </TabsContent>
+            </Tabs>
+          </TooltipProvider>
         </div>
       )}
     </div>
