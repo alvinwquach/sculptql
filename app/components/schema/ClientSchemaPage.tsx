@@ -42,9 +42,12 @@ export default function ClientSchemaPage({
   );
 
   const validViewModes = ["table", "erd"] as const;
-  const [viewMode, setViewMode] = useState<"table" | "erd">(
-    validViewModes.includes(searchParams.get("view") as any)
-      ? (searchParams.get("view") as "table" | "erd")
+  type ViewMode = (typeof validViewModes)[number];
+
+  const initialViewParam = searchParams.get("view");
+  const [viewMode, setViewMode] = useState<ViewMode>(
+    validViewModes.includes(initialViewParam as ViewMode)
+      ? (initialViewParam as ViewMode)
       : initialViewMode
   );
 
@@ -66,8 +69,20 @@ export default function ClientSchemaPage({
   );
 
   const handleTabChange = (value: string) => {
-    if (validViewModes.includes(value as any)) {
-      setViewMode(value as "table" | "erd");
+    if (validViewModes.includes(value as ViewMode)) {
+      setViewMode(value as ViewMode);
+    }
+  };
+
+  const handleUpdateUrl = (params: {
+    tableSearch: string;
+    columnSearch: string;
+    viewMode: string;
+  }) => {
+    setTableSearch(params.tableSearch);
+    setColumnSearch(params.columnSearch);
+    if (validViewModes.includes(params.viewMode as ViewMode)) {
+      setViewMode(params.viewMode as ViewMode);
     }
   };
 
@@ -92,7 +107,7 @@ export default function ClientSchemaPage({
                   <TooltipTrigger asChild>
                     <TabsTrigger
                       value="table"
-                      className="data-[state=active]:bg-green-400 data-[state=active]:text-[#111827] text-green-400  flex items-center justify-center rounded-md hover:bg-green-500 hover:text-[#111827] transition-all duration-200"
+                      className="data-[state=active]:bg-green-400 data-[state=active]:text-[#111827] text-green-400 flex items-center justify-center rounded-md hover:bg-green-500 hover:text-[#111827] transition-all duration-200"
                     >
                       <TableIcon className="w-5 h-5" />
                     </TabsTrigger>
@@ -101,11 +116,12 @@ export default function ClientSchemaPage({
                     Table View
                   </TooltipContent>
                 </Tooltip>
+
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <TabsTrigger
                       value="erd"
-                      className="data-[state=active]:bg-green-400  data-[state=active]:text-[#111827] text-green-400 flex items-center justify-center rounded-md hover:bg-green-500 hover:text-[#111827] transition-all duration-200"
+                      className="data-[state=active]:bg-green-400 data-[state=active]:text-[#111827] text-green-400 flex items-center justify-center rounded-md hover:bg-green-500 hover:text-[#111827] transition-all duration-200"
                     >
                       <Share2Icon className="w-5 h-5" />
                     </TabsTrigger>
@@ -120,25 +136,10 @@ export default function ClientSchemaPage({
                   schema={filteredSchema}
                   tableSearch={tableSearch}
                   columnSearch={columnSearch}
-                  updateUrl={({
-                    tableSearch,
-                    columnSearch,
-                    viewMode,
-                  }: {
-                    tableSearch: string;
-                    columnSearch: string;
-                    viewMode: string;
-                  }) => {
-                    setTableSearch(tableSearch);
-                    setColumnSearch(columnSearch);
-                    if (validViewModes.includes(viewMode as any)) {
-                      setViewMode(viewMode as "table" | "erd");
-                    }
-                  }}
+                  updateUrl={handleUpdateUrl}
                   viewMode={viewMode}
                 />
               </TabsContent>
-
               <TabsContent value="erd" className="mt-0">
                 <ERDView schema={filteredSchema} />
               </TabsContent>
