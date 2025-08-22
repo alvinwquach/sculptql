@@ -72,8 +72,8 @@ export default function ResultsPane({
 }: ResultsPaneProps) {
   return (
     <div
-      className={`flex-1 p-4 overflow-auto ${
-        fullScreenEditor ? "hidden" : "h-full"
+      className={`flex-1 p-6 overflow-auto ${
+        fullScreenEditor ? "" : "h-full"
       } space-y-6 bg-[#0f172a]`}
     >
       {error && (

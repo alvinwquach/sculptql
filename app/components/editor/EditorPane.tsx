@@ -18,7 +18,16 @@ import JoinSelector from "./JoinSelector";
 import UnionSelector from "./UnionSelector";
 import CaseSelector from "./CaseSelector";
 import HavingClauseSelector from "./HavingClauseSelector";
-import { Tab, TableColumn } from "@/app/types/query";
+import ResultsPane from "./ResultsPane";
+import {
+  ChartDataItem,
+  QueryResult,
+  Tab,
+  TableColumn,
+  TableDescription,
+  TableSchema,
+  ViewMode,
+} from "@/app/types/query";
 import { format as formatSQL } from "sql-formatter";
 
 interface EditorPaneProps {
@@ -35,6 +44,35 @@ interface EditorPaneProps {
   runQuery: () => void;
   tableNames: string[];
   tableColumns: TableColumn;
+  error: string | undefined;
+  loading: boolean;
+  result: QueryResult | undefined;
+  viewMode: ViewMode;
+  selectedTable: string;
+  table: TableSchema[];
+  tableDescription: TableDescription | null;
+  chartData: ChartDataItem[];
+  resultChartData: ChartDataItem[];
+  onViewModeChange: (mode: ViewMode) => void;
+  onExportToCsv: (
+    exportAll: boolean,
+    startIndex: number,
+    endIndex: number
+  ) => void;
+  onExportToJson: (
+    exportAll: boolean,
+    startIndex: number,
+    endIndex: number
+  ) => void;
+  onExportToMarkdown: (
+    exportAll: boolean,
+    startIndex: number,
+    endIndex: number
+  ) => void;
+  currentPage: number;
+  pageSize: number;
+  onPageChange: (page: number) => void;
+  onPageSizeChange: (size: number) => void;
   onError?: (error: string) => void;
 }
 
@@ -52,6 +90,23 @@ export default function EditorPane({
   runQuery,
   tableNames,
   tableColumns,
+  error,
+  loading,
+  result,
+  viewMode,
+  selectedTable,
+  table,
+  tableDescription,
+  chartData,
+  resultChartData,
+  onViewModeChange,
+  onExportToCsv,
+  onExportToJson,
+  onExportToMarkdown,
+  currentPage,
+  pageSize,
+  onPageChange,
+  onPageSizeChange,
   onError,
 }: EditorPaneProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -128,7 +183,7 @@ export default function EditorPane({
     <div
       className={`flex-1 ${
         fullScreenEditor ? "fixed inset-0 z-50" : "lg:w-1/2"
-      } flex flex-col bg-[#0f172a] border-b lg:border-b-0 lg:border-r border-slate-700`}
+      } flex flex-col bg-[#0f172a] border-r border-slate-700`}
     >
       <QueryTabs
         queryTabs={queryTabs}
@@ -137,7 +192,10 @@ export default function EditorPane({
         onTabClose={onTabClose}
         onTabReorder={onTabReorder}
       />
-      <div className="flex flex-col gap-2 p-2 border-b border-slate-700">
+      <div
+        className="flex flex-col gap-2 p-2 overflow-y-auto"
+        style={{ maxHeight: "30%" }}
+      >
         {(fetchError || queryError) && (
           <div className="flex items-center gap-2 text-red-400 text-xs">
             <AlertCircle className="w-4 h-4" />
@@ -209,9 +267,9 @@ export default function EditorPane({
           selectedColumns={queryState.selectedColumns}
           groupByColumns={queryState.groupByColumns}
           onColumnSelect={handleColumnSelect}
-          joinClauses={queryState.joinClauses}
           onGroupByColumnsSelect={handleGroupByColumnsSelect}
           metadataLoading={metadataLoading}
+          joinClauses={queryState.joinClauses}
         />
         <CaseSelector
           selectedTable={queryState.selectedTable}
@@ -269,32 +327,58 @@ export default function EditorPane({
           joinClauses={queryState.joinClauses}
         />
       </div>
-      <CodeMirrorSetup
-        containerRef={containerRef}
-        onToggleFullscreen={onToggleFullscreen}
-        fullScreenEditor={fullScreenEditor}
-        formatQuery={() => {
-          if (!editorRef.current) return;
-          const currentText = editorRef.current.state.doc.toString();
-          if (!currentText) return;
-          try {
-            const formatted = formatSQL(currentText, {
-              language: "postgresql",
-              keywordCase: "upper",
-            });
-            editorRef.current.dispatch({
-              changes: {
-                from: 0,
-                to: editorRef.current.state.doc.length,
-                insert: formatted,
-              },
-            });
-            onQueryChange(formatted);
-          } catch (err) {
-            console.error("SQL formatting failed:", err);
-          }
-        }}
-      />
+      <div>
+        <div className="w-full p-2 flex flex-col">
+          <CodeMirrorSetup
+            containerRef={containerRef}
+            onToggleFullscreen={onToggleFullscreen}
+            fullScreenEditor={fullScreenEditor}
+            formatQuery={() => {
+              if (!editorRef.current) return;
+              const currentText = editorRef.current.state.doc.toString();
+              if (!currentText) return;
+              try {
+                const formatted = formatSQL(currentText, {
+                  language: "postgresql",
+                  keywordCase: "upper",
+                });
+                editorRef.current.dispatch({
+                  changes: {
+                    from: 0,
+                    to: editorRef.current.state.doc.length,
+                    insert: formatted,
+                  },
+                });
+                onQueryChange(formatted);
+              } catch (err) {
+                console.error("SQL formatting failed:", err);
+              }
+            }}
+          />
+        </div>
+      </div>
+      <div className="w-full p-4 overflow-y-auto">
+        <ResultsPane
+          error={error}
+          loading={loading}
+          result={result}
+          viewMode={viewMode}
+          selectedTable={selectedTable}
+          table={table}
+          tableDescription={tableDescription}
+          chartData={chartData}
+          resultChartData={resultChartData}
+          onViewModeChange={onViewModeChange}
+          onExportToCsv={onExportToCsv}
+          onExportToJson={onExportToJson}
+          onExportToMarkdown={onExportToMarkdown}
+          fullScreenEditor={fullScreenEditor}
+          currentPage={currentPage}
+          pageSize={pageSize}
+          onPageChange={onPageChange}
+          onPageSizeChange={onPageSizeChange}
+        />
+      </div>
     </div>
   );
 }
