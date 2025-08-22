@@ -114,7 +114,10 @@ export const useEditorSync = ({
     const customTheme = EditorView.theme(
       {
         "&": {
-          backgroundColor: "#0f172a",
+          backgroundColor: "#1e293b", 
+          borderRadius: "0.75rem",
+          border: "1px solid #334155", 
+          boxShadow: "0 2px 6px rgba(0,0,0,0.4)",
           color: "#f8f9fa",
           fontSize: "clamp(12px, 3vw, 14px)",
           height: "100%",

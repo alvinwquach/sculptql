@@ -4,7 +4,6 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { Loader2, Database, History, Play, PlusSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import EditorPane from "./EditorPane";
-import ResultsPane from "./ResultsPane";
 import QueryHistory from "../history/QueryHistory";
 import {
   QueryResult,
@@ -522,7 +521,6 @@ export default function SqlEditor() {
     },
     [queryTabs, activeTab]
   );
-
   const handleTabReorder = useCallback((newTabs: Tab[]) => {
     setQueryTabs(newTabs);
   }, []);
@@ -717,49 +715,38 @@ export default function SqlEditor() {
               addLabeledQuery={addLabeledQuery}
               removeLabeledQuery={removeLabeledQuery}
             />
-            <div className="flex flex-1 flex-col lg:flex-row w-full min-w-0">
-              <EditorPane
-                queryTabs={queryTabs}
-                activeTab={activeTab}
-                fullScreenEditor={fullScreenEditor}
-                onToggleFullscreen={toggleFullscreen}
-                onTabClick={handleTabClick}
-                onTabClose={handleTabClose}
-                onQueryChange={handleQueryChange}
-                onTabReorder={handleTabReorder}
-                completion={completion}
-                metadataLoading={metadataLoading}
-                runQuery={runQuery}
-                tableNames={tableNames}
-                tableColumns={tableColumns}
-              />
-              <div
-                className={`flex flex-1 w-full min-w-0 p-4 overflow-y-auto ${
-                  fullScreenEditor ? "hidden" : "block h-1/2 lg:h-full"
-                } space-y-4 sm:space-y-6`}
-              >
-                <ResultsPane
-                  error={error}
-                  loading={loading}
-                  result={result}
-                  viewMode={viewMode}
-                  selectedTable={selectedTable}
-                  table={table}
-                  tableDescription={tableDescription}
-                  chartData={statsChartData}
-                  resultChartData={resultChartData}
-                  onViewModeChange={handleViewModeChange}
-                  onExportToCsv={exportToCsv}
-                  onExportToJson={exportToJson}
-                  onExportToMarkdown={exportToMarkdown}
-                  fullScreenEditor={fullScreenEditor}
-                  currentPage={currentPage}
-                  pageSize={pageSize}
-                  onPageChange={handlePageChange}
-                  onPageSizeChange={handlePageSizeChange}
-                />
-              </div>
-            </div>
+            <EditorPane
+              queryTabs={queryTabs}
+              activeTab={activeTab}
+              fullScreenEditor={fullScreenEditor}
+              onToggleFullscreen={toggleFullscreen}
+              onTabClick={handleTabClick}
+              onTabClose={handleTabClose}
+              onQueryChange={handleQueryChange}
+              onTabReorder={handleTabReorder}
+              completion={completion}
+              metadataLoading={metadataLoading}
+              runQuery={runQuery}
+              tableNames={tableNames}
+              tableColumns={tableColumns}
+              error={error}
+              loading={loading}
+              result={result}
+              viewMode={viewMode}
+              selectedTable={selectedTable}
+              table={table}
+              tableDescription={tableDescription}
+              chartData={statsChartData}
+              resultChartData={resultChartData}
+              onViewModeChange={handleViewModeChange}
+              onExportToCsv={exportToCsv}
+              onExportToJson={exportToJson}
+              onExportToMarkdown={exportToMarkdown}
+              currentPage={currentPage}
+              pageSize={pageSize}
+              onPageChange={handlePageChange}
+              onPageSizeChange={handlePageSizeChange}
+            />
           </div>
         </>
       )}
