@@ -17,6 +17,10 @@ function isValidName(name: string): boolean {
   return /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(name);
 }
 
+function quoteIdentifier(name: string): string {
+  return `"${name.replace(/"/g, '""')}"`;
+}
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const tableName = searchParams.get("table");
@@ -40,12 +44,12 @@ export async function GET(request: Request) {
     const client = await pool.connect();
     try {
       const query = `
-        SELECT DISTINCT ${columnName}
-        FROM ${tableName}
-        WHERE ${columnName} IS NOT NULL
-        ORDER BY ${columnName}
-        LIMIT 100;
-      `;
+      SELECT DISTINCT ${quoteIdentifier(columnName)}
+      FROM ${quoteIdentifier(tableName)}
+      WHERE ${quoteIdentifier(columnName)} IS NOT NULL
+      ORDER BY ${quoteIdentifier(columnName)}
+      LIMIT 100;
+    `;
 
       const result = await client.query(query);
 
