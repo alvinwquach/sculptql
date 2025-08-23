@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { ScrambleTextPlugin } from "gsap/ScrambleTextPlugin";
+import { MotionPathPlugin } from "gsap/MotionPathPlugin";
 import {
   Card,
   CardContent,
@@ -25,7 +26,7 @@ import {
   LayoutGrid,
 } from "lucide-react";
 
-gsap.registerPlugin(ScrollTrigger, ScrambleTextPlugin);
+gsap.registerPlugin(ScrollTrigger, ScrambleTextPlugin, MotionPathPlugin);
 
 type LineDiv = HTMLDivElement & { orig?: string };
 
@@ -37,6 +38,9 @@ export default function Home() {
   const historyRef = useRef<HTMLDivElement>(null);
   const exportRef = useRef<HTMLDivElement>(null);
   const overviewRef = useRef<HTMLDivElement>(null);
+  const animatedBoxRef = useRef<HTMLDivElement>(null);
+  const tabRefs = useRef<HTMLButtonElement[]>([]);
+  const [activeTab, setActiveTab] = useState(0);
 
   const sqlLines = [
     "SELECT ranger_name, color, power_level",
@@ -58,24 +62,28 @@ export default function Home() {
       title: "Schema Explorer",
       desc: "Navigate tables and columns with an interactive interface.",
       color: "teal",
+      side: "left",
     },
     {
       icon: BarChart2,
       title: "Dynamic Charts",
       desc: "Visualize queries with bar, line, and pie charts.",
       color: "teal",
+      side: "left",
     },
     {
       icon: Clock,
       title: "Query Insights",
       desc: "Monitor execution time, payload size, and rows fetched.",
       color: "teal",
+      side: "left",
     },
     {
       icon: Lightbulb,
       title: "Smart Autocomplete",
       desc: "Write SQL faster with intelligent autocomplete.",
       color: "teal",
+      side: "right",
     },
   ];
 
@@ -138,6 +146,48 @@ export default function Home() {
     },
   ];
 
+  const queries = [
+    {
+      title: "Query 1",
+      code: `-- Power Rangers: Track team stats
+SELECT ranger_name, color, power_level
+FROM power_rangers
+WHERE team = 'Mighty Morphin'
+ORDER BY power_level DESC;`,
+    },
+    {
+      title: "Query 2",
+      code: `-- Count total Rangers per team
+SELECT team, COUNT(*) AS total_rangers
+FROM power_rangers
+GROUP BY team;`,
+    },
+    {
+      title: "Query 3",
+      code: `-- Find the top 3 most powerful Rangers
+SELECT ranger_name, team, power_level
+FROM power_rangers
+ORDER BY power_level DESC
+LIMIT 3;`,
+    },
+    {
+      title: "Query 4",
+      code: `-- Find the top 3 most powerful Rangers
+SELECT ranger_name, team, power_level
+FROM power_rangers
+ORDER BY power_level DESC
+LIMIT 3;`,
+    },
+    {
+      title: "Query 5",
+      code: `-- Find the top 3 most powerful Rangers
+SELECT ranger_name, team, power_level
+FROM power_rangers
+ORDER BY power_level DESC
+LIMIT 3;`,
+    },
+  ];
+
   useEffect(() => {
     const typeText = "npx sculptql";
     if (typewriterRef.current) {
@@ -178,6 +228,21 @@ export default function Home() {
       });
     });
 
+    tabRefs.current.forEach((tab, i) => {
+      gsap.fromTo(
+        tab,
+        { opacity: 0, y: -20 },
+        {
+          opacity: 1,
+          y: 0,
+          duration: 0.5,
+          delay: i * 0.1,
+          ease: "power2.out",
+          scrollTrigger: { trigger: editorRef.current, start: "top 85%" },
+        }
+      );
+    });
+
     featureRefs.current.forEach((el, i) => {
       gsap.fromTo(
         el,
@@ -188,7 +253,11 @@ export default function Home() {
           duration: 0.8,
           delay: i * 0.1,
           ease: "power3.out",
-          scrollTrigger: { trigger: el, start: "top 85%" },
+          scrollTrigger: {
+            trigger: el,
+            start: "top 85%",
+            invalidateOnRefresh: true,
+          },
         }
       );
     });
@@ -203,7 +272,11 @@ export default function Home() {
           stagger: 0.2,
           duration: 0.8,
           ease: "power2.out",
-          scrollTrigger: { trigger: historyRef.current, start: "top 80%" },
+          scrollTrigger: {
+            trigger: historyRef.current,
+            start: "top 80%",
+            invalidateOnRefresh: true,
+          },
         }
       );
     }
@@ -218,7 +291,11 @@ export default function Home() {
           stagger: 0.2,
           duration: 0.8,
           ease: "power2.out",
-          scrollTrigger: { trigger: exportRef.current, start: "top 80%" },
+          scrollTrigger: {
+            trigger: exportRef.current,
+            start: "top 80%",
+            invalidateOnRefresh: true,
+          },
         }
       );
     }
@@ -233,25 +310,51 @@ export default function Home() {
           stagger: 0.2,
           duration: 0.8,
           ease: "power2.out",
-          scrollTrigger: { trigger: overviewRef.current, start: "top 80%" },
+          scrollTrigger: {
+            trigger: overviewRef.current,
+            start: "top 80%",
+            invalidateOnRefresh: true,
+          },
         }
       );
     }
 
     if (editorRef.current) {
-      gsap.fromTo(
-        editorRef.current,
-        { opacity: 0, scale: 0.95, y: 30 },
-        {
-          opacity: 1,
-          scale: 1,
-          y: 0,
-          duration: 1,
-          ease: "power3.out",
-          scrollTrigger: { trigger: editorRef.current, start: "top 80%" },
-        }
-      );
+      gsap.set(editorRef.current, {
+        opacity: 0,
+        rotateX: 25, // instead of 70 → looks like ~115° open
+        transformPerspective: 800,
+        transformOrigin: "bottom center",
+      });
+
+      gsap.to(editorRef.current, {
+        opacity: 1,
+        rotateX: 0, // fully upright like 90°
+        duration: 3,
+        ease: "power3.out",
+        scrollTrigger: {
+          trigger: editorRef.current,
+          start: "top 85%",
+          end: "top 35%",
+          scrub: 1.5,
+          invalidateOnRefresh: true,
+        },
+      });
     }
+
+    const handleResize = () => {
+      ScrollTrigger.refresh();
+    };
+    window.addEventListener("resize", handleResize);
+
+    return () => {
+      ScrollTrigger.getAll().forEach((trigger) => trigger.kill());
+      textLinesRef.current.forEach((lineEl) => {
+        lineEl.removeEventListener("mouseenter", () => {});
+        lineEl.removeEventListener("mouseleave", () => {});
+      });
+      window.removeEventListener("resize", handleResize);
+    };
   }, []);
 
   const addLineRef = (el: LineDiv | null) => {
@@ -261,8 +364,12 @@ export default function Home() {
     if (el && !featureRefs.current.includes(el)) featureRefs.current.push(el);
   };
 
+  const addTabRef = (el: HTMLButtonElement | null) => {
+    if (el && !tabRefs.current.includes(el)) tabRefs.current.push(el);
+  };
+
   return (
-    <div className="min-h-screen bg-[#0f172a] text-slate-200 font-sans">
+    <div className="min-h-screen bg-[#0f172a] text-slate-200 font-sans overflow-x-hidden">
       <section className="flex flex-col items-center text-center py-20 px-4 sm:px-8 lg:px-16 bg-gradient-to-b from-green-900/20 to-[#0f172a]">
         <h1 className="text-green-400 text-4xl sm:text-5xl lg:text-6xl font-extrabold mb-6">
           SculptQL: Craft Your Data Story with Ease
@@ -276,7 +383,7 @@ export default function Home() {
           className="mb-8 px-6 py-3 bg-green-500/20 text-green-400 rounded-lg font-mono text-lg sm:text-xl min-h-[2.5rem]"
         ></div>
       </section>
-      <section className="py-16 px-4 sm:px-8 lg:px-16 bg-[#111827]">
+      <section className="py-12 px-4 sm:px-8 lg:px-16 bg-[#111827]">
         <div className="text-left font-mono text-base sm:text-lg mb-8 max-w-3xl mx-auto">
           {sqlLines.map((line, idx) => (
             <div
@@ -292,21 +399,52 @@ export default function Home() {
           ))}
         </div>
         <div
-          ref={editorRef}
-          className="w-full max-w-5xl mx-auto rounded-xl shadow-2xl overflow-hidden border border-green-700/50"
+          ref={animatedBoxRef}
+          className="relative max-w-5xl mx-auto h-[600px] flex justify-center items-center"
         >
-          <CodeMirror
-            value={`-- Power Rangers: Track team stats
-SELECT ranger_name, color, power_level
-FROM power_rangers
-WHERE team = 'Mighty Morphin'
-ORDER by power_level DESC;`}
-            height="450px"
-            width="100%"
-            extensions={[sql()]}
-            theme="dark"
-            editable={false}
-          />
+          <div
+            ref={editorRef}
+            className="relative w-full max-w-5xl rounded-xl shadow-2xl overflow-hidden border border-green-700/50 z-10"
+          >
+            <div className="flex items-center justify-between bg-slate-900 px-4 py-2 border-b border-green-700/50">
+              <div className="flex gap-2">
+                <span className="w-3 h-3 bg-red-500 rounded-full"></span>
+                <span className="w-3 h-3 bg-yellow-500 rounded-full"></span>
+                <span className="w-3 h-3 bg-green-500 rounded-full"></span>
+              </div>
+              <input
+                type="text"
+                value="https://sculptql.com/"
+                disabled
+                className="w-full max-w-sm px-3 py-1 rounded-md bg-slate-800/70 text-slate-300 text-sm font-mono border border-slate-700 text-center cursor-default mx-6"
+              />
+              <div className="w-16" />
+            </div>
+            <div className="flex items-start bg-slate-800/60 border-b border-green-700/50">
+              {queries.map((tab, idx) => (
+                <button
+                  key={idx}
+                  ref={addTabRef}
+                  onClick={() => setActiveTab(idx)}
+                  className={`px-3.5 py-1 font-mono text-sm transition-colors ${
+                    idx === activeTab
+                      ? "bg-slate-900 text-green-400 border border-b-0 border-green-700/50"
+                      : "bg-slate-800/60 text-slate-400 hover:text-green-400"
+                  }`}
+                >
+                  {tab.title}
+                </button>
+              ))}
+            </div>
+            <CodeMirror
+              value={queries[activeTab].code}
+              height="450px"
+              width="100%"
+              extensions={[sql()]}
+              theme="dark"
+              editable={false}
+            />
+          </div>
         </div>
       </section>
       <section className="py-16 px-4 sm:px-8 lg:px-16 bg-gradient-to-b from-teal-900/10 to-[#0f172a]">
