@@ -22,6 +22,8 @@
     "component:headless": "cypress run --component"
   },
   "dependencies": {
+    "@apollo/client": "^4.0.0",
+    "@apollo/client-integration-nextjs": "^0.13.0",
     "@codemirror/lang-javascript": "^6.2.4",
     "@codemirror/lang-sql": "^6.9.1",
     "@codemirror/theme-one-dark": "^6.1.3",
