@@ -2,6 +2,16 @@ import { Column, ForeignKey, Table } from "@/app/types/query";
 import { createSchema, createYoga } from "graphql-yoga";
 import { Pool } from "pg";
 
+// Define the Next.js context type
+interface NextContext {
+  params: Promise<Record<string, string>>;
+}
+
+// Custom Response type to ensure compatibility
+const CustomResponse = Response as typeof Response & {
+  json: (data: unknown, init?: ResponseInit) => Response;
+};
+
 const pool = new Pool({
   host: process.env.DB_HOST,
   port: Number(process.env.DB_PORT),
@@ -20,7 +30,6 @@ interface SchemaArgs {
   // Optional search string to filter columns
   columnSearch?: string;
 }
-
 // Define GraphQL type definitions
 const typeDefs = /* GraphQL */ `
   type Column {
@@ -216,10 +225,18 @@ const resolvers = {
 };
 
 // Step 3: Create Yoga GraphQL server with schema and resolvers
-const yoga = createYoga({
+const { handleRequest } = createYoga<NextContext>({
   schema: createSchema({ typeDefs, resolvers }),
+
   // While using Next.js file convention for routing, we need to configure Yoga to use the correct endpoint
   graphqlEndpoint: "/api/graphql",
+  fetchAPI: {
+    Response: CustomResponse,
+  },
 });
 
-export { yoga as GET, yoga as POST };
+export {
+  handleRequest as GET,
+  handleRequest as POST,
+  handleRequest as OPTIONS,
+};
