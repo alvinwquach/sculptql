@@ -104,9 +104,11 @@ export interface TableDescription {
   primary_keys: string[];
   foreign_keys: ForeignKeySchema[];
 }
-
 export interface Column {
   column_name: string;
+  data_type: string;
+  is_nullable: string;
+  is_primary_key: boolean;
 }
 
 export type TableColumn = Record<string, string[]>;
@@ -331,4 +333,15 @@ export interface ERDEdge {
   label: string;
   type?: string;
   animated?: boolean;
+}
+
+export interface Table {
+  table_catalog: string;
+  table_schema: string;
+  table_name: string;
+  table_type: string;
+  comment: string | null;
+  columns: Column[];
+  primary_keys: string[];
+  foreign_keys: ForeignKey[];
 }
