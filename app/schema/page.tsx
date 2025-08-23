@@ -1,23 +1,26 @@
+import { getClient } from "../lib/client";
+import { GET_SCHEMA } from "../graphql/queries/getSchema";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { TableSchema } from "@/app/types/query";
 import ClientSchemaPage from "../components/schema/ClientSchemaPage";
+import { TableSchema } from "@/app/types/query";
 
 async function fetchSchema(
   tableSearch: string,
   columnSearch: string
 ): Promise<TableSchema[]> {
-  const url = new URL(`${process.env.NEXT_PUBLIC_BASE_URL}/api/schema`);
-  if (tableSearch) url.searchParams.set("tableSearch", tableSearch);
-  if (columnSearch) url.searchParams.set("columnSearch", columnSearch);
-  const response = await fetch(url, {
-    cache: tableSearch || columnSearch ? "no-store" : "force-cache",
-    next: { revalidate: tableSearch || columnSearch ? 0 : 3600 },
-  });
-  if (!response.ok) {
+  try {
+    const { data } = await getClient().query<{ schema: TableSchema[] }>({
+      query: GET_SCHEMA,
+      variables: {
+        tableSearch: tableSearch || undefined,
+        columnSearch: columnSearch || undefined,
+      },
+      fetchPolicy: tableSearch || columnSearch ? "no-cache" : "cache-first",
+    });
+    return data?.schema || [];
+  } catch (error) {
     throw new Error("Failed to fetch schema");
   }
-  const data = await response.json();
-  return data.schema;
 }
 
 export default async function SchemaPage({
