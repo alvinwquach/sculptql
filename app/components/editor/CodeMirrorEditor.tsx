@@ -79,7 +79,7 @@ export default function CodeMirrorEditor({
               .map((col) => stripQuotes(col.trim()))
               .filter((col) => col && col !== "*");
             const invalidColumns = columns.filter(
-              (col) => !tableColumns[normalizedTable as any]?.includes(col)
+              (col) => !tableColumns[normalizedTable ?? ""]?.includes(col)
             );
             if (invalidColumns.length > 0) {
               setError(
