@@ -21,7 +21,7 @@ export const suggestWithClause = (
   tableColumns: TableColumn,
   stripQuotes: (s: string) => string,
   needsQuotes: (id: string) => boolean,
-  uniqueValues: Record<string, SelectOption[]>,
+  uniqueValues: Record<string, SelectOption[]> = {},
   onWhereColumnSelect?: (
     value: SingleValue<SelectOption>,
     conditionIndex: number
@@ -136,6 +136,7 @@ export const suggestWithClause = (
           pos,
           word,
           getAllColumns(tableNames, tableColumns),
+          [],
           needsQuotes,
           ast
         ) ||
@@ -173,7 +174,7 @@ export const suggestWithClause = (
           ast
         ) ||
         suggestWhereClause(
-          docText,
+          subqueryText,
           currentWord,
           pos,
           word,
@@ -194,7 +195,7 @@ export const suggestWithClause = (
         const newValidFor =
           delegatedSuggestions.validFor instanceof RegExp
             ? new RegExp(`${delegatedSuggestions.validFor.source}|\\)$`, "i")
-            : /^[a-zA-Z0-9_"]+$|^\)$/i; // Fixed fallback pattern
+            : /^[a-zA-Z0-9_"]+$|^\)$/i;
         return {
           ...delegatedSuggestions,
           options: [
@@ -204,7 +205,7 @@ export const suggestWithClause = (
               type: "keyword",
               apply: ") ",
               detail: "Close CTE subquery",
-              boost: 5, // Prioritize closing parenthesis
+              boost: 5,
             },
           ],
           validFor: newValidFor,
@@ -221,7 +222,7 @@ export const suggestWithClause = (
               type: "keyword",
               apply: ") ",
               detail: "Close CTE subquery",
-              boost: 5, // Prioritize closing parenthesis
+              boost: 5,
             },
             {
               label: "INNER JOIN",
@@ -352,6 +353,7 @@ export const suggestWithClause = (
         cteColumns.length > 0
           ? cteColumns
           : getAllColumns(tableNames, tableColumns),
+        [],
         needsQuotes,
         ast
       ) ||
@@ -374,7 +376,7 @@ export const suggestWithClause = (
       ) ||
       suggestUnionClause(mainQueryText, currentWord, pos, word, ast) ||
       suggestWhereClause(
-        docText,
+        mainQueryText,
         currentWord,
         pos,
         word,
