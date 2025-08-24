@@ -1,5 +1,4 @@
-import Select from "react-select";
-import { SingleValue } from "react-select";
+import Select, { SingleValue } from "react-select";
 import { SelectOption } from "@/app/types/query";
 import { selectStyles } from "../../utils/selectStyles";
 
@@ -25,6 +24,7 @@ export default function TableSelector({
     <div className="flex flex-col gap-1">
       <label className="text-xs text-[#f8f9fa] mb-1">Table</label>
       <Select
+        instanceId="table-selector"
         options={tableOptions}
         value={selectedTable}
         onChange={onTableSelect}

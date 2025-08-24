@@ -78,9 +78,10 @@ export interface ColumnSchema {
   data_type: string;
   is_nullable: string;
   column_default: string | null;
-  is_primary_key: boolean | undefined; 
+  is_primary_key: boolean | undefined;
   is_indexed: boolean | string;
   index_names?: string[];
+  uniqueValues?: string[];
 }
 
 export interface ForeignKeySchema {

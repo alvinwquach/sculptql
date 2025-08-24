@@ -3,7 +3,7 @@
 import { useCallback } from "react";
 import { CompletionContext, CompletionResult } from "@codemirror/autocomplete";
 import { Parser, Select } from "node-sql-parser";
-import { TableColumn } from "@/app/types/query";
+import { SelectOption, TableColumn } from "@/app/types/query";
 import { getAllColumns } from "../utils/sqlCompletion/getAllColumns";
 import { getValidTables } from "../utils/sqlCompletion/getValidTables";
 import { suggestAsOrFromKeyword } from "../utils/sqlCompletion/suggestions/suggestAsOrFromKeyword";
@@ -30,7 +30,8 @@ export const useSqlCompletion = (
   tableNames: string[], // List of known table names
   tableColumns: TableColumn, // Mapping of table names to their columns
   stripQuotes: (s: string) => string, // Helper to strip quotes from identifiers
-  needsQuotes: (id: string) => boolean // Helper to determine if a name needs quotes
+  needsQuotes: (id: string) => boolean, // Helper to determine if a name needs quotes
+  onTableSelect?: (value: SelectOption | null) => void // Function to autocomplete the select after selecting a table
 ) => {
   // === STEP 1: Prepare full list of available columns ===
   const allColumns = getAllColumns(tableNames, tableColumns);
@@ -122,7 +123,8 @@ export const useSqlCompletion = (
           stripQuotes,
           needsQuotes,
           tableColumns,
-          ast
+          ast,
+          onTableSelect
         ) ||
         suggestJoinClause(
           docText,
