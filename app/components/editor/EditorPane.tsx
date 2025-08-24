@@ -261,7 +261,7 @@ export default function EditorPane({
           onDecimalPlacesSelect={handleDecimalPlacesSelect}
           metadataLoading={metadataLoading}
         />
-        <ColumnSelector
+        {/* <ColumnSelector
           selectedTable={queryState.selectedTable}
           tableColumns={tableColumns}
           selectedColumns={queryState.selectedColumns}
@@ -270,7 +270,7 @@ export default function EditorPane({
           onGroupByColumnsSelect={handleGroupByColumnsSelect}
           metadataLoading={metadataLoading}
           joinClauses={queryState.joinClauses}
-        />
+        /> */}
         <CaseSelector
           selectedTable={queryState.selectedTable}
           tableColumns={tableColumns}
