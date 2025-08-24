@@ -18,12 +18,12 @@ import { needsQuotes } from "@/app/utils/sqlCompletion/needsQuotes";
 import { stripQuotes } from "@/app/utils/sqlCompletion/stripQuotes";
 import { TableColumn, SelectOption } from "@/app/types/query";
 import { SingleValue } from "react-select";
-import { containsRestrictedKeywords } from "@/app/utils/restrictedKeywords";
 
 interface CodeMirrorEditorProps {
   query: string;
   tableNames: string[];
   tableColumns: TableColumn;
+  selectedColumns: SelectOption[]; 
   uniqueValues: Record<string, SelectOption[]>;
   onQueryChange: (query: string) => void;
   onTableSelect?: (value: SelectOption | null) => void;
@@ -47,6 +47,7 @@ export default function CodeMirrorEditor({
   query,
   tableNames,
   tableColumns,
+  selectedColumns, 
   uniqueValues,
   onQueryChange,
   onTableSelect,
@@ -66,6 +67,7 @@ export default function CodeMirrorEditor({
   const sqlCompletion = useSqlCompletion(
     tableNames,
     tableColumns,
+    selectedColumns, 
     uniqueValues,
     stripQuotes,
     needsQuotes,
@@ -161,7 +163,6 @@ export default function CodeMirrorEditor({
         drawSelection(),
         customTheme,
         syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
-
         EditorView.lineWrapping,
       ],
     });
@@ -181,6 +182,7 @@ export default function CodeMirrorEditor({
     sqlCompletion,
     tableNames,
     tableColumns,
+    selectedColumns, 
     uniqueValues,
     onQueryChange,
     onTableSelect,

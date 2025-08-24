@@ -3,12 +3,13 @@
 import { useState, useCallback } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import TableSelector from "./TableSelector";
+import ColumnSelector from "./ColumnSelector";
 import WhereClauseSelector from "./WhereClauseSelector";
 import CodeMirrorEditor from "./CodeMirrorEditor";
 import { TableSchema, SelectOption, WhereClause } from "@/app/types/query";
 import { needsQuotes } from "@/app/utils/sqlCompletion/needsQuotes";
 import { stripQuotes } from "@/app/utils/sqlCompletion/stripQuotes";
-import { SingleValue } from "react-select";
+import { SingleValue, MultiValue } from "react-select";
 
 interface EditorClientProps {
   schema: TableSchema[];
@@ -17,6 +18,7 @@ interface EditorClientProps {
 
 export default function EditorClient({ schema, error }: EditorClientProps) {
   const [selectedTable, setSelectedTable] = useState<SelectOption | null>(null);
+  const [selectedColumns, setSelectedColumns] = useState<SelectOption[]>([]);
   const [whereClause, setWhereClause] = useState<WhereClause>({
     conditions: [{ column: null, operator: null, value: null, value2: null }],
   });
@@ -75,6 +77,7 @@ export default function EditorClient({ schema, error }: EditorClientProps) {
 
   const handleTableSelect = useCallback((value: SelectOption | null) => {
     setSelectedTable(value);
+    setSelectedColumns([]); 
     setWhereClause({
       conditions: [{ column: null, operator: null, value: null, value2: null }],
     });
@@ -87,6 +90,41 @@ export default function EditorClient({ schema, error }: EditorClientProps) {
       setQuery("");
     }
   }, []);
+
+  const handleColumnSelect = useCallback(
+    (value: MultiValue<SelectOption>) => {
+      const newSelectedColumns = value.some((col) => col.value === "*")
+        ? [{ value: "*", label: "All Columns (*)" }]
+        : value.filter((col) => col.value !== "*");
+      setSelectedColumns(newSelectedColumns);
+
+      if (!selectedTable) return;
+
+      const tableName = needsQuotes(selectedTable.value)
+        ? `"${selectedTable.value}"`
+        : selectedTable.value;
+
+      const columnsString =
+        newSelectedColumns.length === 0 ||
+        newSelectedColumns.some((col) => col.value === "*")
+          ? "*"
+          : newSelectedColumns
+              .map((col) =>
+                needsQuotes(col.value) ? `"${col.value}"` : col.value
+              )
+              .join(", ");
+
+      let newQuery = `SELECT ${columnsString} FROM ${tableName}`;
+
+      const whereMatch = query.match(/\bWHERE\s+.*?(?=;*$)/i);
+      if (whereMatch) {
+        newQuery += ` ${whereMatch[0]}`;
+      }
+
+      setQuery(`${newQuery};`);
+    },
+    [selectedTable, query]
+  );
 
   const handleLogicalOperatorSelect = useCallback(
     (value: SingleValue<SelectOption>) => {
@@ -233,11 +271,21 @@ export default function EditorClient({ schema, error }: EditorClientProps) {
     (updatedWhereClause: WhereClause) => {
       if (!selectedTable) return;
 
-      let newQuery = query.trim().endsWith(";") ? query.slice(0, -1) : query;
-      const whereMatch = newQuery.match(/\bWHERE\s+.*$/i);
       const tableName = needsQuotes(selectedTable.value)
         ? `"${selectedTable.value}"`
         : selectedTable.value;
+
+      const columnsString =
+        selectedColumns.length === 0 ||
+        selectedColumns.some((col) => col.value === "*")
+          ? "*"
+          : selectedColumns
+              .map((col) =>
+                needsQuotes(col.value) ? `"${col.value}"` : col.value
+              )
+              .join(", ");
+
+      let newQuery = `SELECT ${columnsString} FROM ${tableName}`;
 
       let whereClauseString = "";
       updatedWhereClause.conditions.forEach((condition, index) => {
@@ -273,29 +321,22 @@ export default function EditorClient({ schema, error }: EditorClientProps) {
       });
 
       if (whereClauseString) {
-        newQuery = whereMatch
-          ? newQuery.replace(/\bWHERE\s+.*$/i, `WHERE ${whereClauseString}`)
-          : `${newQuery} WHERE ${whereClauseString}`;
-      } else if (whereMatch) {
-        newQuery = newQuery.replace(/\bWHERE\s+.*$/i, "");
-      }
-
-      if (!newQuery.includes("SELECT")) {
-        newQuery = `SELECT * FROM ${tableName} ${
-          whereClauseString ? `WHERE ${whereClauseString}` : ""
-        }`;
+        newQuery += ` WHERE ${whereClauseString}`;
       }
 
       setQuery(`${newQuery};`);
     },
-    [query, selectedTable]
+    [selectedTable, selectedColumns]
   );
 
   const handleQueryChange = useCallback(
     (newQuery: string) => {
-      setQuery(newQuery);
+      const normalizedQuery = newQuery.replace(/;+$/, "").trim() + ";";
+      setQuery(normalizedQuery);
 
-      const tableMatch = newQuery.match(/FROM\s+((?:"[\w]+"|'[\w]+'|[\w_]+))/i);
+      const tableMatch = normalizedQuery.match(
+        /FROM\s+((?:"[\w]+"|'[\w]+'|[\w_]+))/i
+      );
       if (tableMatch && tableMatch[1]) {
         const tableName = stripQuotes(tableMatch[1]);
         if (
@@ -303,6 +344,7 @@ export default function EditorClient({ schema, error }: EditorClientProps) {
           (!selectedTable || selectedTable.value !== tableName)
         ) {
           setSelectedTable({ value: tableName, label: tableName });
+          setSelectedColumns([]);
           setWhereClause({
             conditions: [
               { column: null, operator: null, value: null, value2: null },
@@ -311,6 +353,7 @@ export default function EditorClient({ schema, error }: EditorClientProps) {
         }
       } else if (!tableMatch && selectedTable) {
         setSelectedTable(null);
+        setSelectedColumns([]);
         setWhereClause({
           conditions: [
             { column: null, operator: null, value: null, value2: null },
@@ -318,7 +361,24 @@ export default function EditorClient({ schema, error }: EditorClientProps) {
         });
       }
 
-      if (!newQuery.match(/\bWHERE\b/i)) {
+      const selectMatch = normalizedQuery.match(/SELECT\s+(.+?)\s+FROM/i);
+      if (selectMatch && selectedTable) {
+        const columnsStr = selectMatch[1].trim();
+        if (columnsStr === "*") {
+          setSelectedColumns([{ value: "*", label: "All Columns (*)" }]);
+        } else {
+          const parsedColumns = columnsStr
+            .split(",")
+            .map((col) => stripQuotes(col.trim()))
+            .filter(
+              (col) => col && tableColumns[selectedTable.value].includes(col)
+            )
+            .map((col) => ({ value: col, label: col }));
+          setSelectedColumns(parsedColumns);
+        }
+      }
+
+      if (!normalizedQuery.match(/\bWHERE\b/i)) {
         setWhereClause({
           conditions: [
             { column: null, operator: null, value: null, value2: null },
@@ -326,7 +386,7 @@ export default function EditorClient({ schema, error }: EditorClientProps) {
         });
       }
     },
-    [selectedTable, tableNames]
+    [selectedTable, tableNames, tableColumns]
   );
 
   return (
@@ -340,6 +400,13 @@ export default function EditorClient({ schema, error }: EditorClientProps) {
               tableNames={tableNames}
               selectedTable={selectedTable}
               onTableSelect={handleTableSelect}
+              metadataLoading={false}
+            />
+            <ColumnSelector
+              selectedTable={selectedTable}
+              tableColumns={tableColumns}
+              selectedColumns={selectedColumns}
+              onColumnSelect={handleColumnSelect}
               metadataLoading={false}
             />
             <WhereClauseSelector
@@ -358,6 +425,7 @@ export default function EditorClient({ schema, error }: EditorClientProps) {
               onDeleteCondition={handleDeleteCondition}
             />
             <CodeMirrorEditor
+              selectedColumns={selectedColumns}
               uniqueValues={uniqueValues}
               query={query}
               tableNames={tableNames}

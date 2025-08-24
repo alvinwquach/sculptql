@@ -1,5 +1,6 @@
 import { CompletionResult } from "@codemirror/autocomplete";
 import { Select } from "node-sql-parser";
+import { SelectOption } from "@/app/types/query";
 import { stripQuotes } from "../stripQuotes";
 
 export const suggestColumnsAfterSelect = (
@@ -8,6 +9,7 @@ export const suggestColumnsAfterSelect = (
   pos: number,
   word: { from: number } | null,
   allColumns: string[],
+  selectedColumns: SelectOption[],
   needsQuotes: (id: string) => boolean,
   ast: Select | Select[] | null
 ): CompletionResult | null => {
@@ -24,11 +26,11 @@ export const suggestColumnsAfterSelect = (
   const isInCteSubquery = /\bWITH\s+[\w"]*\s+AS\s*\(\s*SELECT\b.*$/i.test(
     docText
   );
+
   const parenCount = isInCteSubquery
     ? (docText.match(/\(/g) || []).length - (docText.match(/\)/g) || []).length
     : 0;
 
-  // Regex patterns
   const selectRegex = /\bSELECT\s*(DISTINCT\s*)?$/i;
   const unionSelectRegex = /\bUNION\s*(ALL\s*)?SELECT\s*(DISTINCT\s*)?$/i;
   const aggrFuncRegex =
@@ -41,7 +43,6 @@ export const suggestColumnsAfterSelect = (
   const cteSelectRegex =
     /\bWITH\s+[\w"]+\s+AS\s*\(\s*SELECT\s*(DISTINCT\s*)?$/i;
 
-  // Avoid suggesting columns in CASE or after a column
   if (
     inCaseStatementRegex.test(docText) ||
     afterSelectColumnRegex.test(docText)
@@ -52,6 +53,7 @@ export const suggestColumnsAfterSelect = (
   const aggrMatch = docText.match(aggrFuncRegex);
   const roundDecimalMatch = docText.match(roundDecimalRegex);
   const selectStarMatch = docText.match(selectStarRegex);
+
   const isInSelectClause =
     selectRegex.test(docText.trim()) ||
     unionSelectRegex.test(docText.trim()) ||
@@ -75,6 +77,9 @@ export const suggestColumnsAfterSelect = (
         ? ast.some((node: Select) => node.type === "select" && node.distinct)
         : ast.type === "select" && ast.distinct));
 
+  // Extract selected column names for exclusion
+  const selectedColumnNames = selectedColumns.map((c) => c.value.toLowerCase());
+
   // Suggest decimals for ROUND
   if (roundDecimalMatch) {
     const partialNumber = roundDecimalMatch[2] || "";
@@ -86,7 +91,7 @@ export const suggestColumnsAfterSelect = (
       options: decimalOptions.map((num) => ({
         label: num,
         type: "number",
-        apply: `${num}) `,
+        apply: `${num}`,
         detail: "Decimal places",
       })),
       filter: true,
@@ -98,11 +103,17 @@ export const suggestColumnsAfterSelect = (
   if (aggrMatch) {
     const partialColumn = aggrMatch[2] ? stripQuotes(aggrMatch[2]) : "";
     const isRoundFunction = aggrMatch[0].toUpperCase().includes("ROUND(");
-    const filteredColumns = allColumns.filter((column) =>
-      partialColumn
-        ? column.toLowerCase().startsWith(partialColumn.toLowerCase())
-        : true
-    );
+
+    const filteredColumns = allColumns.filter((column) => {
+      const colLower = column.toLowerCase();
+      return (
+        !selectedColumnNames.includes(colLower) &&
+        (partialColumn
+          ? colLower.startsWith(partialColumn.toLowerCase())
+          : true)
+      );
+    });
+
     if (filteredColumns.length > 0) {
       return {
         from: word ? word.from : pos,
@@ -112,10 +123,10 @@ export const suggestColumnsAfterSelect = (
           apply: needsQuotes(column)
             ? isRoundFunction
               ? `"${column}", `
-              : `"${column}") `
+              : `"${column}"`
             : isRoundFunction
             ? `${column}, `
-            : `${column}) `,
+            : `${column}`,
           detail: "Column name",
         })),
         filter: true,
@@ -159,13 +170,15 @@ export const suggestColumnsAfterSelect = (
     unionSelectRegex.test(docText.trim()) ||
     cteSelectRegex.test(docText)
   ) {
-    const filteredColumns = allColumns.filter((column) =>
-      currentWord
-        ? column
-            .toLowerCase()
-            .startsWith(stripQuotes(currentWord).toLowerCase())
-        : true
-    );
+    const filteredColumns = allColumns.filter((column) => {
+      const colLower = column.toLowerCase();
+      return (
+        !selectedColumnNames.includes(colLower) &&
+        (currentWord
+          ? colLower.startsWith(stripQuotes(currentWord).toLowerCase())
+          : true)
+      );
+    });
 
     const options = [
       ...(!isDistinctPresent
@@ -212,10 +225,6 @@ export const suggestColumnsAfterSelect = (
               apply: "ROUND(",
               detail: "Round column values",
             },
-          ]
-        : []),
-      ...(!isDistinctPresent
-        ? [
             {
               label: "*",
               type: "field",
