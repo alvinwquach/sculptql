@@ -97,6 +97,7 @@ export interface TableSchema {
   table_schema: string;
   table_type: string;
   comment: string | null;
+  values?: Record<string, string | number | null>[];
 }
 
 export interface TableDescription {
@@ -345,4 +346,5 @@ export interface Table {
   columns: Column[];
   primary_keys: string[];
   foreign_keys: ForeignKey[];
+  values?: string[];
 }

@@ -541,12 +541,12 @@ export default function SqlEditor() {
     setCurrentPage(1);
   }, []);
 
-  const completion = useSqlCompletion(
-    tableNames,
-    tableColumns,
-    stripQuotes,
-    needsQuotes
-  );
+  // const completion = useSqlCompletion(
+  //   tableNames,
+  //   tableColumns,
+  //   stripQuotes,
+  //   needsQuotes
+  // );
 
   const resultChartData: ChartDataItem[] = useMemo(() => {
     if (!result || !result.rows || !result.fields) return [];
@@ -715,7 +715,7 @@ export default function SqlEditor() {
               addLabeledQuery={addLabeledQuery}
               removeLabeledQuery={removeLabeledQuery}
             />
-            <EditorPane
+            {/* <EditorPane
               queryTabs={queryTabs}
               activeTab={activeTab}
               fullScreenEditor={fullScreenEditor}
@@ -746,7 +746,7 @@ export default function SqlEditor() {
               pageSize={pageSize}
               onPageChange={handlePageChange}
               onPageSizeChange={handlePageSizeChange}
-            />
+            /> */}
           </div>
         </>
       )}

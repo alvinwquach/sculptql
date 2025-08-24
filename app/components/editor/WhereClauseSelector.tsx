@@ -1,19 +1,14 @@
-"use client";
-
-import Select from "react-select";
-import CreatableSelect from "react-select/creatable";
+import { JoinClause, SelectOption, WhereClause } from "@/app/types/query";
 import { SingleValue } from "react-select";
-import {
-  SelectOption,
-  TableColumn,
-  WhereClause,
-  JoinClause,
-} from "@/app/types/query";
-import { selectStyles } from "../../utils/selectStyles";
+import CreatableSelect from "react-select/creatable";
+import { Button } from "@/components/ui/button";
+import { Trash2 } from "lucide-react";
+import { stripQuotes } from "@/app/utils/sqlCompletion/stripQuotes";
+import { selectStyles } from "@/app/utils/selectStyles";
 
 interface WhereClauseSelectorProps {
   selectedTable: SelectOption | null;
-  tableColumns: TableColumn;
+  tableColumns: Record<string, string[]>;
   whereClause: WhereClause;
   uniqueValues: Record<string, SelectOption[]>;
   onLogicalOperatorSelect: (value: SingleValue<SelectOption>) => void;
@@ -34,9 +29,10 @@ interface WhereClauseSelectorProps {
   operatorOptions: SelectOption[];
   logicalOperatorOptions: SelectOption[];
   joinClauses: JoinClause[];
+  onDeleteCondition?: (index: number) => void;
 }
 
-export default function WhereClauseSelector({
+function WhereClauseSelector({
   selectedTable,
   tableColumns,
   whereClause,
@@ -49,87 +45,101 @@ export default function WhereClauseSelector({
   operatorOptions,
   logicalOperatorOptions,
   joinClauses,
+  onDeleteCondition,
 }: WhereClauseSelectorProps) {
-  const whereColumnOptions: SelectOption[] = selectedTable
-    ? [
-        ...(tableColumns[selectedTable.value]?.map((col) => ({
-          value: `${selectedTable.value}.${col}`,
-          label: `${selectedTable.value}.${col}`,
-        })) || []),
-        ...joinClauses
-          .filter((join) => join.table?.value)
-          .flatMap(
-            (join) =>
-              tableColumns[join.table!.value]?.map((col) => ({
-                value: `${join.table!.value}.${col}`,
-                label: `${join.table!.value}.${col}`,
-              })) || []
-          ),
-      ]
-    : [];
-
   return (
-    <div className="flex flex-col gap-2">
-      {whereClause.conditions.map((condition, index) => (
-        <div key={index} className="flex flex-row items-center gap-2 w-full">
-          {index === 1 && (
-            <div className="flex flex-col gap-1 w-1/4">
-              <label className="text-xs text-[#f8f9fa] mb-1">Filter</label>
-              <Select
-                options={logicalOperatorOptions}
-                value={whereClause.conditions[0].logicalOperator}
-                onChange={onLogicalOperatorSelect}
-                placeholder="Filter"
-                isDisabled={!selectedTable || metadataLoading}
-                styles={selectStyles}
-                className="min-w-0 w-full"
-              />
+    <div className="space-y-2">
+      {whereClause.conditions.map((condition, index) => {
+        const valueOptions =
+          selectedTable && condition.column
+            ? uniqueValues[
+                `${stripQuotes(selectedTable.value)}.${stripQuotes(
+                  condition.column.value
+                )}`
+              ] || []
+            : [];
+
+        return (
+          <div key={index} className="flex flex-col gap-1">
+            <div className="text-xs text-white text-opacity-80 font-semibold">
+              Where
             </div>
-          )}
-          <div className="flex flex-col gap-1 w-1/4">
-            <label className="text-xs text-[#f8f9fa] mb-1">
-              {index === 0 ? "Column (Where)" : "Column (And)"}
-            </label>
-            <Select
-              options={whereColumnOptions}
-              value={condition.column}
-              onChange={(value) => onWhereColumnSelect(value, index)}
-              placeholder="Column"
-              isClearable
-              isDisabled={!selectedTable || metadataLoading}
-              styles={selectStyles}
-              className="min-w-0 w-full"
-            />
-          </div>
-          <div className="flex flex-col gap-1 w-1/4">
-            <label className="text-xs text-[#f8f9fa] mb-1">Operator</label>
-            <Select
-              options={operatorOptions}
-              value={condition.operator}
-              onChange={(value) => onOperatorSelect(value, index)}
-              placeholder="Operator"
-              isClearable
-              isDisabled={
-                !selectedTable || !condition.column || metadataLoading
-              }
-              styles={selectStyles}
-              className="min-w-0 w-full"
-            />
-          </div>
-          {condition.operator?.value === "BETWEEN" ? (
-            <>
-              <div className="flex flex-col gap-1 w-1/4">
-                <label className="text-xs text-[#f8f9fa] mb-1">Value 1</label>
+
+            <div className="flex gap-2 items-center">
+              <div className="flex flex-col gap-1 w-full">
+                <label
+                  htmlFor={`where-column-${index}`}
+                  className="text-xs text-[#f8f9fa]"
+                >
+                  Column
+                </label>
                 <CreatableSelect
-                  options={uniqueValues[`condition${index + 1}`]}
+                  inputId={`where-column-${index}`}
+                  instanceId={`where-column-${index}`}
+                  aria-label={`Select column for condition ${index + 1}`}
+                  options={
+                    selectedTable
+                      ? tableColumns[selectedTable.value]?.map((col) => ({
+                          value: col,
+                          label: col,
+                        })) || []
+                      : []
+                  }
+                  value={condition.column}
+                  onChange={(value) => onWhereColumnSelect(value, index)}
+                  placeholder="Column"
+                  isClearable
+                  isDisabled={!selectedTable || metadataLoading}
+                  styles={selectStyles}
+                  className="min-w-0 w-full"
+                />
+              </div>
+
+              <div className="flex flex-col gap-1 w-full">
+                <label
+                  htmlFor={`where-operator-${index}`}
+                  className="text-xs text-[#f8f9fa]"
+                >
+                  Operator
+                </label>
+                <CreatableSelect
+                  inputId={`where-operator-${index}`}
+                  instanceId={`where-operator-${index}`}
+                  aria-label={`Select operator for condition ${index + 1}`}
+                  options={operatorOptions}
+                  value={condition.operator}
+                  onChange={(value) => onOperatorSelect(value, index)}
+                  placeholder="Operator"
+                  isClearable
+                  isDisabled={!condition.column || metadataLoading}
+                  styles={selectStyles}
+                  className="min-w-0 w-full"
+                />
+              </div>
+
+              <div className="flex flex-col gap-1 w-full">
+                <label
+                  htmlFor={`where-value-${index}`}
+                  className="text-xs text-[#f8f9fa]"
+                >
+                  Value
+                </label>
+                <CreatableSelect
+                  inputId={`where-value-${index}`}
+                  instanceId={`where-value-${index}`}
+                  aria-label={`Select value for condition ${index + 1}`}
+                  options={valueOptions}
                   value={condition.value}
                   onChange={(value) => onValueSelect(value, index, false)}
-                  placeholder="Value 1"
+                  placeholder="Value"
                   isClearable
                   isDisabled={
                     !selectedTable ||
                     !condition.column ||
                     !condition.operator ||
+                    ["IS NULL", "IS NOT NULL"].includes(
+                      condition.operator?.value || ""
+                    ) ||
                     metadataLoading
                   }
                   styles={selectStyles}
@@ -137,58 +147,81 @@ export default function WhereClauseSelector({
                   formatCreateLabel={(inputValue) => inputValue}
                 />
               </div>
-              <div className="flex flex-col gap-1 w-1/4">
-                <label className="text-xs text-[#f8f9fa] mb-1">Value 2</label>
-                <CreatableSelect
-                  options={uniqueValues[`condition${index + 1}`]}
-                  value={condition.value2}
-                  onChange={(value) => onValueSelect(value, index, true)}
-                  placeholder="Value 2"
-                  isClearable
-                  isDisabled={
-                    !selectedTable ||
-                    !condition.column ||
-                    !condition.operator ||
-                    !condition.value ||
-                    metadataLoading
-                  }
-                  styles={selectStyles}
-                  className="min-w-0 w-full"
-                  formatCreateLabel={(inputValue) => inputValue}
-                />
-              </div>
-            </>
-          ) : (
-            <div
-              className={
-                index === 0
-                  ? "flex flex-col gap-1 w-1/2"
-                  : "flex flex-col gap-1 w-1/4"
-              }
-            >
-              <label className="text-xs text-[#f8f9fa] mb-1">Value</label>
-              <CreatableSelect
-                options={uniqueValues[`condition${index + 1}`]}
-                value={condition.value}
-                onChange={(value) => onValueSelect(value, index, false)}
-                placeholder="Value"
-                isClearable
-                isDisabled={
-                  !selectedTable ||
-                  !condition.column ||
-                  !condition.operator ||
-                  condition.operator?.value === "IS NULL" ||
-                  condition.operator?.value === "IS NOT NULL" ||
-                  metadataLoading
-                }
-                styles={selectStyles}
-                className="min-w-0 w-full"
-                formatCreateLabel={(inputValue) => inputValue}
-              />
+
+              {condition.operator?.value === "BETWEEN" && (
+                <div className="flex flex-col gap-1 w-full">
+                  <label
+                    htmlFor={`where-value2-${index}`}
+                    className="text-xs text-[#f8f9fa]"
+                  >
+                    Value 2
+                  </label>
+                  <CreatableSelect
+                    inputId={`where-value2-${index}`}
+                    instanceId={`where-value2-${index}`}
+                    aria-label={`Select second value for BETWEEN condition ${
+                      index + 1
+                    }`}
+                    options={valueOptions}
+                    value={condition.value2}
+                    onChange={(value) => onValueSelect(value, index, true)}
+                    placeholder="Value 2"
+                    isClearable
+                    isDisabled={
+                      !selectedTable ||
+                      !condition.column ||
+                      !condition.operator ||
+                      !condition.value ||
+                      metadataLoading
+                    }
+                    styles={selectStyles}
+                    className="min-w-0 w-full"
+                    formatCreateLabel={(inputValue) => inputValue}
+                  />
+                </div>
+              )}
+
+              {index === 0 && whereClause.conditions.length > 1 && (
+                <div className="flex flex-col gap-1 w-full">
+                  <label
+                    htmlFor={`where-logical-${index}`}
+                    className="text-xs text-[#f8f9fa]"
+                  >
+                    Logical
+                  </label>
+                  <CreatableSelect
+                    inputId={`where-logical-${index}`}
+                    instanceId={`where-logical-${index}`}
+                    aria-label={`Select logical operator for conditions group`}
+                    options={logicalOperatorOptions}
+                    value={condition.logicalOperator}
+                    onChange={onLogicalOperatorSelect}
+                    placeholder="Logical"
+                    isClearable
+                    isDisabled={metadataLoading}
+                    styles={selectStyles}
+                    className="min-w-0 w-full"
+                  />
+                </div>
+              )}
+
+              {whereClause.conditions.length > 1 && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => onDeleteCondition && onDeleteCondition(index)}
+                  className="text-red-300 hover:bg-transparent hover:text-red-400"
+                  aria-label={`Delete condition ${index + 1}`}
+                >
+                  <Trash2 className="w-5 h-5" />
+                </Button>
+              )}
             </div>
-          )}
-        </div>
-      ))}
+          </div>
+        );
+      })}
     </div>
   );
 }
+
+export default WhereClauseSelector;

@@ -1,8 +1,12 @@
 import { gql } from "@apollo/client";
 
-export const GET_SCHEMA = gql`
-  query GetSchema($tableSearch: String, $columnSearch: String, $limit: Int) {
-    schema(
+export const GET_SCHEMA_WITH_DATA = gql`
+  query GetSchemaWithData(
+    $tableSearch: String
+    $columnSearch: String
+    $limit: Int
+  ) {
+    schemaWithData(
       tableSearch: $tableSearch
       columnSearch: $columnSearch
       limit: $limit

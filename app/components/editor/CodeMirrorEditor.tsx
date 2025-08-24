@@ -10,30 +10,50 @@ import {
   defaultHighlightStyle,
   syntaxHighlighting,
 } from "@codemirror/language";
-import { ViewPlugin } from "@codemirror/view";
 import { format as formatSQL } from "sql-formatter";
 import { Button } from "@/components/ui/button";
 import { Maximize2, Minimize2, Wand2 } from "lucide-react";
 import { useSqlCompletion } from "@/app/hooks/useSqlCompletion";
 import { needsQuotes } from "@/app/utils/sqlCompletion/needsQuotes";
 import { stripQuotes } from "@/app/utils/sqlCompletion/stripQuotes";
-import { containsRestrictedKeywords } from "@/app/utils/restrictedKeywords";
 import { TableColumn, SelectOption } from "@/app/types/query";
+import { SingleValue } from "react-select";
+import { containsRestrictedKeywords } from "@/app/utils/restrictedKeywords";
 
 interface CodeMirrorEditorProps {
   query: string;
   tableNames: string[];
   tableColumns: TableColumn;
+  uniqueValues: Record<string, SelectOption[]>;
   onQueryChange: (query: string) => void;
   onTableSelect?: (value: SelectOption | null) => void;
+  onWhereColumnSelect?: (
+    value: SingleValue<SelectOption>,
+    conditionIndex: number
+  ) => void;
+  onOperatorSelect?: (
+    value: SingleValue<SelectOption>,
+    conditionIndex: number
+  ) => void;
+  onValueSelect?: (
+    value: SingleValue<SelectOption>,
+    conditionIndex: number,
+    isValue2: boolean
+  ) => void;
+  onLogicalOperatorSelect?: (value: SingleValue<SelectOption>) => void;
 }
 
 export default function CodeMirrorEditor({
   query,
   tableNames,
   tableColumns,
+  uniqueValues,
   onQueryChange,
   onTableSelect,
+  onWhereColumnSelect,
+  onOperatorSelect,
+  onValueSelect,
+  onLogicalOperatorSelect,
 }: CodeMirrorEditorProps) {
   const editorRef = useRef<EditorView | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -46,63 +66,18 @@ export default function CodeMirrorEditor({
   const sqlCompletion = useSqlCompletion(
     tableNames,
     tableColumns,
+    uniqueValues,
     stripQuotes,
     needsQuotes,
-    onTableSelect
+    onTableSelect,
+    onWhereColumnSelect,
+    onOperatorSelect,
+    onValueSelect,
+    onLogicalOperatorSelect
   );
 
   useEffect(() => {
     if (!containerRef.current || editorRef.current) return;
-
-    const updateQueryOnChange = ViewPlugin.define(
-      () => ({
-        update: (update) => {
-          if (!update.docChanged || isInitialRender.current) return;
-          const newQuery = update.state.doc.toString();
-
-          const tableMatch = newQuery.match(
-            /FROM\s+((?:"[\w]+"|'[\w]+'|[\w_]+))/i
-          );
-          let normalizedTable: string | null = null;
-          if (tableMatch && tableMatch[1]) {
-            normalizedTable = stripQuotes(tableMatch[1]);
-            if (!tableNames.includes(normalizedTable)) {
-              setError(`Invalid table name: ${normalizedTable}`);
-              return;
-            }
-          }
-
-          const columnMatch = newQuery.match(/SELECT\s+(.+?)\s+FROM/i);
-          if (columnMatch && columnMatch[1] && normalizedTable) {
-            const columns = columnMatch[1]
-              .split(",")
-              .map((col) => stripQuotes(col.trim()))
-              .filter((col) => col && col !== "*");
-            const invalidColumns = columns.filter(
-              (col) => !tableColumns[normalizedTable ?? ""]?.includes(col)
-            );
-            if (invalidColumns.length > 0) {
-              setError(
-                `Invalid column(s): ${invalidColumns.join(
-                  ", "
-                )} in table ${normalizedTable}`
-              );
-              return;
-            }
-          }
-
-          setError(null);
-          onQueryChange(newQuery);
-        },
-      }),
-      {
-        eventHandlers: {
-          mount: () => {
-            isInitialRender.current = false;
-          },
-        },
-      }
-    );
 
     const customTheme = EditorView.theme(
       {
@@ -177,25 +152,6 @@ export default function CodeMirrorEditor({
               return true;
             },
           },
-          {
-            key: isMac ? "Cmd-Enter" : "Ctrl-Enter",
-            run: () => {
-              const currentQuery =
-                editorRef.current?.state.doc.toString() || "";
-              if (!currentQuery.trim()) {
-                setError("Query cannot be empty.");
-                return true;
-              }
-              if (containsRestrictedKeywords(currentQuery)) {
-                setError(
-                  "Query contains restricted keywords that could modify the database."
-                );
-                return true;
-              }
-              console.log("Run query:", currentQuery);
-              return true;
-            },
-          },
           { key: "Ctrl-Space", run: startCompletion },
           indentWithTab,
           ...defaultKeymap,
@@ -205,13 +161,15 @@ export default function CodeMirrorEditor({
         drawSelection(),
         customTheme,
         syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
-        updateQueryOnChange,
+
         EditorView.lineWrapping,
       ],
     });
 
     const view = new EditorView({ state, parent: containerRef.current });
     editorRef.current = view;
+
+    isInitialRender.current = false;
 
     return () => {
       view.destroy();
@@ -223,8 +181,13 @@ export default function CodeMirrorEditor({
     sqlCompletion,
     tableNames,
     tableColumns,
+    uniqueValues,
     onQueryChange,
     onTableSelect,
+    onWhereColumnSelect,
+    onOperatorSelect,
+    onValueSelect,
+    onLogicalOperatorSelect,
     isMac,
   ]);
 
