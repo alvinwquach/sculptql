@@ -22,8 +22,11 @@ export default function TableSelector({
 
   return (
     <div className="flex flex-col gap-1">
-      <label className="text-xs text-[#f8f9fa] mb-1">Table</label>
+      <label htmlFor="table-selector" className="text-xs text-[#f8f9fa] mb-1">
+        Table
+      </label>
       <Select
+        inputId="table-selector"
         instanceId="table-selector"
         options={tableOptions}
         value={selectedTable}
@@ -33,6 +36,7 @@ export default function TableSelector({
         isDisabled={metadataLoading}
         styles={selectStyles}
         className="min-w-0 w-full"
+        aria-label="Select table"
       />
     </div>
   );
