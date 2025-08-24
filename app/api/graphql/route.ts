@@ -189,11 +189,13 @@ const resolvers = {
 
           // Step 2d: Fetch table data (values)
           let valuesQuery = `SELECT * FROM public.${table_name}`;
-          const valuesParams: any[] = [];
-          if (limit) {
+          const valuesParams: number[] = [];
+
+          if (typeof limit === "number") {
             valuesQuery += ` LIMIT $1`;
             valuesParams.push(limit);
           }
+
           const valuesResult = await client.query(valuesQuery, valuesParams);
           // Rows as JSON objects
           const values = valuesResult.rows;
