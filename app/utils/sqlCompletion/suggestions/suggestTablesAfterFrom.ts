@@ -1,6 +1,7 @@
 import { CompletionResult } from "@codemirror/autocomplete";
 import { Select, ColumnRefExpr } from "node-sql-parser";
-import { TableColumn } from "@/app/types/query";
+import { SelectOption, TableColumn } from "@/app/types/query";
+import { EditorView } from "codemirror";
 
 interface ColumnRefExprFixed extends Omit<ColumnRefExpr, "type"> {
   type: "column_ref";
@@ -38,7 +39,8 @@ export const suggestTablesAfterFrom = (
   stripQuotes: (s: string) => string,
   needsQuotes: (id: string) => boolean,
   tableColumns: TableColumn,
-  ast: Select | Select[] | null
+  ast: Select | Select[] | null,
+  onTableSelect?: (value: SelectOption | null) => void
 ): CompletionResult | null => {
   // PSEUDOCODE:
   // 1. Define type guards:
@@ -211,7 +213,19 @@ export const suggestTablesAfterFrom = (
         options: filteredTables.map((table) => ({
           label: table,
           type: "table",
-          apply: needsQuotes(table) ? `"${table}" ` : `${table} `,
+          apply: (view: EditorView) => {
+            const tableName = needsQuotes(table) ? `"${table}"` : table;
+            view.dispatch({
+              changes: {
+                from: word ? word.from : pos,
+                to: pos,
+                insert: `${tableName} `,
+              },
+            });
+            if (onTableSelect) {
+              onTableSelect({ value: table, label: table });
+            }
+          },
           detail: "Table name",
         })),
         filter: true,
@@ -314,7 +328,19 @@ export const suggestTablesAfterFrom = (
         options: filteredTables.map((table) => ({
           label: table,
           type: "table",
-          apply: needsQuotes(table) ? `"${table}" ` : `${table} `,
+          apply: (view: EditorView) => {
+            const tableName = needsQuotes(table) ? `"${table}"` : table;
+            view.dispatch({
+              changes: {
+                from: word ? word.from : pos,
+                to: pos,
+                insert: `${tableName} `,
+              },
+            });
+            if (onTableSelect) {
+              onTableSelect({ value: table, label: table });
+            }
+          },
           detail: "Table name",
         })),
         filter: true,
