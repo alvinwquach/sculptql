@@ -1,6 +1,6 @@
 import { CompletionResult } from "@codemirror/autocomplete";
 import { Select, TableExpr, From } from "node-sql-parser";
-import { TableColumn } from "@/app/types/query";
+import { SelectOption, TableColumn } from "@/app/types/query";
 import { suggestColumnsAfterSelect } from "./suggestColumnsAfterSelect";
 import { getAllColumns } from "../getAllColumns";
 import { suggestTablesAfterFrom } from "./suggestTablesAfterFrom";
@@ -9,6 +9,7 @@ import { suggestGroupByClause } from "./suggestGroupByClause";
 import { suggestJoinClause } from "./suggestJoinClause";
 import { suggestWhereClause } from "./suggestWhereClause";
 import { suggestUnionClause } from "./suggestUnionClause";
+import { SingleValue } from "react-select";
 
 export const suggestWithClause = (
   docText: string,
@@ -19,7 +20,22 @@ export const suggestWithClause = (
   tableNames: string[],
   tableColumns: TableColumn,
   stripQuotes: (s: string) => string,
-  needsQuotes: (id: string) => boolean
+  needsQuotes: (id: string) => boolean,
+  uniqueValues: Record<string, SelectOption[]>,
+  onWhereColumnSelect?: (
+    value: SingleValue<SelectOption>,
+    conditionIndex: number
+  ) => void,
+  onOperatorSelect?: (
+    value: SingleValue<SelectOption>,
+    conditionIndex: number
+  ) => void,
+  onValueSelect?: (
+    value: SingleValue<SelectOption>,
+    conditionIndex: number,
+    isValue2: boolean
+  ) => void,
+  onLogicalOperatorSelect?: (value: SingleValue<SelectOption>) => void
 ): CompletionResult | null => {
   // PSEUDOCODE:
   // 1. Define type guards for Select node and TableExpr
@@ -157,14 +173,19 @@ export const suggestWithClause = (
           ast
         ) ||
         suggestWhereClause(
-          subqueryText,
+          docText,
           currentWord,
           pos,
           word,
           tableColumns,
+          uniqueValues,
           stripQuotes,
           needsQuotes,
-          ast
+          ast,
+          onWhereColumnSelect,
+          onOperatorSelect,
+          onValueSelect,
+          onLogicalOperatorSelect
         ) ||
         suggestUnionClause(subqueryText, currentWord, pos, word, ast);
 
@@ -353,14 +374,19 @@ export const suggestWithClause = (
       ) ||
       suggestUnionClause(mainQueryText, currentWord, pos, word, ast) ||
       suggestWhereClause(
-        mainQueryText,
+        docText,
         currentWord,
         pos,
         word,
         tableColumns,
+        uniqueValues,
         stripQuotes,
         needsQuotes,
-        ast
+        ast,
+        onWhereColumnSelect,
+        onOperatorSelect,
+        onValueSelect,
+        onLogicalOperatorSelect
       ) || {
         from: word ? word.from : pos,
         options: [

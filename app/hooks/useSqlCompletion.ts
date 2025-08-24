@@ -25,7 +25,7 @@ import { SingleValue } from "react-select";
 export const useSqlCompletion = (
   tableNames: string[],
   tableColumns: TableColumn,
-  uniqueValues: Record<string, SelectOption[]>, // Add uniqueValues
+  uniqueValues: Record<string, SelectOption[]>,
   stripQuotes: (s: string) => string,
   needsQuotes: (id: string) => boolean,
   onTableSelect?: (value: SelectOption | null) => void,
@@ -84,7 +84,12 @@ export const useSqlCompletion = (
           tableNames,
           tableColumns,
           stripQuotes,
-          needsQuotes
+          needsQuotes,
+          uniqueValues,
+          onWhereColumnSelect,
+          onOperatorSelect,
+          onValueSelect,
+          onLogicalOperatorSelect
         ) ||
         suggestColumnsAfterSelect(
           docText,
@@ -136,7 +141,7 @@ export const useSqlCompletion = (
           pos,
           word,
           tableColumns,
-          uniqueValues, // Pass uniqueValues
+          uniqueValues,
           stripQuotes,
           needsQuotes,
           ast,
