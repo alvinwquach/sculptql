@@ -1,4 +1,3 @@
-// app/hooks/useSqlCompletion.tsx
 "use client";
 
 import { useCallback } from "react";
@@ -22,9 +21,12 @@ import { suggestCaseClause } from "@/app/utils/sqlCompletion/suggestions/suggest
 import { suggestWithClause } from "@/app/utils/sqlCompletion/suggestions/suggestWithClause";
 import { SingleValue } from "react-select";
 
+
 export const useSqlCompletion = (
   tableNames: string[],
   tableColumns: TableColumn,
+  selectedColumns: SelectOption[],
+
   uniqueValues: Record<string, SelectOption[]>,
   stripQuotes: (s: string) => string,
   needsQuotes: (id: string) => boolean,
@@ -97,6 +99,7 @@ export const useSqlCompletion = (
           pos,
           word,
           allColumns,
+          selectedColumns,
           needsQuotes,
           ast
         ) ||
