@@ -11,7 +11,7 @@ import {
 } from "@/app/types/query";
 import { selectStyles } from "../../utils/selectStyles";
 
-interface HavingClauseSelectorProps {
+interface HavingClauseSelectProps {
   tableColumns: TableColumn;
   selectedTable: SelectOption | null;
   joinClauses: JoinClause[];
@@ -34,7 +34,7 @@ const aggregateOptions: SelectOption[] = [
   { value: "MAX", label: "MAX" },
 ];
 
-export default function HavingClauseSelector({
+export default function HavingClauseSelect({
   tableColumns,
   selectedTable,
   joinClauses,
@@ -46,7 +46,7 @@ export default function HavingClauseSelector({
   onHavingValueChange,
   metadataLoading,
   operatorOptions,
-}: HavingClauseSelectorProps) {
+}: HavingClauseSelectProps) {
   const columnOptions = useMemo(() => {
     if (!selectedTable) return [];
     return [

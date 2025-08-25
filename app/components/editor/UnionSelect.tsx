@@ -6,7 +6,7 @@ import { X } from "lucide-react";
 import { SelectOption, UnionClause } from "@/app/types/query";
 import { selectStyles } from "../../utils/selectStyles";
 
-interface UnionSelectorProps {
+interface UnionSelectProps {
   selectedTable: SelectOption | null;
   tableNames: string[];
   unionClauses: UnionClause[];
@@ -19,7 +19,7 @@ interface UnionSelectorProps {
   metadataLoading: boolean;
 }
 
-export default function UnionSelector({
+export default function UnionSelect({
   selectedTable,
   tableNames,
   unionClauses,
@@ -27,7 +27,7 @@ export default function UnionSelector({
   onAddUnionClause,
   onRemoveUnionClause,
   metadataLoading,
-}: UnionSelectorProps) {
+}: UnionSelectProps) {
   const tableOptions: SelectOption[] = tableNames
     .filter((table) => table !== selectedTable?.value)
     .map((table) => ({ value: table, label: table }));

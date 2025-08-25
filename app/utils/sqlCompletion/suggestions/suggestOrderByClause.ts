@@ -15,7 +15,8 @@ export const suggestOrderByClause = (
   ast: Select | Select[] | null,
   onOrderBySelect?: (
     column: SingleValue<SelectOption>,
-    direction: SingleValue<SelectOption> | null
+    direction: SingleValue<SelectOption> | null,
+    limit?: SingleValue<SelectOption>
   ) => void
 ): CompletionResult | null => {
   // PSEUDOCODE
@@ -94,7 +95,6 @@ export const suggestOrderByClause = (
       }
     }
   } else {
-    // fallback: regex parse FROM
     const fromMatch = docText.match(/\bFROM\s+((?:"[\w]+"|'[\w]+'|[\w_]+))/i);
     selectedTable = fromMatch ? stripQuotes(fromMatch[1]) : null;
   }
@@ -104,11 +104,16 @@ export const suggestOrderByClause = (
     return null;
   }
 
-  // --- STEP 5: Suggest "ORDER BY" if not already present ---
+  // --- STEP 5: Suggest "ORDER BY" or "LIMIT" if not already present ---
   const hasOrderBy = /\bORDER\s+BY\b/i.test(docText);
+  const hasLimit = /\bLIMIT\b/i.test(docText);
   const afterTableOrWhereOrGroupByRegex =
     /\bFROM\s+((?:"[\w]+"|'[\w]+'|[\w_]+))(\s+(WHERE|GROUP\s+BY)\s+[^;]*?)?\s*(;)?$/i;
-  if (!hasOrderBy && afterTableOrWhereOrGroupByRegex.test(docText)) {
+  if (
+    !hasOrderBy &&
+    !hasLimit &&
+    afterTableOrWhereOrGroupByRegex.test(docText)
+  ) {
     return {
       from: word ? word.from : pos,
       options: [
@@ -118,7 +123,12 @@ export const suggestOrderByClause = (
           apply: " ORDER BY ",
           detail: "Sort results",
         },
-        // if in CTE, also suggest closing parenthesis
+        {
+          label: "LIMIT",
+          type: "keyword",
+          apply: " LIMIT ",
+          detail: "Limit the number of rows",
+        },
         ...(isInCteSubquery && parenCount > 0
           ? [
               {
@@ -131,7 +141,7 @@ export const suggestOrderByClause = (
           : []),
       ],
       filter: true,
-      validFor: /^(ORDER\s+BY|\))$/i,
+      validFor: /^(ORDER\s+BY|LIMIT|\))$/i,
     };
   }
 
@@ -148,8 +158,10 @@ export const suggestOrderByClause = (
       : [];
 
     // Case: user typed "ORDER BY " or "ORDER BY col1,"
+
     if (lastCharIsComma || orderByText === "") {
       // extract SELECT column list
+
       const selectMatch = docText.match(/SELECT\s+(.+?)\s+FROM/i);
       const selectColumns = selectMatch
         ? selectMatch[1]
@@ -159,6 +171,7 @@ export const suggestOrderByClause = (
         : [];
 
       // build suggestions for actual column names
+
       const columns = tableColumns[selectedTable].filter(
         (column) =>
           !currentOrderByItems.includes(column) &&
@@ -223,7 +236,7 @@ export const suggestOrderByClause = (
         })),
       ];
 
-      // only return if we actually have something to suggest
+      // only return if we have something to suggest
       if (options.length > 0) {
         return {
           from: word ? word.from : pos,
@@ -235,11 +248,11 @@ export const suggestOrderByClause = (
     }
   }
 
-  // --- STEP 7: After ORDER BY column, suggest ASC/DESC etc ---
+  // --- STEP 7: After ORDER BY column, suggest ASC/DESC, etc ---
   const afterOrderByItemRegex =
-    /\bORDER\s+BY\s+(.+?)(?:\s+(ASC|DESC))?(?=\s*(,|LIMIT|;|$))/i;
+    /\bORDER\s+BY\s+(.+?)(?:\s+(ASC|DESC))?(?=\s*(,|;|$))/i;
   const match = docText.match(afterOrderByItemRegex);
-  if (match) {
+  if (match && !hasLimit) {
     const lastItem = match[1].trim().split(",").pop()!;
     const isValidItem =
       !isNaN(parseInt(lastItem)) ||
@@ -284,14 +297,12 @@ export const suggestOrderByClause = (
           },
           detail: "Sort descending (Z-A)",
         },
-        // Suggest another ORDER BY column
         {
           label: ",",
           type: "text",
           apply: ", ",
           detail: "Add another ORDER BY column",
         },
-        // Suggest LIMIT
         {
           label: "LIMIT",
           type: "keyword",
@@ -307,7 +318,7 @@ export const suggestOrderByClause = (
         },
       ];
 
-      // Suggest closing paren if inside a CTE
+      // Suggest closen paren if inside a CTE
       if (isInCteSubquery && parenCount > 0) {
         options.push({
           label: ")",
@@ -326,6 +337,47 @@ export const suggestOrderByClause = (
     }
   }
 
-  // --- STEP 8: Nothing matched, no suggestions ---
+  // --- STEP 8: After LIMIT, suggest numeric values ---
+  const afterLimitRegex = /\bLIMIT\s*(\d*)\s*$/i;
+  const hasNumberAfterLimit = /\bLIMIT\s+\d+\b/i.test(docText);
+  if (afterLimitRegex.test(docText) && !hasNumberAfterLimit) {
+    const limitSuggestions = [
+      { value: "1", label: "1", detail: "Limit to 1 row" },
+      { value: "3", label: "3", detail: "Limit to 3 rows" },
+      { value: "5", label: "5", detail: "Limit to 5 rows" },
+      { value: "10", label: "10", detail: "Limit to 10 rows" },
+      { value: "25", label: "25", detail: "Limit to 25 rows" },
+      { value: "50", label: "50", detail: "Limit to 50 rows" },
+      { value: "100", label: "100", detail: "Limit to 100 rows" },
+    ];
+
+    return {
+      from: word ? word.from : pos,
+      options: limitSuggestions.map((suggestion) => ({
+        label: suggestion.label,
+        type: "text",
+        apply: (view: EditorView) => {
+          view.dispatch({
+            changes: {
+              from: word ? word.from : pos,
+              to: pos,
+              insert: `${suggestion.value} `,
+            },
+          });
+          if (onOrderBySelect) {
+            onOrderBySelect(null, null, {
+              value: suggestion.value,
+              label: suggestion.label,
+            });
+          }
+        },
+        detail: suggestion.detail,
+      })),
+      filter: true,
+      validFor: /^\d*$/,
+    };
+  }
+
+  // --- STEP 9: Nothing matched, no suggestions ---
   return null;
 };
