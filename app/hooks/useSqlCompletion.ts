@@ -12,7 +12,6 @@ import { suggestSelect } from "@/app/utils/sqlCompletion/suggestions/suggestSele
 import { suggestTablesAfterFrom } from "@/app/utils/sqlCompletion/suggestions/suggestTablesAfterFrom";
 import { suggestWhereClause } from "@/app/utils/sqlCompletion/suggestions/suggestWhereClause";
 import { suggestOrderByClause } from "@/app/utils/sqlCompletion/suggestions/suggestOrderByClause";
-import { suggestLimitClause } from "@/app/utils/sqlCompletion/suggestions/suggestLimitClause";
 import { suggestGroupByClause } from "@/app/utils/sqlCompletion/suggestions/suggestGroupByClause";
 import { suggestHavingClause } from "@/app/utils/sqlCompletion/suggestions/suggestHavingClause";
 import { suggestJoinClause } from "@/app/utils/sqlCompletion/suggestions/suggestJoinClause";
@@ -45,7 +44,8 @@ export const useSqlCompletion = (
   onLogicalOperatorSelect?: (value: SingleValue<SelectOption>) => void,
   onOrderBySelect?: (
     column: SingleValue<SelectOption>,
-    direction: SingleValue<SelectOption> | null
+    direction: SingleValue<SelectOption> | null,
+    limit?: SingleValue<SelectOption>
   ) => void
 ) => {
   const allColumns = getAllColumns(tableNames, tableColumns);
@@ -186,7 +186,6 @@ export const useSqlCompletion = (
           ast,
           onOrderBySelect
         ) ||
-        suggestLimitClause(docText, pos, word, tableNames) ||
         suggestUnionClause(docText, currentWord, pos, word, ast)
       );
     },

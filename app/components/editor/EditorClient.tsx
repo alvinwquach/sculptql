@@ -3,8 +3,8 @@
 import { useState, useCallback } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import TableSelect from "./TableSelect";
-import ColumnSelector from "./ColumnSelector";
-import WhereClauseSelector from "./WhereClauseSelector";
+import ColumnSelect from "./ColumnSelect";
+import WhereClauseSelect from "./WhereClauseSelect";
 import OrderByLimitSelect from "./OrderByLimitSelect";
 import CodeMirrorEditor from "./CodeMirrorEditor";
 import {
@@ -156,12 +156,20 @@ export default function EditorClient({ schema, error }: EditorClientProps) {
   const handleOrderBySelect = useCallback(
     (
       column: SingleValue<SelectOption>,
-      direction: SingleValue<SelectOption> | null
+      direction: SingleValue<SelectOption> | null,
+      limitValue?: SingleValue<SelectOption>
     ) => {
-      setOrderByClause({ column, direction });
-      updateQueryWithOrderByAndLimit({ column, direction }, limit);
+      if (limitValue) {
+        setLimit(limitValue);
+      } else {
+        setOrderByClause({ column, direction });
+      }
+      updateQueryWithOrderByAndLimit(
+        { column: column || orderByClause.column, direction },
+        limitValue || limit
+      );
     },
-    [limit, selectedTable, selectedColumns]
+    [orderByClause, limit, selectedTable, selectedColumns]
   );
 
   const handleOrderByColumnSelect = useCallback(
@@ -538,7 +546,7 @@ export default function EditorClient({ schema, error }: EditorClientProps) {
       }
 
       const limitMatch = normalizedQuery.match(/\bLIMIT\s+(\d+)/i);
-      if (limitMatch) {
+      if (limitMatch && /^\d+$/.test(limitMatch[1])) {
         const limitValue = limitMatch[1];
         setLimit({ value: limitValue, label: limitValue });
       } else {
@@ -569,14 +577,14 @@ export default function EditorClient({ schema, error }: EditorClientProps) {
               onTableSelect={handleTableSelect}
               metadataLoading={false}
             />
-            <ColumnSelector
+            <ColumnSelect
               selectedTable={selectedTable}
               tableColumns={tableColumns}
               selectedColumns={selectedColumns}
               onColumnSelect={handleColumnSelect}
               metadataLoading={false}
             />
-            <WhereClauseSelector
+            <WhereClauseSelect
               selectedTable={selectedTable}
               tableColumns={tableColumns}
               whereClause={whereClause}
