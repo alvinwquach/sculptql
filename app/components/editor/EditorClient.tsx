@@ -69,6 +69,7 @@ export default function EditorClient({ schema, error }: EditorClientProps) {
     { value: "IS NOT NULL", label: "IS NOT NULL" },
     { value: "BETWEEN", label: "BETWEEN" },
     { value: "AND", label: "AND" },
+    { value: "OR", label: "OR" },
   ];
 
   const logicalOperatorOptions: SelectOption[] = [
