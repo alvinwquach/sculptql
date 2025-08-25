@@ -285,6 +285,12 @@ export const suggestTablesAfterFrom = (
           apply: "GROUP BY ",
           detail: "Group results by column",
         },
+        {
+          label: "ORDER BY",
+          type: "keyword",
+          apply: "ORDER BY ",
+          detail: "Group results by column",
+        },
       ];
 
       return {

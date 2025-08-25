@@ -8,12 +8,12 @@ import { useQueryBuilder } from "./useQueryBuilder";
 import { useEditorSync } from "./useEditorSync";
 import CodeMirrorSetup from "./CodeMirrorSetup";
 import QueryTabs from "./QueryTabs";
-import TableSelector from "./TableSelector";
+import TableSelector from "./TableSelect";
 import WithSelector from "./WithSelector";
 import AggregateSelector from "./AggregateSelector";
 import ColumnSelector from "./ColumnSelector";
 import WhereClauseSelector from "./WhereClauseSelector";
-import OrderByLimitSelector from "./OrderByLimitSelector";
+import OrderByLimitSelect from "./OrderByLimitSelect";
 import JoinSelector from "./JoinSelector";
 import UnionSelector from "./UnionSelector";
 import CaseSelector from "./CaseSelector";
@@ -315,7 +315,7 @@ export default function EditorPane({
           metadataLoading={metadataLoading}
           operatorOptions={operatorOptions}
         />
-        <OrderByLimitSelector
+        <OrderByLimitSelect
           selectedTable={queryState.selectedTable}
           tableColumns={tableColumns}
           orderByClause={queryState.orderByClause}

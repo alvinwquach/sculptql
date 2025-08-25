@@ -1,6 +1,8 @@
-import { CompletionResult } from "@codemirror/autocomplete";
+import { CompletionResult, Completion } from "@codemirror/autocomplete";
 import { Select } from "node-sql-parser";
-import { TableColumn } from "@/app/types/query";
+import { TableColumn, SelectOption } from "@/app/types/query";
+import { SingleValue } from "react-select";
+import { EditorView } from "codemirror";
 
 export const suggestOrderByClause = (
   docText: string,
@@ -10,17 +12,48 @@ export const suggestOrderByClause = (
   tableColumns: TableColumn,
   stripQuotes: (s: string) => string,
   needsQuotes: (id: string) => boolean,
-  ast: Select | Select[] | null
+  ast: Select | Select[] | null,
+  onOrderBySelect?: (
+    column: SingleValue<SelectOption>,
+    direction: SingleValue<SelectOption> | null
+  ) => void
 ): CompletionResult | null => {
-  // PSEUDOCODE:
-  // 1. Define type guards for Select node and table reference
-  // 2. Extract table name from AST or regex
-  // 3. If after FROM, WHERE, or GROUP BY/HAVING and no ORDER BY, suggest ORDER BY
-  // 4. If after ORDER BY, suggest columns or column numbers
-  // 5. If after a valid ORDER BY column, suggest ASC, DESC, comma, LIMIT, or ;
-  // 6. If in a CTE subquery with unbalanced parentheses, include ) in suggestions
-  // 7. Return null if no suggestions apply
+  // PSEUDOCODE
+  // 1. Helper type checks
+  //    - isSelectNode → verify if AST node is a SELECT.
+  //    - isTableReference → verify if FROM clause references a table.
+  //
+  // 2. Handle CTEs (WITH ... AS (...))
+  //    - Detect if user is inside a CTE subquery.
+  //    - Track parentheses to know if subquery is still open.
+  //
+  // 3. Determine selected table
+  //    - If AST is available, extract the table from FROM clause.
+  //    - Otherwise, fallback to regex parsing on docText.
+  //
+  // 4. Early exit if no table or unknown columns.
+  //
+  // 5. Suggest "ORDER BY" keyword
+  //    - If query has no ORDER BY yet and cursor is right after FROM/WHERE/GROUP BY, suggest inserting ORDER BY.
+  //    - If inside a CTE with open parentheses, also suggest closing “)”.
+  //
+  // 6. After "ORDER BY" but before any column
+  //    - Suggest column names from the current table.
+  //    - Suggest column numbers (based on SELECT list).
+  //    - Filter out already used ORDER BY items.
+  //
+  // 7. After an ORDER BY column
+  //    - If user typed a valid column/number:
+  //        - Suggest ASC, DESC.
+  //        - Suggest comma (to add another ORDER BY).
+  //        - Suggest LIMIT or semicolon (end query).
+  //        - Suggest closing parenthesis if in a CTE.
+  //
+  // 8. If no case matches, return null (no suggestions).
+  //
+  // Returns: CompletionResult or null
 
+  // --- STEP 1: Helpers to identify SQL AST node types ---
   const isSelectNode = (node: unknown): node is Select =>
     !!node &&
     typeof node === "object" &&
@@ -36,6 +69,7 @@ export const suggestOrderByClause = (
     (typeof (fromItem as { table: unknown }).table === "string" ||
       (fromItem as { table: unknown }).table === null);
 
+  // --- STEP 2: Detect CTEs and unmatched parentheses ---
   const isInCteSubquery = /\bWITH\s+[\w"]*\s+AS\s*\(\s*SELECT\b.*$/i.test(
     docText
   );
@@ -43,6 +77,7 @@ export const suggestOrderByClause = (
     ? (docText.match(/\(/g) || []).length - (docText.match(/\)/g) || []).length
     : 0;
 
+  // --- STEP 3: Extract table name (from AST if possible, else fallback to regex) ---
   let selectedTable: string | null = null;
   if (ast) {
     const selectNode = Array.isArray(ast)
@@ -59,17 +94,20 @@ export const suggestOrderByClause = (
       }
     }
   } else {
-    const fromMatch = docText.match(/\bFROM\s+(\w+)/i);
-    selectedTable = fromMatch ? fromMatch[1] : null;
+    // fallback: regex parse FROM
+    const fromMatch = docText.match(/\bFROM\s+((?:"[\w]+"|'[\w]+'|[\w_]+))/i);
+    selectedTable = fromMatch ? stripQuotes(fromMatch[1]) : null;
   }
 
+  // --- STEP 4: Exit early if no table or unknown table columns ---
   if (!selectedTable || !tableColumns[selectedTable]) {
     return null;
   }
 
+  // --- STEP 5: Suggest "ORDER BY" if not already present ---
   const hasOrderBy = /\bORDER\s+BY\b/i.test(docText);
   const afterTableOrWhereOrGroupByRegex =
-    /\bFROM\s+\w+(\s+(WHERE|GROUP\s+BY)\s+[^;]*?)?\s*$/i;
+    /\bFROM\s+((?:"[\w]+"|'[\w]+'|[\w_]+))(\s+(WHERE|GROUP\s+BY)\s+[^;]*?)?\s*(;)?$/i;
   if (!hasOrderBy && afterTableOrWhereOrGroupByRegex.test(docText)) {
     return {
       from: word ? word.from : pos,
@@ -77,15 +115,27 @@ export const suggestOrderByClause = (
         {
           label: "ORDER BY",
           type: "keyword",
-          apply: "ORDER BY ",
+          apply: " ORDER BY ",
           detail: "Sort results",
         },
+        // if in CTE, also suggest closing parenthesis
+        ...(isInCteSubquery && parenCount > 0
+          ? [
+              {
+                label: ")",
+                type: "keyword",
+                apply: ") ",
+                detail: "Close CTE subquery",
+              },
+            ]
+          : []),
       ],
       filter: true,
-      validFor: /^ORDER\s*BY$/i,
+      validFor: /^(ORDER\s+BY|\))$/i,
     };
   }
 
+  // --- STEP 6: After ORDER BY but before any column ---
   const afterOrderByRegex = /\bORDER\s+BY\s*([^;]*)$/i;
   if (afterOrderByRegex.test(docText)) {
     const orderByText = afterOrderByRegex.exec(docText)![1].trim();
@@ -97,7 +147,9 @@ export const suggestOrderByClause = (
           .filter((item) => item)
       : [];
 
+    // Case: user typed "ORDER BY " or "ORDER BY col1,"
     if (lastCharIsComma || orderByText === "") {
+      // extract SELECT column list
       const selectMatch = docText.match(/SELECT\s+(.+?)\s+FROM/i);
       const selectColumns = selectMatch
         ? selectMatch[1]
@@ -106,6 +158,7 @@ export const suggestOrderByClause = (
             .filter((col) => col)
         : [];
 
+      // build suggestions for actual column names
       const columns = tableColumns[selectedTable].filter(
         (column) =>
           !currentOrderByItems.includes(column) &&
@@ -119,6 +172,7 @@ export const suggestOrderByClause = (
             : true)
       );
 
+      // build suggestions for column positions (e.g., ORDER BY 1, 2)
       const columnNumberOptions = selectColumns
         .map((_, index) => index + 1)
         .filter(
@@ -127,21 +181,49 @@ export const suggestOrderByClause = (
             (currentWord ? num.toString().startsWith(currentWord) : true)
         );
 
-      const options = [
+      // build completion list
+      const options: Completion[] = [
         ...columns.map((column) => ({
           label: column,
           type: "field",
-          apply: needsQuotes(column) ? `"${column}" ` : `${column} `,
-          detail: `Column name (Position ${selectColumns.indexOf(column) + 1})`,
+          apply: (view: EditorView) => {
+            const columnName = needsQuotes(column)
+              ? `"${column}" `
+              : `${column} `;
+            view.dispatch({
+              changes: {
+                from: word ? word.from : pos,
+                to: pos,
+                insert: columnName,
+              },
+            });
+            if (onOrderBySelect) {
+              onOrderBySelect({ value: column, label: column }, null);
+            }
+          },
+          detail: `Column name (ORDER BY)`,
         })),
         ...columnNumberOptions.map((num) => ({
           label: num.toString(),
           type: "text",
-          apply: `${num} `,
+          apply: (view: EditorView) => {
+            const column = selectColumns[num - 1];
+            view.dispatch({
+              changes: {
+                from: word ? word.from : pos,
+                to: pos,
+                insert: `${num} `,
+              },
+            });
+            if (onOrderBySelect && column) {
+              onOrderBySelect({ value: column, label: column }, null);
+            }
+          },
           detail: `Column number (${selectColumns[num - 1] || "N/A"})`,
         })),
       ];
 
+      // only return if we actually have something to suggest
       if (options.length > 0) {
         return {
           from: word ? word.from : pos,
@@ -153,14 +235,12 @@ export const suggestOrderByClause = (
     }
   }
 
-  const afterOrderByItemRegex = /\bORDER\s+BY\s+([^;]+?)(\s*)$/i;
+  // --- STEP 7: After ORDER BY column, suggest ASC/DESC etc ---
+  const afterOrderByItemRegex =
+    /\bORDER\s+BY\s+(.+?)(?:\s+(ASC|DESC))?(?=\s*(,|LIMIT|;|$))/i;
   const match = docText.match(afterOrderByItemRegex);
   if (match) {
-    const orderByItems = match[1]
-      .split(",")
-      .map((item) => item.trim())
-      .filter((item) => item);
-    const lastItem = orderByItems[orderByItems.length - 1];
+    const lastItem = match[1].trim().split(",").pop()!;
     const isValidItem =
       !isNaN(parseInt(lastItem)) ||
       tableColumns[selectedTable].some(
@@ -169,39 +249,65 @@ export const suggestOrderByClause = (
       );
 
     if (isValidItem) {
-      const options = [
+      const options: Completion[] = [
+        // Suggest ASC
         {
           label: "ASC",
           type: "keyword",
-          apply: "ASC ",
-          detail: "Sort in ascending order",
+          apply: (view: EditorView) => {
+            view.dispatch({
+              changes: { from: pos, to: pos, insert: " ASC " },
+            });
+            if (onOrderBySelect) {
+              onOrderBySelect(
+                { value: stripQuotes(lastItem), label: stripQuotes(lastItem) },
+                { value: "ASC", label: "Ascending (A-Z, low-high)" }
+              );
+            }
+          },
+          detail: "Sort ascending (A-Z)",
         },
+        // Suggest DESC
         {
           label: "DESC",
           type: "keyword",
-          apply: "DESC ",
-          detail: "Sort in descending order",
+          apply: (view: EditorView) => {
+            view.dispatch({
+              changes: { from: pos, to: pos, insert: " DESC " },
+            });
+            if (onOrderBySelect) {
+              onOrderBySelect(
+                { value: stripQuotes(lastItem), label: stripQuotes(lastItem) },
+                { value: "DESC", label: "Descending (Z-A, high-low)" }
+              );
+            }
+          },
+          detail: "Sort descending (Z-A)",
         },
+        // Suggest another ORDER BY column
         {
           label: ",",
           type: "text",
           apply: ", ",
           detail: "Add another ORDER BY column",
         },
+        // Suggest LIMIT
         {
           label: "LIMIT",
           type: "keyword",
-          apply: "LIMIT ",
-          detail: "Limit the number of rows returned",
+          apply: " LIMIT ",
+          detail: "Limit the number of rows",
         },
+        // Suggest end of query
         {
           label: ";",
           type: "text",
           apply: ";",
-          detail: "Complete query",
+          detail: "End query",
         },
       ];
 
+      // Suggest closing paren if inside a CTE
       if (isInCteSubquery && parenCount > 0) {
         options.push({
           label: ")",
@@ -220,5 +326,6 @@ export const suggestOrderByClause = (
     }
   }
 
+  // --- STEP 8: Nothing matched, no suggestions ---
   return null;
 };

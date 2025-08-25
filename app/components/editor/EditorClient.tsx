@@ -2,11 +2,17 @@
 
 import { useState, useCallback } from "react";
 import { Card, CardContent } from "@/components/ui/card";
-import TableSelector from "./TableSelector";
+import TableSelect from "./TableSelect";
 import ColumnSelector from "./ColumnSelector";
 import WhereClauseSelector from "./WhereClauseSelector";
+import OrderByLimitSelect from "./OrderByLimitSelect";
 import CodeMirrorEditor from "./CodeMirrorEditor";
-import { TableSchema, SelectOption, WhereClause } from "@/app/types/query";
+import {
+  TableSchema,
+  SelectOption,
+  WhereClause,
+  OrderByClause,
+} from "@/app/types/query";
 import { needsQuotes } from "@/app/utils/sqlCompletion/needsQuotes";
 import { stripQuotes } from "@/app/utils/sqlCompletion/stripQuotes";
 import { SingleValue, MultiValue } from "react-select";
@@ -22,6 +28,11 @@ export default function EditorClient({ schema, error }: EditorClientProps) {
   const [whereClause, setWhereClause] = useState<WhereClause>({
     conditions: [{ column: null, operator: null, value: null, value2: null }],
   });
+  const [orderByClause, setOrderByClause] = useState<OrderByClause>({
+    column: null,
+    direction: null,
+  });
+  const [limit, setLimit] = useState<SelectOption | null>(null);
   const [query, setQuery] = useState<string>("");
 
   const tableNames = schema.map((table) => table.table_name);
@@ -79,15 +90,17 @@ export default function EditorClient({ schema, error }: EditorClientProps) {
 
   const handleTableSelect = useCallback((value: SelectOption | null) => {
     setSelectedTable(value);
-    setSelectedColumns([]); 
+    setSelectedColumns([]);
     setWhereClause({
       conditions: [{ column: null, operator: null, value: null, value2: null }],
     });
+    setOrderByClause({ column: null, direction: null });
+    setLimit(null);
     if (value) {
       const tableName = needsQuotes(value.value)
         ? `"${value.value}"`
         : value.value;
-      setQuery(`SELECT * FROM ${tableName};`);
+      setQuery(`SELECT * FROM ${tableName} `);
     } else {
       setQuery("");
     }
@@ -116,16 +129,69 @@ export default function EditorClient({ schema, error }: EditorClientProps) {
               )
               .join(", ");
 
-      let newQuery = `SELECT ${columnsString} FROM ${tableName}`;
+      let newQuery = `SELECT ${columnsString} FROM ${tableName} `;
 
-      const whereMatch = query.match(/\bWHERE\s+.*?(?=;*$)/i);
+      const whereMatch = query.match(
+        /\bWHERE\s+.*?(?=\b(ORDER\s+BY|LIMIT|;|$))/i
+      );
       if (whereMatch) {
         newQuery += ` ${whereMatch[0]}`;
+      }
+
+      const orderByMatch = query.match(/\bORDER\s+BY\s+.*?(?=\b(LIMIT|;|$))/i);
+      if (orderByMatch) {
+        newQuery += ` ${orderByMatch[0]}`;
+      }
+
+      const limitMatch = query.match(/\bLIMIT\s+\d+\s*?(?=;|$)/i);
+      if (limitMatch) {
+        newQuery += ` ${limitMatch[0]}`;
       }
 
       setQuery(`${newQuery};`);
     },
     [selectedTable, query]
+  );
+
+  const handleOrderBySelect = useCallback(
+    (
+      column: SingleValue<SelectOption>,
+      direction: SingleValue<SelectOption> | null
+    ) => {
+      setOrderByClause({ column, direction });
+      updateQueryWithOrderByAndLimit({ column, direction }, limit);
+    },
+    [limit, selectedTable, selectedColumns]
+  );
+
+  const handleOrderByColumnSelect = useCallback(
+    (value: SingleValue<SelectOption>) => {
+      setOrderByClause((prev) => ({ ...prev, column: value }));
+      updateQueryWithOrderByAndLimit(
+        { ...orderByClause, column: value },
+        limit
+      );
+    },
+    [orderByClause, limit, selectedTable, selectedColumns]
+  );
+
+  const handleOrderByDirectionSelect = useCallback(
+    (value: SingleValue<SelectOption>) => {
+      setOrderByClause((prev) => ({ ...prev, direction: value }));
+      updateQueryWithOrderByAndLimit(
+        { ...orderByClause, direction: value },
+        limit
+      );
+    },
+    [orderByClause, limit, selectedTable, selectedColumns]
+  );
+
+  const handleLimitSelect = useCallback(
+    (value: SingleValue<SelectOption>) => {
+      setLimit(value);
+      updateQueryWithOrderByAndLimit(orderByClause, value);
+    },
+    [orderByClause, selectedTable, selectedColumns]
   );
 
   const handleLogicalOperatorSelect = useCallback(
@@ -287,7 +353,7 @@ export default function EditorClient({ schema, error }: EditorClientProps) {
               )
               .join(", ");
 
-      let newQuery = `SELECT ${columnsString} FROM ${tableName}`;
+      let newQuery = `SELECT ${columnsString} FROM ${tableName} `;
 
       let whereClauseString = "";
       updatedWhereClause.conditions.forEach((condition, index) => {
@@ -326,14 +392,77 @@ export default function EditorClient({ schema, error }: EditorClientProps) {
         newQuery += ` WHERE ${whereClauseString}`;
       }
 
+      if (orderByClause.column) {
+        const columnName = needsQuotes(orderByClause.column.value)
+          ? `"${orderByClause.column.value}"`
+          : orderByClause.column.value;
+        const direction = orderByClause.direction?.value || "";
+        newQuery += ` ORDER BY ${columnName} ${direction}`.trim();
+      }
+
+      if (limit) {
+        newQuery += ` LIMIT ${limit.value}`;
+      }
+
       setQuery(`${newQuery};`);
     },
-    [selectedTable, selectedColumns]
+    [selectedTable, selectedColumns, orderByClause, limit]
+  );
+
+  const updateQueryWithOrderByAndLimit = useCallback(
+    (updatedOrderBy: OrderByClause, updatedLimit: SelectOption | null) => {
+      if (!selectedTable) return;
+
+      const tableName = needsQuotes(selectedTable.value)
+        ? `"${selectedTable.value}"`
+        : selectedTable.value;
+
+      const columnsString =
+        selectedColumns.length === 0 ||
+        selectedColumns.some((col) => col.value === "*")
+          ? "*"
+          : selectedColumns
+              .map((col) =>
+                needsQuotes(col.value) ? `"${col.value}"` : col.value
+              )
+              .join(", ");
+
+      let newQuery = `SELECT ${columnsString} FROM ${tableName} `;
+
+      const whereMatch = query.match(
+        /\bWHERE\s+.*?(?=\b(ORDER\s+BY|LIMIT|;|$))/i
+      );
+      if (whereMatch) {
+        newQuery += ` ${whereMatch[0]}`;
+      }
+
+      if (updatedOrderBy.column) {
+        const columnName = needsQuotes(updatedOrderBy.column.value)
+          ? `"${updatedOrderBy.column.value}"`
+          : updatedOrderBy.column.value;
+        const direction = updatedOrderBy.direction?.value || "";
+        newQuery += ` ORDER BY ${columnName} ${direction}`.trim();
+      }
+
+      if (updatedLimit) {
+        newQuery += ` LIMIT ${updatedLimit.value}`;
+      }
+
+      setQuery(`${newQuery};`);
+    },
+    [selectedTable, selectedColumns, query]
   );
 
   const handleQueryChange = useCallback(
     (newQuery: string) => {
-      const normalizedQuery = newQuery.replace(/;+$/, "").trim() + ";";
+      let normalizedQuery = newQuery.replace(/;+$/, "").trim();
+      normalizedQuery = normalizedQuery.replace(
+        /\bFROM\s+([a-zA-Z_][a-zA-Z0-9_"]*)\s*(ORDER\s+BY|LIMIT|;|$)/i,
+        (match, tableName, suffix) => {
+          return `FROM ${tableName} ${suffix}`;
+        }
+      );
+      normalizedQuery = `${normalizedQuery};`;
       setQuery(normalizedQuery);
 
       const tableMatch = normalizedQuery.match(
@@ -352,6 +481,8 @@ export default function EditorClient({ schema, error }: EditorClientProps) {
               { column: null, operator: null, value: null, value2: null },
             ],
           });
+          setOrderByClause({ column: null, direction: null });
+          setLimit(null);
         }
       } else if (!tableMatch && selectedTable) {
         setSelectedTable(null);
@@ -361,6 +492,8 @@ export default function EditorClient({ schema, error }: EditorClientProps) {
             { column: null, operator: null, value: null, value2: null },
           ],
         });
+        setOrderByClause({ column: null, direction: null });
+        setLimit(null);
       }
 
       const selectMatch = normalizedQuery.match(/SELECT\s+(.+?)\s+FROM/i);
@@ -378,6 +511,38 @@ export default function EditorClient({ schema, error }: EditorClientProps) {
             .map((col) => ({ value: col, label: col }));
           setSelectedColumns(parsedColumns);
         }
+      }
+
+      const orderByMatch = normalizedQuery.match(
+        /\bORDER\s+BY\s+((?:"[\w]+"|'[\w]+'|[\w_]+)\s*(ASC|DESC)?)(?=\b(LIMIT|;|$))/i
+      );
+
+      if (orderByMatch && selectedTable) {
+        const column = stripQuotes(orderByMatch[1]);
+        if (tableColumns[selectedTable.value].includes(column)) {
+          setOrderByClause({
+            column: { value: column, label: column },
+            direction: orderByMatch[2]
+              ? {
+                  value: orderByMatch[2],
+                  label:
+                    orderByMatch[2] === "ASC"
+                      ? "Ascending (A-Z, low-high)"
+                      : "Descending (Z-A, high-low)",
+                }
+              : null,
+          });
+        }
+      } else {
+        setOrderByClause({ column: null, direction: null });
+      }
+
+      const limitMatch = normalizedQuery.match(/\bLIMIT\s+(\d+)/i);
+      if (limitMatch) {
+        const limitValue = limitMatch[1];
+        setLimit({ value: limitValue, label: limitValue });
+      } else {
+        setLimit(null);
       }
 
       if (!normalizedQuery.match(/\bWHERE\b/i)) {
@@ -398,7 +563,7 @@ export default function EditorClient({ schema, error }: EditorClientProps) {
           <p className="text-red-300">{error}</p>
         ) : (
           <div className="space-y-4">
-            <TableSelector
+            <TableSelect
               tableNames={tableNames}
               selectedTable={selectedTable}
               onTableSelect={handleTableSelect}
@@ -426,6 +591,17 @@ export default function EditorClient({ schema, error }: EditorClientProps) {
               joinClauses={[]}
               onDeleteCondition={handleDeleteCondition}
             />
+            <OrderByLimitSelect
+              selectedTable={selectedTable}
+              tableColumns={tableColumns}
+              orderByClause={orderByClause}
+              limit={limit}
+              onOrderByColumnSelect={handleOrderByColumnSelect}
+              onOrderByDirectionSelect={handleOrderByDirectionSelect}
+              onLimitSelect={handleLimitSelect}
+              metadataLoading={false}
+              joinClauses={[]}
+            />
             <CodeMirrorEditor
               selectedColumns={selectedColumns}
               uniqueValues={uniqueValues}
@@ -438,6 +614,7 @@ export default function EditorClient({ schema, error }: EditorClientProps) {
               onOperatorSelect={handleOperatorSelect}
               onValueSelect={handleValueSelect}
               onLogicalOperatorSelect={handleLogicalOperatorSelect}
+              onOrderBySelect={handleOrderBySelect}
             />
           </div>
         )}
