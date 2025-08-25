@@ -11,7 +11,7 @@ import {
 } from "@/app/types/query";
 import { selectStyles } from "../../utils/selectStyles";
 
-interface OrderByLimitSelectorProps {
+interface OrderByLimitSelectProps {
   selectedTable: SelectOption | null;
   tableColumns: TableColumn;
   orderByClause: OrderByClause;
@@ -23,7 +23,7 @@ interface OrderByLimitSelectorProps {
   joinClauses: JoinClause[];
 }
 
-export default function OrderByLimitSelector({
+export default function OrderByLimitSelect({
   selectedTable,
   tableColumns,
   orderByClause,
@@ -33,20 +33,20 @@ export default function OrderByLimitSelector({
   onLimitSelect,
   metadataLoading,
   joinClauses,
-}: OrderByLimitSelectorProps) {
+}: OrderByLimitSelectProps) {
   const columnOptions: SelectOption[] = selectedTable
     ? [
         ...(tableColumns[selectedTable.value]?.map((col) => ({
-          value: `${selectedTable.value}.${col}`,
-          label: `${selectedTable.value}.${col}`,
+          value: col,
+          label: col,
         })) || []),
         ...joinClauses
           .filter((join) => join.table?.value)
           .flatMap(
             (join) =>
               tableColumns[join.table!.value]?.map((col) => ({
-                value: `${join.table!.value}.${col}`,
-                label: `${join.table!.value}.${col}`,
+                value: col,
+                label: col,
               })) || []
           ),
       ]

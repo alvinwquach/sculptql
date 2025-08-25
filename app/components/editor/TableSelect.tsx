@@ -2,7 +2,7 @@ import Select, { SingleValue } from "react-select";
 import { SelectOption } from "@/app/types/query";
 import { selectStyles } from "../../utils/selectStyles";
 
-interface TableSelectorProps {
+interface TableSelectProps {
   tableNames: string[];
   selectedTable: SelectOption | null;
   onTableSelect: (value: SingleValue<SelectOption>) => void;
@@ -14,7 +14,7 @@ export default function TableSelector({
   selectedTable,
   onTableSelect,
   metadataLoading,
-}: TableSelectorProps) {
+}: TableSelectProps) {
   const tableOptions: SelectOption[] = tableNames.map((name) => ({
     value: name,
     label: name,

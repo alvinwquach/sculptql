@@ -5,7 +5,7 @@ import Select, { MultiValue } from "react-select";
 import { SelectOption } from "@/app/types/query";
 import { selectStyles } from "@/app/utils/selectStyles";
 
-interface ColumnSelectorProps {
+interface ColumnSelectProps {
   selectedTable: SelectOption | null;
   tableColumns: Record<string, string[]>;
   selectedColumns: SelectOption[];
@@ -13,13 +13,13 @@ interface ColumnSelectorProps {
   metadataLoading: boolean;
 }
 
-export default function ColumnSelector({
+export default function ColumnSelect({
   selectedTable,
   tableColumns,
   selectedColumns,
   onColumnSelect,
   metadataLoading,
-}: ColumnSelectorProps) {
+}: ColumnSelectProps) {
   const columnOptions: SelectOption[] = useMemo(() => {
     const options = selectedTable
       ? [

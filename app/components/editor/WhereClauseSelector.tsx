@@ -6,7 +6,7 @@ import { Trash2 } from "lucide-react";
 import { stripQuotes } from "@/app/utils/sqlCompletion/stripQuotes";
 import { selectStyles } from "@/app/utils/selectStyles";
 
-interface WhereClauseSelectorProps {
+interface WhereClauseSelectProps {
   selectedTable: SelectOption | null;
   tableColumns: Record<string, string[]>;
   whereClause: WhereClause;
@@ -32,7 +32,7 @@ interface WhereClauseSelectorProps {
   onDeleteCondition?: (index: number) => void;
 }
 
-function WhereClauseSelector({
+export default function WhereClauseSelect({
   selectedTable,
   tableColumns,
   whereClause,
@@ -46,7 +46,7 @@ function WhereClauseSelector({
   logicalOperatorOptions,
   joinClauses,
   onDeleteCondition,
-}: WhereClauseSelectorProps) {
+}: WhereClauseSelectProps) {
   return (
     <div className="space-y-2">
       {whereClause.conditions.map((condition, index) => {
@@ -223,5 +223,3 @@ function WhereClauseSelector({
     </div>
   );
 }
-
-export default WhereClauseSelector;

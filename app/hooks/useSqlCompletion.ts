@@ -21,12 +21,10 @@ import { suggestCaseClause } from "@/app/utils/sqlCompletion/suggestions/suggest
 import { suggestWithClause } from "@/app/utils/sqlCompletion/suggestions/suggestWithClause";
 import { SingleValue } from "react-select";
 
-
 export const useSqlCompletion = (
   tableNames: string[],
   tableColumns: TableColumn,
   selectedColumns: SelectOption[],
-
   uniqueValues: Record<string, SelectOption[]>,
   stripQuotes: (s: string) => string,
   needsQuotes: (id: string) => boolean,
@@ -44,7 +42,11 @@ export const useSqlCompletion = (
     conditionIndex: number,
     isValue2: boolean
   ) => void,
-  onLogicalOperatorSelect?: (value: SingleValue<SelectOption>) => void
+  onLogicalOperatorSelect?: (value: SingleValue<SelectOption>) => void,
+  onOrderBySelect?: (
+    column: SingleValue<SelectOption>,
+    direction: SingleValue<SelectOption> | null
+  ) => void
 ) => {
   const allColumns = getAllColumns(tableNames, tableColumns);
 
@@ -181,7 +183,8 @@ export const useSqlCompletion = (
           tableColumns,
           stripQuotes,
           needsQuotes,
-          ast
+          ast,
+          onOrderBySelect
         ) ||
         suggestLimitClause(docText, pos, word, tableNames) ||
         suggestUnionClause(docText, currentWord, pos, word, ast)
@@ -191,12 +194,16 @@ export const useSqlCompletion = (
       allColumns,
       tableNames,
       tableColumns,
+      selectedColumns,
+      uniqueValues,
       stripQuotes,
       needsQuotes,
       onTableSelect,
       onWhereColumnSelect,
       onOperatorSelect,
       onValueSelect,
+      onLogicalOperatorSelect,
+      onOrderBySelect,
     ]
   );
 

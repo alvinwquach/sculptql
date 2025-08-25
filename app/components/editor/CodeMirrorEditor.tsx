@@ -23,7 +23,7 @@ interface CodeMirrorEditorProps {
   query: string;
   tableNames: string[];
   tableColumns: TableColumn;
-  selectedColumns: SelectOption[]; 
+  selectedColumns: SelectOption[];
   uniqueValues: Record<string, SelectOption[]>;
   onQueryChange: (query: string) => void;
   onTableSelect?: (value: SelectOption | null) => void;
@@ -41,13 +41,17 @@ interface CodeMirrorEditorProps {
     isValue2: boolean
   ) => void;
   onLogicalOperatorSelect?: (value: SingleValue<SelectOption>) => void;
+  onOrderBySelect?: (
+    column: SingleValue<SelectOption>,
+    direction: SingleValue<SelectOption> | null
+  ) => void;
 }
 
 export default function CodeMirrorEditor({
   query,
   tableNames,
   tableColumns,
-  selectedColumns, 
+  selectedColumns,
   uniqueValues,
   onQueryChange,
   onTableSelect,
@@ -55,6 +59,7 @@ export default function CodeMirrorEditor({
   onOperatorSelect,
   onValueSelect,
   onLogicalOperatorSelect,
+  onOrderBySelect,
 }: CodeMirrorEditorProps) {
   const editorRef = useRef<EditorView | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -67,7 +72,7 @@ export default function CodeMirrorEditor({
   const sqlCompletion = useSqlCompletion(
     tableNames,
     tableColumns,
-    selectedColumns, 
+    selectedColumns,
     uniqueValues,
     stripQuotes,
     needsQuotes,
@@ -75,7 +80,8 @@ export default function CodeMirrorEditor({
     onWhereColumnSelect,
     onOperatorSelect,
     onValueSelect,
-    onLogicalOperatorSelect
+    onLogicalOperatorSelect,
+    onOrderBySelect
   );
 
   useEffect(() => {
@@ -182,7 +188,7 @@ export default function CodeMirrorEditor({
     sqlCompletion,
     tableNames,
     tableColumns,
-    selectedColumns, 
+    selectedColumns,
     uniqueValues,
     onQueryChange,
     onTableSelect,
