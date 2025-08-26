@@ -47,7 +47,8 @@ export const useSqlCompletion = (
     direction: SingleValue<SelectOption> | null,
     limit?: SingleValue<SelectOption>
   ) => void,
-  onColumnSelect?: (value: MultiValue<SelectOption>) => void
+  onColumnSelect?: (value: MultiValue<SelectOption>) => void,
+  onDistinctSelect?: (value: boolean) => void
 ) => {
   const allColumns = getAllColumns(tableNames, tableColumns);
 
@@ -105,7 +106,8 @@ export const useSqlCompletion = (
           selectedColumns,
           needsQuotes,
           ast,
-          onColumnSelect
+          onColumnSelect,
+          onDistinctSelect
         ) ||
         suggestCaseClause(
           docText,

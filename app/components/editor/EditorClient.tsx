@@ -34,6 +34,7 @@ export default function EditorClient({ schema, error }: EditorClientProps) {
   });
   const [limit, setLimit] = useState<SelectOption | null>(null);
   const [query, setQuery] = useState<string>("");
+  const [isDistinct, setIsDistinct] = useState<boolean>(false);
 
   const tableNames = schema.map((table) => table.table_name);
 
@@ -108,7 +109,11 @@ export default function EditorClient({ schema, error }: EditorClientProps) {
                     needsQuotes(col.value) ? `"${col.value}"` : col.value
                   )
                   .join(", ");
-          setQuery(`SELECT ${columnsString} FROM ${tableName} `);
+          setQuery(
+            `SELECT${
+              isDistinct ? " DISTINCT" : ""
+            } ${columnsString} FROM ${tableName} `
+          );
         } else {
           const newQuery = currentQuery.replace(
             /\bFROM\s+([a-zA-Z_][a-zA-Z0-9_"]*)?(?=\s*(WHERE|ORDER\s+BY|LIMIT|;|$))/i,
@@ -134,7 +139,7 @@ export default function EditorClient({ schema, error }: EditorClientProps) {
                   needsQuotes(col.value) ? `"${col.value}"` : col.value
                 )
                 .join(", ");
-        setQuery(`SELECT ${columnsString} `);
+        setQuery(`SELECT${isDistinct ? " DISTINCT" : ""} ${columnsString} `);
         setWhereClause({
           conditions: [
             { column: null, operator: null, value: null, value2: null },
@@ -144,73 +149,88 @@ export default function EditorClient({ schema, error }: EditorClientProps) {
         setLimit(null);
       }
     },
-    [query, selectedColumns]
+    [query, selectedColumns, isDistinct]
   );
 
   const handleColumnSelect = useCallback(
     (value: MultiValue<SelectOption>) => {
-      const newSelectedColumns = value.some((col) => col.value === "*")
+      const newCols = value.some((col) => col.value === "*")
         ? [{ value: "*", label: "All Columns (*)" }]
         : value.filter((col) => col.value !== "*");
-      console.log("handleColumnSelect: newSelectedColumns", newSelectedColumns);
-      setSelectedColumns(newSelectedColumns);
 
-      let tableName = selectedTable
-        ? needsQuotes(selectedTable.value)
-          ? `"${selectedTable.value}"`
-          : selectedTable.value
-        : null;
+      setSelectedColumns(newCols);
 
-      if (!tableName) {
-        const tableMatch = query.match(/FROM\s+((?:"[\w]+"|'[\w]+'|[\w_]+))/i);
-        if (tableMatch && tableMatch[1]) {
-          tableName = stripQuotes(tableMatch[1]);
-          if (tableNames.includes(tableName)) {
-            setSelectedTable({ value: tableName, label: tableName });
-          }
-        }
-      }
-
-      const columnsString =
-        newSelectedColumns.length === 0 ||
-        newSelectedColumns.some((col) => col.value === "*")
+      const colsString =
+        newCols.length === 0
+          ? "" 
+          : newCols.some((col) => col.value === "*")
           ? "*"
-          : newSelectedColumns
+          : newCols
               .map((col) =>
                 needsQuotes(col.value) ? `"${col.value}"` : col.value
               )
               .join(", ");
 
-      // Always build newQuery from scratch using columnsString
-      let newQuery = `SELECT ${columnsString} `;
+      let newQuery = query.replace(
+        /^\s*SELECT\s+(DISTINCT\s+)?(.+?)(?=\s+FROM|\s*$)/i,
+        `SELECT ${isDistinct ? "DISTINCT " : ""}${colsString}`
+      );
 
-      if (tableName) {
-        newQuery = `SELECT ${columnsString} FROM ${tableName} `;
-
-        const whereMatch = query.match(
-          /\bWHERE\s+.*?(?=\b(ORDER\s+BY|LIMIT|;|$))/i
-        );
-        if (whereMatch) {
-          newQuery += ` ${whereMatch[0]}`;
-        }
-
-        const orderByMatch = query.match(
-          /\bORDER\s+BY\s+.*?(?=\b(LIMIT|;|$))/i
-        );
-        if (orderByMatch) {
-          newQuery += ` ${orderByMatch[0]}`;
-        }
-
-        const limitMatch = query.match(/\bLIMIT\s+\d+\s*?(?=;|$)/i);
-        if (limitMatch) {
-          newQuery += ` ${limitMatch[0]}`;
-        }
+      if (!/SELECT/i.test(newQuery)) {
+        const tableName = selectedTable
+          ? needsQuotes(selectedTable.value)
+            ? `"${selectedTable.value}"`
+            : selectedTable.value
+          : "";
+        newQuery = `SELECT ${isDistinct ? "DISTINCT " : ""}${colsString}${
+          tableName ? ` FROM ${tableName}` : ""
+        } `;
       }
 
-      console.log("handleColumnSelect: newQuery", newQuery);
-      setQuery(newQuery);
+      setQuery(newQuery.trim() + " ");
     },
-    [selectedTable, query, tableNames]
+    [query, selectedTable, isDistinct]
+  );
+
+  const handleDistinctSelect = useCallback((value: boolean) => {
+    setIsDistinct(value);
+    handleDistinctChange(value);
+  }, []);
+
+  const handleDistinctChange = useCallback(
+    (value: boolean) => {
+      setIsDistinct(value);
+
+      const colsString =
+        selectedColumns.length === 0
+          ? ""
+          : selectedColumns.some((col) => col.value === "*")
+          ? "*"
+          : selectedColumns
+              .map((col) =>
+                needsQuotes(col.value) ? `"${col.value}"` : col.value
+              )
+              .join(", ");
+
+      let newQuery = query.replace(
+        /^\s*SELECT\s+(DISTINCT\s+)?(.+?)(?=\s+FROM|\s*$)/i,
+        `SELECT ${value ? "DISTINCT " : ""}${colsString}`
+      );
+
+      if (!/SELECT/i.test(newQuery)) {
+        const tableName = selectedTable
+          ? needsQuotes(selectedTable.value)
+            ? `"${selectedTable.value}"`
+            : selectedTable.value
+          : "";
+        newQuery = `SELECT ${value ? "DISTINCT " : ""}${colsString}${
+          tableName ? ` FROM ${tableName}` : ""
+        } `;
+      }
+
+      setQuery(newQuery.trim() + " ");
+    },
+    [query, selectedColumns, selectedTable]
   );
 
   const handleOrderBySelect = useCallback(
@@ -421,7 +441,18 @@ export default function EditorClient({ schema, error }: EditorClientProps) {
               )
               .join(", ");
 
-      let newQuery = `SELECT ${columnsString} FROM ${tableName} `;
+      let newQuery = query.replace(
+        /^\s*SELECT\s+(DISTINCT\s+)?(.+?)(?=\s+FROM|\s*$)/i,
+        `SELECT ${isDistinct ? "DISTINCT " : ""}${columnsString}`
+      );
+
+      if (!newQuery.match(/\bSELECT\b/i)) {
+        newQuery = `SELECT ${isDistinct ? "DISTINCT " : ""}${columnsString} `;
+      }
+
+      if (!newQuery.match(/\bFROM\b/i)) {
+        newQuery += `FROM ${tableName} `;
+      }
 
       let whereClauseString = "";
       let isCompleteWhereClause = true;
@@ -472,6 +503,10 @@ export default function EditorClient({ schema, error }: EditorClientProps) {
       });
 
       if (whereClauseString) {
+        newQuery = newQuery.replace(
+          /\bWHERE\s+.*?(?=\b(ORDER\s+BY|LIMIT|;|$))/i,
+          ""
+        );
         newQuery += ` WHERE ${whereClauseString}`;
       }
 
@@ -493,7 +528,7 @@ export default function EditorClient({ schema, error }: EditorClientProps) {
           : `${newQuery} `
       );
     },
-    [selectedTable, selectedColumns, orderByClause, limit]
+    [selectedTable, selectedColumns, orderByClause, limit, query, isDistinct]
   );
 
   const updateQueryWithOrderByAndLimit = useCallback(
@@ -514,14 +549,31 @@ export default function EditorClient({ schema, error }: EditorClientProps) {
               )
               .join(", ");
 
-      let newQuery = `SELECT ${columnsString} FROM ${tableName} `;
+      let newQuery = query.replace(
+        /^\s*SELECT\s+(DISTINCT\s+)?(.+?)(?=\s+FROM|\s*$)/i,
+        `SELECT ${isDistinct ? "DISTINCT " : ""}${columnsString}`
+      );
+
+      if (!newQuery.match(/\bSELECT\b/i)) {
+        newQuery = `SELECT ${isDistinct ? "DISTINCT " : ""}${columnsString} `;
+      }
+
+      if (!newQuery.match(/\bFROM\b/i)) {
+        newQuery += `FROM ${tableName} `;
+      }
 
       const whereMatch = query.match(
         /\bWHERE\s+.*?(?=\b(ORDER\s+BY|LIMIT|;|$))/i
       );
       if (whereMatch) {
+        newQuery = newQuery.replace(
+          /\bWHERE\s+.*?(?=\b(ORDER\s+BY|LIMIT|;|$))/i,
+          ""
+        );
         newQuery += ` ${whereMatch[0]}`;
       }
+
+      newQuery = newQuery.replace(/\bORDER\s+BY\s+.*?(?=\b(LIMIT|;|$))/i, "");
 
       if (updatedOrderBy.column) {
         const columnName = needsQuotes(updatedOrderBy.column.value)
@@ -531,13 +583,14 @@ export default function EditorClient({ schema, error }: EditorClientProps) {
         newQuery += ` ORDER BY ${columnName} ${direction}`.trim();
       }
 
+      newQuery = newQuery.replace(/\bLIMIT\s+\d+\s*?(?=;|$)/i, "");
       if (updatedLimit) {
         newQuery += ` LIMIT ${updatedLimit.value}`;
       }
 
-      setQuery(`${newQuery};`);
+      setQuery(`${newQuery.trim()};`);
     },
-    [selectedTable, selectedColumns, query]
+    [selectedTable, selectedColumns, query, isDistinct]
   );
 
   const handleQueryChange = useCallback(
@@ -557,8 +610,10 @@ export default function EditorClient({ schema, error }: EditorClientProps) {
       } else {
         normalizedQuery = normalizedQuery ? `${normalizedQuery} ` : "";
       }
-      console.log("handleQueryChange: normalizedQuery", normalizedQuery);
       setQuery(normalizedQuery);
+
+      const isDistinctQuery = normalizedQuery.match(/\bSELECT\s+DISTINCT\b/i);
+      setIsDistinct(!!isDistinctQuery);
 
       const tableMatch = normalizedQuery.match(
         /FROM\s+((?:"[\w]+"|'[\w]+'|[\w_]+))/i
@@ -566,11 +621,9 @@ export default function EditorClient({ schema, error }: EditorClientProps) {
       const tableName = tableMatch ? stripQuotes(tableMatch[1]) : null;
       if (tableName && tableNames.includes(tableName)) {
         if (!selectedTable || selectedTable.value !== tableName) {
-          console.log("handleQueryChange: setting selectedTable", tableName);
           setSelectedTable({ value: tableName, label: tableName });
         }
       } else if (!normalizedQuery) {
-        console.log("handleQueryChange: clearing selectedTable and states");
         setSelectedTable(null);
         setSelectedColumns([]);
         setWhereClause({
@@ -580,30 +633,32 @@ export default function EditorClient({ schema, error }: EditorClientProps) {
         });
         setOrderByClause({ column: null, direction: null });
         setLimit(null);
+        setIsDistinct(false);
         return;
       }
 
       const selectMatch = normalizedQuery.match(
-        /SELECT\s+(.+?)(?=\s+FROM|\s*$)/i
+        /SELECT\s+(DISTINCT\s+)?(.+?)(?=\s+FROM|\s*$)/i
       );
-      if (selectMatch) {
-        const columnsStr = selectMatch[1].trim();
-        console.log("handleQueryChange: columnsStr", columnsStr);
+      if (selectMatch && tableName) {
+        const columnsStr = selectMatch[2].trim();
         if (columnsStr === "*" || columnsStr === "") {
-          console.log("handleQueryChange: setting selectedColumns to *");
           setSelectedColumns([{ value: "*", label: "All Columns (*)" }]);
         } else {
-          const parsedColumns = columnsStr
-            .split(",")
-            .map((col) => stripQuotes(col.trim()))
-            .filter(
-              (col) =>
-                col &&
-                (col === "*" ||
-                  (tableName && tableColumns[tableName]?.includes(col)))
-            )
-            .map((col) => ({ value: col, label: col }));
-          console.log("handleQueryChange: parsedColumns", parsedColumns);
+          // Improved column parsing to handle multiple columns with quotes
+          const columnRegex = /(?:"[^"]+"|'[^']+'|[a-zA-Z_][a-zA-Z0-9_]*)/g;
+          const parsedColumns = [];
+          let match;
+          while ((match = columnRegex.exec(columnsStr)) !== null) {
+            const col = stripQuotes(match[0]);
+            if (
+              col &&
+              (col === "*" ||
+                (tableName && tableColumns[tableName]?.includes(col)))
+            ) {
+              parsedColumns.push({ value: col, label: col });
+            }
+          }
           setSelectedColumns(
             parsedColumns.length > 0
               ? parsedColumns
@@ -611,7 +666,6 @@ export default function EditorClient({ schema, error }: EditorClientProps) {
           );
         }
       } else if (!normalizedQuery) {
-        console.log("handleQueryChange: no query, clearing selectedColumns");
         setSelectedColumns([]);
       }
 
@@ -728,7 +782,6 @@ export default function EditorClient({ schema, error }: EditorClientProps) {
       if (orderByMatch && tableName) {
         const column = stripQuotes(orderByMatch[1]);
         if (tableColumns[tableName]?.includes(column)) {
-          console.log("handleQueryChange: setting orderByClause", column);
           setOrderByClause({
             column: { value: column, label: column },
             direction: orderByMatch[2]
@@ -749,7 +802,6 @@ export default function EditorClient({ schema, error }: EditorClientProps) {
       const limitMatch = normalizedQuery.match(/\bLIMIT\s+(\d+)/i);
       if (limitMatch && /^\d+$/.test(limitMatch[1])) {
         const limitValue = limitMatch[1];
-        console.log("handleQueryChange: setting limit", limitValue);
         setLimit({ value: limitValue, label: limitValue });
       } else {
         setLimit(null);
@@ -757,6 +809,7 @@ export default function EditorClient({ schema, error }: EditorClientProps) {
     },
     [selectedTable, tableNames, tableColumns]
   );
+
   return (
     <Card className="mx-auto max-w-7xl bg-[#0f172a] border-slate-700/50 shadow-lg">
       <CardContent>
@@ -776,6 +829,8 @@ export default function EditorClient({ schema, error }: EditorClientProps) {
               selectedColumns={selectedColumns}
               onColumnSelect={handleColumnSelect}
               metadataLoading={false}
+              isDistinct={isDistinct}
+              onDistinctChange={handleDistinctChange}
             />
             <WhereClauseSelect
               selectedTable={selectedTable}
@@ -817,6 +872,7 @@ export default function EditorClient({ schema, error }: EditorClientProps) {
               onLogicalOperatorSelect={handleLogicalOperatorSelect}
               onOrderBySelect={handleOrderBySelect}
               onColumnSelect={handleColumnSelect}
+              onDistinctSelect={handleDistinctSelect}
             />
           </div>
         )}
