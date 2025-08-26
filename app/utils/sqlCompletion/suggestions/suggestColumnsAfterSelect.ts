@@ -14,7 +14,8 @@ export const suggestColumnsAfterSelect = (
   selectedColumns: SelectOption[],
   needsQuotes: (id: string) => boolean,
   ast: Select | Select[] | null,
-  onColumnSelect?: (value: MultiValue<SelectOption>) => void
+  onColumnSelect?: (value: MultiValue<SelectOption>) => void,
+  onDistinctSelect?: (value: boolean) => void
 ): CompletionResult | null => {
   // PSEUDOCODE:
   // 1. Check if query is after SELECT or SELECT DISTINCT (including in CTE or UNION)
@@ -191,9 +192,11 @@ export const suggestColumnsAfterSelect = (
     afterSelectColumnMatch
   ) {
     // Parse existing columns in the SELECT clause
-    const selectMatch = docText.match(/SELECT\s+(.+?)(?=\s+FROM|\s*$)/i);
+    const selectMatch = docText.match(
+      /SELECT\s+(DISTINCT\s+)?(.+?)(?=\s+FROM|\s*$)/i
+    );
     const existingColumns = selectMatch
-      ? selectMatch[1]
+      ? selectMatch[2]
           .split(",")
           .map((col) => stripQuotes(col.trim()))
           .filter((col) => col && (col === "*" || allColumns.includes(col)))
@@ -215,7 +218,42 @@ export const suggestColumnsAfterSelect = (
             {
               label: "DISTINCT",
               type: "keyword",
-              apply: "DISTINCT ",
+              apply: (
+                view: EditorView,
+                completion: Completion,
+                from: number,
+                to: number
+              ) => {
+                const currentQuery = view.state.doc.toString();
+                let newQuery = currentQuery;
+
+                if (newQuery.match(/^\s*SELECT\s+/i)) {
+                  // Insert DISTINCT after SELECT, preserving rest of the query
+                  const selectMatch = newQuery.match(/^\s*SELECT\s+/i);
+                  if (selectMatch) {
+                    const insertPos = selectMatch[0].length;
+                    newQuery =
+                      newQuery.slice(0, insertPos) +
+                      "DISTINCT " +
+                      newQuery.slice(insertPos);
+                  }
+                } else {
+                  // If no SELECT, add SELECT DISTINCT and preserve rest
+                  newQuery = `SELECT DISTINCT ${newQuery}`;
+                }
+
+                view.dispatch({
+                  changes: {
+                    from: 0,
+                    to: view.state.doc.length,
+                    insert: newQuery,
+                  },
+                });
+
+                if (onDistinctSelect) {
+                  onDistinctSelect(true);
+                }
+              },
               detail: "Select unique values",
             },
             {
@@ -263,14 +301,15 @@ export const suggestColumnsAfterSelect = (
                 from: number,
                 to: number
               ) => {
-                let newQuery = view.state.doc.toString();
-                if (newQuery.match(/^\s*SELECT\s+/i)) {
+                const currentQuery = view.state.doc.toString();
+                let newQuery = currentQuery;
+                if (newQuery.match(/^\s*SELECT\s+(DISTINCT\s+)?/i)) {
                   newQuery = newQuery.replace(
-                    /^\s*SELECT\s+[^ ]+/i,
-                    `SELECT * `
+                    /^\s*SELECT\s+(DISTINCT\s+)?/i,
+                    `SELECT ${isDistinctPresent ? "DISTINCT " : ""}* `
                   );
                 } else {
-                  newQuery = `SELECT * `;
+                  newQuery = `SELECT ${isDistinctPresent ? "DISTINCT " : ""}* `;
                 }
                 view.dispatch({
                   changes: {
@@ -303,26 +342,27 @@ export const suggestColumnsAfterSelect = (
             : `${column}, `;
           let newQuery = currentQuery;
 
-          if (newQuery.match(/^\s*SELECT\s+/i)) {
-            if (newQuery.match(/^\s*SELECT\s+\*\s*/i)) {
-              // Replace * with the column
+          if (newQuery.match(/^\s*SELECT\s+(DISTINCT\s+)?/i)) {
+            if (newQuery.match(/^\s*SELECT\s+(DISTINCT\s+)?\*\s*/i)) {
               newQuery = newQuery.replace(
-                /^\s*SELECT\s+\*\s*/i,
-                `SELECT ${applyText}`
+                /^\s*SELECT\s+(DISTINCT\s+)?\*\s*/i,
+                `SELECT ${isDistinctPresent ? "DISTINCT " : ""}${applyText}`
               );
             } else if (newQuery.match(/,\s*$/)) {
-              // Append after a comma
               newQuery = newQuery.replace(/,\s*$/, ` ${applyText}`);
             } else {
-              // Append the column to existing columns
               newQuery = newQuery.replace(
-                /^\s*SELECT\s+([^;]*?)(,)?\s*(FROM|$)/i,
-                (match, columns, comma, suffix) =>
-                  `SELECT ${columns}${comma || ""} ${applyText} ${suffix}`
+                /^\s*SELECT\s+(DISTINCT\s+)?([^;]*?)(,)?\s*(FROM|$)/i,
+                (match, distinct, columns, comma, suffix) =>
+                  `SELECT ${distinct || ""}${columns}${
+                    comma || ""
+                  } ${applyText} ${suffix}`
               );
             }
           } else {
-            newQuery = `SELECT ${applyText}`;
+            newQuery = `SELECT ${
+              isDistinctPresent ? "DISTINCT " : ""
+            }${applyText}`;
           }
 
           view.dispatch({
@@ -331,16 +371,9 @@ export const suggestColumnsAfterSelect = (
 
           if (onColumnSelect) {
             const newSelectedColumns = [
-              ...existingColumns
-                .filter((c) => c !== "*")
-                .map((c) => ({ value: c, label: c })),
+              ...selectedColumns.filter((c) => c.value !== "*"),
               { value: column, label: column },
             ];
-            console.log(
-              "Calling onColumnSelect for column:",
-              column,
-              newSelectedColumns
-            );
             onColumnSelect(newSelectedColumns);
           }
         },
@@ -348,7 +381,6 @@ export const suggestColumnsAfterSelect = (
       })),
     ];
 
-    // Suggest AS, FROM only after a column name, not after a comma
     if (afterColumnMatch && !afterSelectColumnMatch) {
       options.push(
         {
