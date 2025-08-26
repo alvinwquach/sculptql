@@ -17,7 +17,7 @@ import { useSqlCompletion } from "@/app/hooks/useSqlCompletion";
 import { needsQuotes } from "@/app/utils/sqlCompletion/needsQuotes";
 import { stripQuotes } from "@/app/utils/sqlCompletion/stripQuotes";
 import { TableColumn, SelectOption } from "@/app/types/query";
-import { SingleValue } from "react-select";
+import { MultiValue, SingleValue } from "react-select";
 
 interface CodeMirrorEditorProps {
   query: string;
@@ -45,6 +45,7 @@ interface CodeMirrorEditorProps {
     column: SingleValue<SelectOption>,
     direction: SingleValue<SelectOption> | null
   ) => void;
+  onColumnSelect?: (value: MultiValue<SelectOption>) => void;
 }
 
 export default function CodeMirrorEditor({
@@ -60,6 +61,7 @@ export default function CodeMirrorEditor({
   onValueSelect,
   onLogicalOperatorSelect,
   onOrderBySelect,
+  onColumnSelect,
 }: CodeMirrorEditorProps) {
   const editorRef = useRef<EditorView | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -81,7 +83,8 @@ export default function CodeMirrorEditor({
     onOperatorSelect,
     onValueSelect,
     onLogicalOperatorSelect,
-    onOrderBySelect
+    onOrderBySelect,
+    onColumnSelect
   );
 
   useEffect(() => {
