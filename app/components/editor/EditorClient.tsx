@@ -441,94 +441,64 @@ export default function EditorClient({ schema, error }: EditorClientProps) {
               )
               .join(", ");
 
-      let newQuery = query.replace(
-        /^\s*SELECT\s+(DISTINCT\s+)?(.+?)(?=\s+FROM|\s*$)/i,
-        `SELECT ${isDistinct ? "DISTINCT " : ""}${columnsString}`
-      );
+      let newQuery = `SELECT ${
+        isDistinct ? "DISTINCT " : ""
+      }${columnsString} FROM ${tableName}`;
 
-      if (!newQuery.match(/\bSELECT\b/i)) {
-        newQuery = `SELECT ${isDistinct ? "DISTINCT " : ""}${columnsString} `;
-      }
+      const conditionsStrings = updatedWhereClause.conditions
+        .filter((cond) => cond.column)
+        .map((cond, index) => {
+          const colName = needsQuotes(cond.column!.value)
+            ? `"${cond.column!.value}"`
+            : cond.column!.value;
+          const logicalOp =
+            index > 0 ? cond.logicalOperator?.value || "AND" : "";
+          if (!cond.operator) return `${logicalOp} ${colName}`.trim();
+          const op = cond.operator.value.toUpperCase();
 
-      if (!newQuery.match(/\bFROM\b/i)) {
-        newQuery += `FROM ${tableName} `;
-      }
-
-      let whereClauseString = "";
-      let isCompleteWhereClause = true;
-
-      updatedWhereClause.conditions.forEach((condition, index) => {
-        if (condition.column) {
-          const columnName = needsQuotes(condition.column.value)
-            ? `"${condition.column.value}"`
-            : condition.column.value;
-
-          const logicalPrefix =
-            index > 0 && updatedWhereClause.conditions[0].logicalOperator
-              ? `${updatedWhereClause.conditions[0].logicalOperator.value} `
-              : "";
-
-          if (condition.operator) {
-            if (
-              condition.operator.value === "IS NULL" ||
-              condition.operator.value === "IS NOT NULL"
-            ) {
-              whereClauseString += `${logicalPrefix}${columnName} ${condition.operator.value}`;
-            } else if (
-              condition.operator.value === "BETWEEN" &&
-              condition.value &&
-              condition.value2
-            ) {
-              const value1 = needsQuotes(condition.value.value)
-                ? `'${stripQuotes(condition.value.value)}'`
-                : condition.value.value;
-              const value2 = needsQuotes(condition.value2.value)
-                ? `'${stripQuotes(condition.value2.value)}'`
-                : condition.value2.value;
-              whereClauseString += `${logicalPrefix}${columnName} BETWEEN ${value1} AND ${value2}`;
-            } else if (condition.value) {
-              const value = needsQuotes(condition.value.value)
-                ? `'${stripQuotes(condition.value.value)}'`
-                : condition.value.value;
-              whereClauseString += `${logicalPrefix}${columnName} ${condition.operator.value} ${value}`;
-            } else {
-              whereClauseString += `${logicalPrefix}${columnName} ${condition.operator.value}`;
-              isCompleteWhereClause = false;
-            }
-          } else {
-            whereClauseString += `${logicalPrefix}${columnName}`;
-            isCompleteWhereClause = false;
+          if (op === "IS NULL" || op === "IS NOT NULL") {
+            return `${logicalOp} ${colName} ${op}`.trim();
           }
-        }
-      });
 
-      if (whereClauseString) {
-        newQuery = newQuery.replace(
-          /\bWHERE\s+.*?(?=\b(ORDER\s+BY|LIMIT|;|$))/i,
-          ""
-        );
-        newQuery += ` WHERE ${whereClauseString}`;
+          if (op === "BETWEEN" && cond.value && cond.value2) {
+            const val1 = needsQuotes(cond.value.value)
+              ? `'${stripQuotes(cond.value.value)}'`
+              : cond.value.value;
+            const val2 = needsQuotes(cond.value2.value)
+              ? `'${stripQuotes(cond.value2.value)}'`
+              : cond.value2.value;
+            return `${logicalOp} ${colName} BETWEEN ${val1} AND ${val2}`.trim();
+          }
+
+          if (cond.value) {
+            const val = needsQuotes(cond.value.value)
+              ? `'${stripQuotes(cond.value.value)}'`
+              : cond.value.value;
+            return `${logicalOp} ${colName} ${op} ${val}`.trim();
+          }
+
+          return `${logicalOp} ${colName} ${op}`.trim();
+        });
+
+      if (conditionsStrings.length > 0) {
+        newQuery += " WHERE " + conditionsStrings.join(" ");
       }
 
       if (orderByClause.column) {
-        const columnName = needsQuotes(orderByClause.column.value)
+        const col = needsQuotes(orderByClause.column.value)
           ? `"${orderByClause.column.value}"`
           : orderByClause.column.value;
-        const direction = orderByClause.direction?.value || "";
-        newQuery += ` ORDER BY ${columnName} ${direction}`.trim();
+        const dir = orderByClause.direction?.value || "";
+        newQuery += ` ORDER BY ${col} ${dir}`.trim();
       }
 
       if (limit) {
         newQuery += ` LIMIT ${limit.value}`;
       }
 
-      setQuery(
-        whereClauseString && isCompleteWhereClause
-          ? `${newQuery};`
-          : `${newQuery} `
-      );
+      setQuery(newQuery.trim() + ";");
     },
-    [selectedTable, selectedColumns, orderByClause, limit, query, isDistinct]
+    [selectedTable, selectedColumns, orderByClause, limit, isDistinct]
   );
 
   const updateQueryWithOrderByAndLimit = useCallback(
@@ -645,7 +615,6 @@ export default function EditorClient({ schema, error }: EditorClientProps) {
         if (columnsStr === "*" || columnsStr === "") {
           setSelectedColumns([{ value: "*", label: "All Columns (*)" }]);
         } else {
-          // Improved column parsing to handle multiple columns with quotes
           const columnRegex = /(?:"[^"]+"|'[^']+'|[a-zA-Z_][a-zA-Z0-9_]*)/g;
           const parsedColumns = [];
           let match;
