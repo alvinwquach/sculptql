@@ -424,6 +424,8 @@ export default function EditorClient({ schema, error }: EditorClientProps) {
       let newQuery = `SELECT ${columnsString} FROM ${tableName} `;
 
       let whereClauseString = "";
+      let isCompleteWhereClause = true;
+
       updatedWhereClause.conditions.forEach((condition, index) => {
         if (condition.column) {
           const columnName = needsQuotes(condition.column.value)
@@ -446,12 +448,25 @@ export default function EditorClient({ schema, error }: EditorClientProps) {
               condition.value &&
               condition.value2
             ) {
-              whereClauseString += `${logicalPrefix}${columnName} BETWEEN '${condition.value.value}' AND '${condition.value2.value}'`;
+              const value1 = needsQuotes(condition.value.value)
+                ? `'${stripQuotes(condition.value.value)}'`
+                : condition.value.value;
+              const value2 = needsQuotes(condition.value2.value)
+                ? `'${stripQuotes(condition.value2.value)}'`
+                : condition.value2.value;
+              whereClauseString += `${logicalPrefix}${columnName} BETWEEN ${value1} AND ${value2}`;
             } else if (condition.value) {
-              whereClauseString += `${logicalPrefix}${columnName} ${condition.operator.value} '${condition.value.value}'`;
+              const value = needsQuotes(condition.value.value)
+                ? `'${stripQuotes(condition.value.value)}'`
+                : condition.value.value;
+              whereClauseString += `${logicalPrefix}${columnName} ${condition.operator.value} ${value}`;
             } else {
               whereClauseString += `${logicalPrefix}${columnName} ${condition.operator.value}`;
+              isCompleteWhereClause = false;
             }
+          } else {
+            whereClauseString += `${logicalPrefix}${columnName}`;
+            isCompleteWhereClause = false;
           }
         }
       });
@@ -472,7 +487,11 @@ export default function EditorClient({ schema, error }: EditorClientProps) {
         newQuery += ` LIMIT ${limit.value}`;
       }
 
-      setQuery(`${newQuery};`);
+      setQuery(
+        whereClauseString && isCompleteWhereClause
+          ? `${newQuery};`
+          : `${newQuery} `
+      );
     },
     [selectedTable, selectedColumns, orderByClause, limit]
   );
@@ -544,21 +563,11 @@ export default function EditorClient({ schema, error }: EditorClientProps) {
       const tableMatch = normalizedQuery.match(
         /FROM\s+((?:"[\w]+"|'[\w]+'|[\w_]+))/i
       );
-      if (tableMatch && tableMatch[1]) {
-        const tableName = stripQuotes(tableMatch[1]);
-        if (
-          tableNames.includes(tableName) &&
-          (!selectedTable || selectedTable.value !== tableName)
-        ) {
+      const tableName = tableMatch ? stripQuotes(tableMatch[1]) : null;
+      if (tableName && tableNames.includes(tableName)) {
+        if (!selectedTable || selectedTable.value !== tableName) {
           console.log("handleQueryChange: setting selectedTable", tableName);
           setSelectedTable({ value: tableName, label: tableName });
-          setWhereClause({
-            conditions: [
-              { column: null, operator: null, value: null, value2: null },
-            ],
-          });
-          setOrderByClause({ column: null, direction: null });
-          setLimit(null);
         }
       } else if (!normalizedQuery) {
         console.log("handleQueryChange: clearing selectedTable and states");
@@ -571,6 +580,7 @@ export default function EditorClient({ schema, error }: EditorClientProps) {
         });
         setOrderByClause({ column: null, direction: null });
         setLimit(null);
+        return;
       }
 
       const selectMatch = normalizedQuery.match(
@@ -583,7 +593,6 @@ export default function EditorClient({ schema, error }: EditorClientProps) {
           console.log("handleQueryChange: setting selectedColumns to *");
           setSelectedColumns([{ value: "*", label: "All Columns (*)" }]);
         } else {
-          // Handle multiple commas, spaces, or invalid columns
           const parsedColumns = columnsStr
             .split(",")
             .map((col) => stripQuotes(col.trim()))
@@ -591,8 +600,7 @@ export default function EditorClient({ schema, error }: EditorClientProps) {
               (col) =>
                 col &&
                 (col === "*" ||
-                  (selectedTable &&
-                    tableColumns[selectedTable.value]?.includes(col)))
+                  (tableName && tableColumns[tableName]?.includes(col)))
             )
             .map((col) => ({ value: col, label: col }));
           console.log("handleQueryChange: parsedColumns", parsedColumns);
@@ -607,12 +615,119 @@ export default function EditorClient({ schema, error }: EditorClientProps) {
         setSelectedColumns([]);
       }
 
+      const whereMatch = normalizedQuery.match(
+        /\bWHERE\s+(.+?)(?=\b(ORDER\s+BY|LIMIT|;|$))/i
+      );
+      if (whereMatch && tableName) {
+        const whereClauseStr = whereMatch[1].trim();
+        const conditions: WhereClause["conditions"] = [];
+        const conditionParts = whereClauseStr.split(/\b(AND|OR)\b/i);
+
+        let currentLogicalOperator: SelectOption | null = null;
+        for (let i = 0; i < conditionParts.length; i++) {
+          const part = conditionParts[i].trim();
+          if (part.toUpperCase() === "AND" || part.toUpperCase() === "OR") {
+            currentLogicalOperator = {
+              value: part.toUpperCase(),
+              label: part.toUpperCase(),
+            };
+            continue;
+          }
+          if (part) {
+            const columnMatch = part.match(/^((?:"[\w]+"|'[\w]+'|[\w_]+))/i);
+            if (columnMatch) {
+              const column = stripQuotes(columnMatch[1]);
+              if (tableColumns[tableName]?.includes(column)) {
+                const condition: WhereClause["conditions"][0] = {
+                  column: { value: column, label: column },
+                  operator: null,
+                  value: null,
+                  value2: null,
+                  logicalOperator: i === 0 ? currentLogicalOperator : null,
+                };
+
+                const operatorMatch = part.match(
+                  /\b(=[!>=]?|<>|>|>=|<|<=|LIKE|IS\s+NULL|IS\s+NOT\s+NULL|BETWEEN)\b/i
+                );
+                if (operatorMatch) {
+                  const operator = operatorMatch[1].toUpperCase();
+                  condition.operator = { value: operator, label: operator };
+
+                  if (operator !== "IS NULL" && operator !== "IS NOT NULL") {
+                    const valueMatch = part.match(
+                      /\b(?:[=!><]=?|LIKE|BETWEEN)\s*('[^']*'|[0-9]+(?:\.[0-9]+)?)/i
+                    );
+                    if (valueMatch) {
+                      const value = stripQuotes(valueMatch[1]);
+                      condition.value = { value, label: value };
+
+                      if (operator === "BETWEEN") {
+                        const value2Match = part.match(
+                          /\bAND\s*('[^']*'|[0-9]+(?:\.[0-9]+)?)/i
+                        );
+                        if (value2Match) {
+                          const value2 = stripQuotes(value2Match[1]);
+                          condition.value2 = { value: value2, label: value2 };
+                        }
+                      }
+                    }
+                  }
+                }
+                conditions.push(condition);
+              }
+            }
+          }
+        }
+
+        if (conditions.length > 0) {
+          setWhereClause({ conditions });
+        } else {
+          const columnMatch = whereClauseStr.match(
+            /^((?:"[\w]+"|'[\w]+'|[\w_]+))/i
+          );
+          if (columnMatch && tableName) {
+            const column = stripQuotes(columnMatch[1]);
+            if (tableColumns[tableName]?.includes(column)) {
+              setWhereClause({
+                conditions: [
+                  {
+                    column: { value: column, label: column },
+                    operator: null,
+                    value: null,
+                    value2: null,
+                    logicalOperator: null,
+                  },
+                ],
+              });
+            } else {
+              setWhereClause({
+                conditions: [
+                  { column: null, operator: null, value: null, value2: null },
+                ],
+              });
+            }
+          } else {
+            setWhereClause({
+              conditions: [
+                { column: null, operator: null, value: null, value2: null },
+              ],
+            });
+          }
+        }
+      } else {
+        setWhereClause({
+          conditions: [
+            { column: null, operator: null, value: null, value2: null },
+          ],
+        });
+      }
+
       const orderByMatch = normalizedQuery.match(
         /\bORDER\s+BY\s+((?:"[\w]+"|'[\w]+'|[\w_]+)\s*(ASC|DESC)?)(?=\b(LIMIT|;|$))/i
       );
-      if (orderByMatch && selectedTable) {
+      if (orderByMatch && tableName) {
         const column = stripQuotes(orderByMatch[1]);
-        if (tableColumns[selectedTable.value]?.includes(column)) {
+        if (tableColumns[tableName]?.includes(column)) {
           console.log("handleQueryChange: setting orderByClause", column);
           setOrderByClause({
             column: { value: column, label: column },
@@ -639,144 +754,9 @@ export default function EditorClient({ schema, error }: EditorClientProps) {
       } else {
         setLimit(null);
       }
-
-      if (!normalizedQuery.match(/\bWHERE\b/i)) {
-        setWhereClause({
-          conditions: [
-            { column: null, operator: null, value: null, value2: null },
-          ],
-        });
-      }
     },
     [selectedTable, tableNames, tableColumns]
   );
-
-  // const handleQueryChange = useCallback(
-  //   (newQuery: string) => {
-  //     let normalizedQuery = newQuery.replace(/;+$/, "").trim();
-  //     normalizedQuery = normalizedQuery.replace(
-  //       /\bFROM\s+([a-zA-Z_][a-zA-Z0-9_"]*)\s*(ORDER\s+BY|LIMIT|;|$)/i,
-  //       (match, tableName, suffix) => {
-  //         return `FROM ${tableName} ${suffix}`;
-  //       }
-  //     );
-  //     if (
-  //       normalizedQuery.match(/\b(LIMIT\s+\d+|ORDER\s+BY\s+.*)$/i) &&
-  //       normalizedQuery
-  //     ) {
-  //       normalizedQuery = `${normalizedQuery};`;
-  //     } else {
-  //       normalizedQuery = normalizedQuery ? `${normalizedQuery} ` : "";
-  //     }
-  //     console.log("handleQueryChange: normalizedQuery", normalizedQuery);
-  //     setQuery(normalizedQuery);
-
-  //     const tableMatch = normalizedQuery.match(
-  //       /FROM\s+((?:"[\w]+"|'[\w]+'|[\w_]+))/i
-  //     );
-  //     if (tableMatch && tableMatch[1]) {
-  //       const tableName = stripQuotes(tableMatch[1]);
-  //       if (
-  //         tableNames.includes(tableName) &&
-  //         (!selectedTable || selectedTable.value !== tableName)
-  //       ) {
-  //         setSelectedTable({ value: tableName, label: tableName });
-  //         setWhereClause({
-  //           conditions: [
-  //             { column: null, operator: null, value: null, value2: null },
-  //           ],
-  //         });
-  //         setOrderByClause({ column: null, direction: null });
-  //         setLimit(null);
-  //       }
-  //     } else if (!normalizedQuery) {
-  //       setSelectedTable(null);
-  //       setSelectedColumns([]);
-  //       setWhereClause({
-  //         conditions: [
-  //           { column: null, operator: null, value: null, value2: null },
-  //         ],
-  //       });
-  //       setOrderByClause({ column: null, direction: null });
-  //       setLimit(null);
-  //     }
-
-  //     const selectMatch = normalizedQuery.match(
-  //       /SELECT\s+(.+?)(?=\s+FROM|\s*$)/i
-  //     );
-  //     if (selectMatch) {
-  //       const columnsStr = selectMatch[1].trim();
-  //       console.log("handleQueryChange: columnsStr", columnsStr);
-  //       if (columnsStr === "*" || columnsStr === "") {
-  //         console.log("handleQueryChange: setting selectedColumns to *");
-  //         setSelectedColumns([{ value: "*", label: "All Columns (*)" }]);
-  //       } else {
-  //         // Handle multiple commas or spaces
-  //         const parsedColumns = columnsStr
-  //           .split(",")
-  //           .map((col) => stripQuotes(col.trim()))
-  //           .filter(
-  //             (col) =>
-  //               col &&
-  //               (col === "*" ||
-  //                 (selectedTable &&
-  //                   tableColumns[selectedTable.value]?.includes(col)))
-  //           )
-  //           .map((col) => ({ value: col, label: col }));
-  //         console.log("handleQueryChange: parsedColumns", parsedColumns);
-  //         setSelectedColumns(
-  //           parsedColumns.length > 0
-  //             ? parsedColumns
-  //             : [{ value: "*", label: "All Columns (*)" }]
-  //         );
-  //       }
-  //     } else if (!normalizedQuery) {
-  //       console.log("handleQueryChange: no query, clearing selectedColumns");
-  //       setSelectedColumns([]);
-  //     }
-
-  //     const orderByMatch = normalizedQuery.match(
-  //       /\bORDER\s+BY\s+((?:"[\w]+"|'[\w]+'|[\w_]+)\s*(ASC|DESC)?)(?=\b(LIMIT|;|$))/i
-  //     );
-  //     if (orderByMatch && selectedTable) {
-  //       const column = stripQuotes(orderByMatch[1]);
-  //       if (tableColumns[selectedTable.value].includes(column)) {
-  //         setOrderByClause({
-  //           column: { value: column, label: column },
-  //           direction: orderByMatch[2]
-  //             ? {
-  //                 value: orderByMatch[2],
-  //                 label:
-  //                   orderByMatch[2] === "ASC"
-  //                     ? "Ascending (A-Z, low-high)"
-  //                     : "Descending (Z-A, high-low)",
-  //               }
-  //             : null,
-  //         });
-  //       }
-  //     } else {
-  //       setOrderByClause({ column: null, direction: null });
-  //     }
-
-  //     const limitMatch = normalizedQuery.match(/\bLIMIT\s+(\d+)/i);
-  //     if (limitMatch && /^\d+$/.test(limitMatch[1])) {
-  //       const limitValue = limitMatch[1];
-  //       setLimit({ value: limitValue, label: limitValue });
-  //     } else {
-  //       setLimit(null);
-  //     }
-
-  //     if (!normalizedQuery.match(/\bWHERE\b/i)) {
-  //       setWhereClause({
-  //         conditions: [
-  //           { column: null, operator: null, value: null, value2: null },
-  //         ],
-  //       });
-  //     }
-  //   },
-  //   [selectedTable, tableNames, tableColumns]
-  // );
-
   return (
     <Card className="mx-auto max-w-7xl bg-[#0f172a] border-slate-700/50 shadow-lg">
       <CardContent>
