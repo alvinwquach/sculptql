@@ -18,7 +18,7 @@ import { suggestJoinClause } from "@/app/utils/sqlCompletion/suggestions/suggest
 import { suggestUnionClause } from "@/app/utils/sqlCompletion/suggestions/suggestUnionClause";
 import { suggestCaseClause } from "@/app/utils/sqlCompletion/suggestions/suggestCaseClause";
 import { suggestWithClause } from "@/app/utils/sqlCompletion/suggestions/suggestWithClause";
-import { SingleValue } from "react-select";
+import { MultiValue, SingleValue } from "react-select";
 
 export const useSqlCompletion = (
   tableNames: string[],
@@ -46,7 +46,8 @@ export const useSqlCompletion = (
     column: SingleValue<SelectOption>,
     direction: SingleValue<SelectOption> | null,
     limit?: SingleValue<SelectOption>
-  ) => void
+  ) => void,
+  onColumnSelect?: (value: MultiValue<SelectOption>) => void
 ) => {
   const allColumns = getAllColumns(tableNames, tableColumns);
 
@@ -103,7 +104,8 @@ export const useSqlCompletion = (
           allColumns,
           selectedColumns,
           needsQuotes,
-          ast
+          ast,
+          onColumnSelect
         ) ||
         suggestCaseClause(
           docText,
