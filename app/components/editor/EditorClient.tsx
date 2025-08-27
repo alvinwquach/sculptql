@@ -14,10 +14,12 @@ import {
   WhereClause,
   OrderByClause,
   JoinClause,
+  HavingClause,
 } from "@/app/types/query";
 import { needsQuotes } from "@/app/utils/sqlCompletion/needsQuotes";
 import { stripQuotes } from "@/app/utils/sqlCompletion/stripQuotes";
 import { SingleValue, MultiValue } from "react-select";
+import HavingSelect from "./HavingSelect";
 
 interface EditorClientProps {
   schema: TableSchema[];
@@ -45,6 +47,183 @@ export default function EditorClient({
   const [limit, setLimit] = useState<SelectOption | null>(null);
   const [query, setQuery] = useState<string>("");
   const [isDistinct, setIsDistinct] = useState<boolean>(false);
+  const [havingClause, setHavingClause] = useState<HavingClause>({
+    condition: { aggregateColumn: null, operator: null, value: null },
+  });
+
+  const updateQueryFromHavingClause = useCallback(
+    (updatedHavingClause: HavingClause) => {
+      if (!selectedTable) return;
+
+      const tableName = needsQuotes(selectedTable.value)
+        ? `"${selectedTable.value}"`
+        : selectedTable.value;
+
+      const columnsString =
+        selectedColumns.length === 0 ||
+        selectedColumns.some((col) => col.value === "*")
+          ? "*"
+          : selectedColumns
+              .map((col) =>
+                col.aggregate
+                  ? col.value
+                  : needsQuotes(col.value)
+                  ? `"${col.value}"`
+                  : col.value
+              )
+              .join(", ");
+
+      let newQuery = `SELECT ${
+        isDistinct ? "DISTINCT " : ""
+      }${columnsString} FROM ${tableName}`;
+
+      const conditionsStrings = whereClause.conditions
+        .filter((cond) => cond.column)
+        .map((cond, index) => {
+          const colName = needsQuotes(cond.column!.value)
+            ? `"${cond.column!.value}"`
+            : cond.column!.value;
+          const logicalOp =
+            index > 0 ? cond.logicalOperator?.value || "AND" : "";
+          if (!cond.operator) return `${logicalOp} ${colName}`.trim();
+          const op = cond.operator.value.toUpperCase();
+
+          if (op === "IS NULL" || op === "IS NOT NULL") {
+            return `${logicalOp} ${colName} ${op}`.trim();
+          }
+
+          if (op === "BETWEEN" && cond.value && cond.value2) {
+            const val1 = needsQuotes(cond.value.value)
+              ? `'${stripQuotes(cond.value.value)}'`
+              : cond.value.value;
+            const val2 = needsQuotes(cond.value2.value)
+              ? `'${stripQuotes(cond.value2.value)}'`
+              : cond.value2.value;
+            return `${logicalOp} ${colName} BETWEEN ${val1} AND ${val2}`.trim();
+          }
+
+          if (cond.value) {
+            const val = needsQuotes(cond.value.value)
+              ? `'${stripQuotes(cond.value.value)}'`
+              : cond.value.value;
+            return `${logicalOp} ${colName} ${op} ${val}`.trim();
+          }
+
+          return `${logicalOp} ${colName} ${op}`.trim();
+        });
+
+      if (conditionsStrings.length > 0) {
+        newQuery += " WHERE " + conditionsStrings.join(" ");
+      }
+
+      if (selectedGroupByColumns.length > 0) {
+        const groupByString = selectedGroupByColumns
+          .map((col) => (needsQuotes(col.value) ? `"${col.value}"` : col.value))
+          .join(", ");
+        newQuery += ` GROUP BY ${groupByString}`;
+      }
+
+      if (updatedHavingClause.condition.aggregateColumn) {
+        const aggName = updatedHavingClause.condition.aggregateColumn.value;
+        let havingString = `HAVING ${aggName}`;
+        if (updatedHavingClause.condition.operator) {
+          const op = updatedHavingClause.condition.operator.value.toUpperCase();
+          havingString += ` ${op}`;
+          if (updatedHavingClause.condition.value) {
+            const val = needsQuotes(updatedHavingClause.condition.value.value)
+              ? `'${stripQuotes(updatedHavingClause.condition.value.value)}'`
+              : updatedHavingClause.condition.value.value;
+            havingString += ` ${val}`;
+          }
+        }
+        newQuery += ` ${havingString}`;
+      }
+
+      if (orderByClause.column) {
+        const col = needsQuotes(orderByClause.column.value)
+          ? `"${orderByClause.column.value}"`
+          : orderByClause.column.value;
+        const dir = orderByClause.direction?.value || "";
+        newQuery += ` ORDER BY ${col} ${dir}`.trim();
+      }
+
+      if (limit) {
+        newQuery += ` LIMIT ${limit.value}`;
+      }
+
+      newQuery = newQuery.trim();
+      if (
+        newQuery.match(/\b(FROM|WHERE|GROUP\s+BY|HAVING|ORDER\s+BY|LIMIT)\b/i)
+      ) {
+        newQuery += ";";
+      } else {
+        newQuery += " ";
+      }
+
+      console.log("Updated query from having clause:", newQuery);
+      setQuery(newQuery);
+    },
+    [
+      selectedTable,
+      selectedColumns,
+      selectedGroupByColumns,
+      whereClause,
+      orderByClause,
+      limit,
+      isDistinct,
+    ]
+  );
+
+  const handleAggregateColumnSelect = useCallback(
+    (value: SingleValue<SelectOption>) => {
+      setHavingClause((prev) => {
+        const updatedClause = {
+          condition: {
+            ...prev.condition,
+            aggregateColumn: value,
+            operator: null,
+            value: null,
+          },
+        };
+        updateQueryFromHavingClause(updatedClause);
+        return updatedClause;
+      });
+    },
+    [updateQueryFromHavingClause]
+  );
+
+  const handleHavingOperatorSelect = useCallback(
+    (value: SingleValue<SelectOption>) => {
+      setHavingClause((prev) => {
+        const updatedClause = {
+          condition: {
+            ...prev.condition,
+            operator: value,
+            value: null,
+          },
+        };
+        updateQueryFromHavingClause(updatedClause);
+        return updatedClause;
+      });
+    },
+    [updateQueryFromHavingClause]
+  );
+
+  const handleHavingValueSelect = useCallback(
+    (value: SingleValue<SelectOption>) => {
+      setHavingClause((prev) => {
+        const updatedClause = {
+          condition: {
+            ...prev.condition,
+            value,
+          },
+        };
+        updateQueryFromHavingClause(updatedClause);
+        return updatedClause;
+      });
+    },
+    [updateQueryFromHavingClause]
+  );
 
   const tableNames = schema.map((table) => table.table_name);
 
@@ -90,8 +269,6 @@ export default function EditorClient({
     { value: "IS NULL", label: "IS NULL" },
     { value: "IS NOT NULL", label: "IS NOT NULL" },
     { value: "BETWEEN", label: "BETWEEN" },
-    { value: "AND", label: "AND" },
-    { value: "OR", label: "OR" },
   ];
 
   const logicalOperatorOptions: SelectOption[] = [
@@ -103,6 +280,9 @@ export default function EditorClient({
     (value: SelectOption | null) => {
       setSelectedTable(value);
       setSelectedGroupByColumns([]);
+      setHavingClause({
+        condition: { aggregateColumn: null, operator: null, value: null },
+      });
 
       if (value) {
         const tableName = needsQuotes(value.value)
@@ -131,7 +311,7 @@ export default function EditorClient({
           );
         } else {
           const newQuery = currentQuery.replace(
-            /\bFROM\s+([a-zA-Z_][a-zA-Z0-9_"]*)?(?=\s*(WHERE|GROUP\s+BY|ORDER\s+BY|LIMIT|;|$))/i,
+            /\bFROM\s+([a-zA-Z_][a-zA-Z0-9_"]*)?(?=\s*(WHERE|GROUP\s+BY|HAVING|ORDER\s+BY|LIMIT|;|$))/i,
             `FROM ${tableName} `
           );
           setQuery(newQuery);
@@ -197,20 +377,28 @@ export default function EditorClient({
         .replace(/;+\s*$/, "")
         .trim();
 
-      let whereClause = "";
+      let whereClauseString = "";
       const whereMatch = newQuery.match(
-        /\bWHERE\s+(.+?)(?=\s*(GROUP\s+BY|ORDER\s+BY|LIMIT|;|$))/i
+        /\bWHERE\s+(.+?)(?=\s*(GROUP\s+BY|HAVING|ORDER\s+BY|LIMIT|;|$))/i
       );
       if (whereMatch) {
-        whereClause = whereMatch[0].trim();
+        whereClauseString = whereMatch[0].trim();
       }
 
       let groupByClause = "";
       const groupByMatch = newQuery.match(
-        /\bGROUP\s+BY\s+(.+?)(?=\s*(ORDER\s+BY|LIMIT|;|$))/i
+        /\bGROUP\s+BY\s+(.+?)(?=\s*(HAVING|ORDER\s+BY|LIMIT|;|$))/i
       );
       if (groupByMatch) {
         groupByClause = groupByMatch[0].trim();
+      }
+
+      let havingClauseString = "";
+      const havingMatch = newQuery.match(
+        /\bHAVING\s+(.+?)(?=\s*(ORDER\s+BY|LIMIT|;|$))/i
+      );
+      if (havingMatch) {
+        havingClauseString = havingMatch[0].trim();
       }
 
       let orderByClause = "";
@@ -243,11 +431,14 @@ export default function EditorClient({
         }`;
       }
 
-      if (whereClause) {
-        newQuery += ` ${whereClause}`;
+      if (whereClauseString) {
+        newQuery += ` ${whereClauseString}`;
       }
       if (groupByClause) {
         newQuery += ` ${groupByClause}`;
+      }
+      if (havingClauseString) {
+        newQuery += ` ${havingClauseString}`;
       }
       if (orderByClause) {
         newQuery += ` ${orderByClause}`;
@@ -257,7 +448,9 @@ export default function EditorClient({
       }
 
       newQuery = newQuery.trim();
-      if (newQuery.match(/\b(FROM|WHERE|GROUP\s+BY|ORDER\s+BY|LIMIT)\b/i)) {
+      if (
+        newQuery.match(/\b(FROM|WHERE|GROUP\s+BY|HAVING|ORDER\s+BY|LIMIT)\b/i)
+      ) {
         newQuery += ";";
       } else {
         newQuery += " ";
@@ -345,7 +538,7 @@ export default function EditorClient({
 
       let whereClauseString = "";
       const whereMatch = query.match(
-        /\bWHERE\s+(.+?)(?=\s*(GROUP\s+BY|ORDER\s+BY|LIMIT|;|$))/i
+        /\bWHERE\s+(.+?)(?=\s*(GROUP\s+BY|HAVING|ORDER\s+BY|LIMIT|;|$))/i
       );
       if (whereMatch) {
         whereClauseString = whereMatch[0].trim();
@@ -406,6 +599,22 @@ export default function EditorClient({
         newQuery += ` GROUP BY ${groupByString}`;
       }
 
+      if (havingClause.condition.aggregateColumn) {
+        const aggName = havingClause.condition.aggregateColumn.value;
+        let havingString = `HAVING ${aggName}`;
+        if (havingClause.condition.operator) {
+          const op = havingClause.condition.operator.value.toUpperCase();
+          havingString += ` ${op}`;
+          if (havingClause.condition.value) {
+            const val = needsQuotes(havingClause.condition.value.value)
+              ? `'${stripQuotes(havingClause.condition.value.value)}'`
+              : havingClause.condition.value.value;
+            havingString += ` ${val}`;
+          }
+        }
+        newQuery += ` ${havingString}`;
+      }
+
       if (orderByClause.column) {
         const columnName = needsQuotes(orderByClause.column.value)
           ? `"${orderByClause.column.value}"`
@@ -421,7 +630,9 @@ export default function EditorClient({
       }
 
       newQuery = newQuery.trim();
-      if (newQuery.match(/\b(FROM|WHERE|GROUP\s+BY|ORDER\s+BY|LIMIT)\b/i)) {
+      if (
+        newQuery.match(/\b(FROM|WHERE|GROUP\s+BY|HAVING|ORDER\s+BY|LIMIT)\b/i)
+      ) {
         newQuery += ";";
       } else {
         newQuery += " ";
@@ -434,6 +645,7 @@ export default function EditorClient({
       selectedColumns,
       isDistinct,
       whereClause,
+      havingClause,
       orderByClause,
       limit,
       query,
@@ -702,6 +914,22 @@ export default function EditorClient({
         newQuery += ` GROUP BY ${groupByString}`;
       }
 
+      if (havingClause.condition.aggregateColumn) {
+        const aggName = havingClause.condition.aggregateColumn.value;
+        let havingString = `HAVING ${aggName}`;
+        if (havingClause.condition.operator) {
+          const op = havingClause.condition.operator.value.toUpperCase();
+          havingString += ` ${op}`;
+          if (havingClause.condition.value) {
+            const val = needsQuotes(havingClause.condition.value.value)
+              ? `'${stripQuotes(havingClause.condition.value.value)}'`
+              : havingClause.condition.value.value;
+            havingString += ` ${val}`;
+          }
+        }
+        newQuery += ` ${havingString}`;
+      }
+
       if (orderByClause.column) {
         const col = needsQuotes(orderByClause.column.value)
           ? `"${orderByClause.column.value}"`
@@ -714,12 +942,22 @@ export default function EditorClient({
         newQuery += ` LIMIT ${limit.value}`;
       }
 
-      setQuery(newQuery.trim() + ";");
+      newQuery = newQuery.trim();
+      if (
+        newQuery.match(/\b(FROM|WHERE|GROUP\s+BY|HAVING|ORDER\s+BY|LIMIT)\b/i)
+      ) {
+        newQuery += ";";
+      } else {
+        newQuery += " ";
+      }
+
+      setQuery(newQuery);
     },
     [
       selectedTable,
       selectedColumns,
       selectedGroupByColumns,
+      havingClause,
       orderByClause,
       limit,
       isDistinct,
@@ -757,7 +995,7 @@ export default function EditorClient({
 
       let whereClauseString = "";
       const whereMatch = query.match(
-        /\bWHERE\s+(.+?)(?=\s*(GROUP\s+BY|ORDER\s+BY|LIMIT|;|$))/i
+        /\bWHERE\s+(.+?)(?=\s*(GROUP\s+BY|HAVING|ORDER\s+BY|LIMIT|;|$))/i
       );
       if (whereMatch) {
         whereClauseString = whereMatch[0].trim();
@@ -814,6 +1052,22 @@ export default function EditorClient({
         newQuery += ` GROUP BY ${groupByString}`;
       }
 
+      if (havingClause.condition.aggregateColumn) {
+        const aggName = havingClause.condition.aggregateColumn.value;
+        let havingString = `HAVING ${aggName}`;
+        if (havingClause.condition.operator) {
+          const op = havingClause.condition.operator.value.toUpperCase();
+          havingString += ` ${op}`;
+          if (havingClause.condition.value) {
+            const val = needsQuotes(havingClause.condition.value.value)
+              ? `'${stripQuotes(havingClause.condition.value.value)}'`
+              : havingClause.condition.value.value;
+            havingString += ` ${val}`;
+          }
+        }
+        newQuery += ` ${havingString}`;
+      }
+
       if (updatedOrderBy.column) {
         const columnName = needsQuotes(updatedOrderBy.column.value)
           ? `"${updatedOrderBy.column.value}"`
@@ -829,7 +1083,9 @@ export default function EditorClient({
       }
 
       newQuery = newQuery.trim();
-      if (newQuery.match(/\b(FROM|WHERE|GROUP\s+BY|ORDER\s+BY|LIMIT)\b/i)) {
+      if (
+        newQuery.match(/\b(FROM|WHERE|GROUP\s+BY|HAVING|ORDER\s+BY|LIMIT)\b/i)
+      ) {
         newQuery += ";";
       } else {
         newQuery += " ";
@@ -844,6 +1100,7 @@ export default function EditorClient({
       query,
       isDistinct,
       whereClause,
+      havingClause,
     ]
   );
 
@@ -852,11 +1109,16 @@ export default function EditorClient({
       console.log("Handling query change, input query:", newQuery);
 
       let normalizedQuery = newQuery
-        .replace(/;+\s*(?=ORDER\s+BY|LIMIT|WHERE|FROM|GROUP\s+BY)/gi, " ")
+        .replace(
+          /;+\s*(?=ORDER\s+BY|LIMIT|WHERE|FROM|GROUP\s+BY|HAVING)/gi,
+          " "
+        )
         .replace(/;+$/, "")
         .trim();
 
-      if (normalizedQuery.match(/\b(LIMIT\s+\d+|ORDER\s+BY\s+.*)$/i)) {
+      if (
+        normalizedQuery.match(/\b(LIMIT\s+\d+|ORDER\s+BY\s+.*|HAVING\s+.*)$/i)
+      ) {
         normalizedQuery += ";";
       } else {
         normalizedQuery += " ";
@@ -889,6 +1151,9 @@ export default function EditorClient({
         });
         setOrderByClause({ column: null, direction: null });
         setLimit(null);
+        setHavingClause({
+          condition: { aggregateColumn: null, operator: null, value: null },
+        });
         setIsDistinct(false);
         return;
       }
@@ -997,7 +1262,7 @@ export default function EditorClient({
       }
 
       const groupByMatch = normalizedQuery.match(
-        /\bGROUP\s+BY\s+(.+?)(?=\s*(ORDER\s+BY|LIMIT|;|$))/i
+        /\bGROUP\s+BY\s+(.+?)(?=\s*(HAVING|ORDER\s+BY|LIMIT|;|$))/i
       );
       if (groupByMatch && tableName) {
         const groupByStr = groupByMatch[1].trim();
@@ -1011,8 +1276,126 @@ export default function EditorClient({
         setSelectedGroupByColumns([]);
       }
 
+      const havingMatch = normalizedQuery.match(
+        /\bHAVING\s+(.+?)(?=\s*(ORDER\s+BY|LIMIT|;|$))/i
+      );
+      if (havingMatch && tableName) {
+        const havingClauseStr = havingMatch[1].trim();
+        console.log("Parsing HAVING clause:", havingClauseStr);
+        const condition: HavingClause["condition"] = {
+          aggregateColumn: null,
+          operator: null,
+          value: null,
+        };
+
+        const aggMatch = havingClauseStr.match(
+          /^(COUNT\(\*\)|(?:SUM|AVG|MAX|MIN|ROUND|COUNT)\((?:DISTINCT\s+)?(.+?)(?:,\s*(\d+))?\)|ROUND\((AVG|SUM|MAX|MIN|COUNT)\((?:DISTINCT\s+)?(.+?)\)(?:,\s*(\d+))?\))/i
+        );
+        if (aggMatch) {
+          const fullAgg = aggMatch[0]?.match(
+            /^(COUNT\(\*\)|(?:SUM|AVG|MAX|MIN|ROUND|COUNT)\((?:DISTINCT\s+)?(.+?)(?:,\s*(\d+))?\)|ROUND\((AVG|SUM|MAX|MIN|COUNT)\((?:DISTINCT\s+)?(.+?)\)(?:,\s*(\d+))?\))/i
+          );
+
+          let targetCol: string | null = null;
+          if (fullAgg?.[1] === "COUNT(*)") {
+            condition.aggregateColumn = {
+              value: "COUNT(*)",
+              label: "COUNT(*)",
+              aggregate: true,
+            };
+          } else if (aggMatch[4]) {
+            const innerFunc = aggMatch[4];
+            targetCol = stripQuotes(aggMatch[5]);
+            const decimals = aggMatch[6] || null;
+            const isDistinct = havingClauseStr.includes("DISTINCT");
+            if (
+              tableColumns[tableName]?.includes(targetCol) &&
+              (!isDistinct || innerFunc === "COUNT" || isMySQL)
+            ) {
+              condition.aggregateColumn = {
+                value: isDistinct
+                  ? `ROUND(${innerFunc}(DISTINCT ${
+                      needsQuotes(targetCol) ? `"${targetCol}"` : targetCol
+                    })${decimals ? `, ${decimals}` : ""})`
+                  : `ROUND(${innerFunc}(${
+                      needsQuotes(targetCol) ? `"${targetCol}"` : targetCol
+                    })${decimals ? `, ${decimals}` : ""})`,
+                label: isDistinct
+                  ? `ROUND(${innerFunc}(DISTINCT ${targetCol})${
+                      decimals ? `, ${decimals}` : ""
+                    })`
+                  : `ROUND(${innerFunc}(${targetCol})${
+                      decimals ? `, ${decimals}` : ""
+                    })`,
+                aggregate: true,
+                column: targetCol,
+              };
+            }
+          } else {
+            const func = aggMatch[1];
+            targetCol = stripQuotes(aggMatch[2]);
+            const decimals = aggMatch[3] || null;
+            const isDistinct = havingClauseStr.includes("DISTINCT");
+            if (
+              tableColumns[tableName]?.includes(targetCol) &&
+              (!isDistinct || func === "COUNT" || isMySQL)
+            ) {
+              condition.aggregateColumn = {
+                value: isDistinct
+                  ? `${func}(DISTINCT ${
+                      needsQuotes(targetCol) ? `"${targetCol}"` : targetCol
+                    }${decimals ? `, ${decimals}` : ""})`
+                  : `${func}(${
+                      needsQuotes(targetCol) ? `"${targetCol}"` : targetCol
+                    }${decimals ? `, ${decimals}` : ""})`,
+                label: isDistinct
+                  ? `${func}(DISTINCT ${targetCol}${
+                      decimals ? `, ${decimals}` : ""
+                    })`
+                  : `${func}(${targetCol}${decimals ? `, ${decimals}` : ""})`,
+                aggregate: func !== "ROUND",
+                column: targetCol,
+              };
+            }
+          }
+
+          const operatorMatch = havingClauseStr.match(
+            /\b(=[!>=]?|<>|>|>=|<|<=)\s*(?:('[^']*'|[0-9]+(?:\.[0-9]+)?|[a-zA-Z_][a-zA-Z0-9_]*))?/i
+          );
+          if (operatorMatch) {
+            const operator = operatorMatch[1].toUpperCase();
+            condition.operator = { value: operator, label: operator };
+
+            if (operatorMatch[2]) {
+              const value = stripQuotes(operatorMatch[2]);
+              condition.value = { value, label: value };
+            }
+          }
+
+          if (condition.aggregateColumn) {
+            console.log("Parsed HAVING clause condition:", condition);
+            setHavingClause({ condition });
+          } else {
+            console.log("No valid HAVING clause condition found, resetting.");
+            setHavingClause({
+              condition: { aggregateColumn: null, operator: null, value: null },
+            });
+          }
+        } else {
+          console.log("No valid HAVING clause found, resetting.");
+          setHavingClause({
+            condition: { aggregateColumn: null, operator: null, value: null },
+          });
+        }
+      } else {
+        console.log("No HAVING clause found, resetting.");
+        setHavingClause({
+          condition: { aggregateColumn: null, operator: null, value: null },
+        });
+      }
+
       const whereMatch = normalizedQuery.match(
-        /\bWHERE\s+(.+?)(?=\s*(GROUP\s+BY|ORDER\s+BY|LIMIT|;|$))/i
+        /\bWHERE\s+(.+?)(?=\s*(GROUP\s+BY|HAVING|ORDER\s+BY|LIMIT|;|$))/i
       );
       if (whereMatch && tableName) {
         const whereClauseStr = whereMatch[1].trim();
@@ -1196,6 +1579,20 @@ export default function EditorClient({
               metadataLoading={false}
               joinClauses={[]}
             />
+            <HavingSelect
+              selectedTable={selectedTable}
+              tableColumns={tableColumns}
+              havingClause={havingClause}
+              uniqueValues={uniqueValues}
+              onAggregateColumnSelect={handleAggregateColumnSelect}
+              onOperatorSelect={handleHavingOperatorSelect}
+              onValueSelect={handleHavingValueSelect}
+              metadataLoading={false}
+              operatorOptions={operatorOptions}
+              logicalOperatorOptions={logicalOperatorOptions}
+              joinClauses={[]}
+              isMySQL={isMySQL}
+            />
             <CodeMirrorEditor
               selectedColumns={selectedColumns}
               uniqueValues={uniqueValues}
@@ -1212,6 +1609,9 @@ export default function EditorClient({
               onColumnSelect={handleColumnSelect}
               onDistinctSelect={handleDistinctSelect}
               onGroupByColumnSelect={handleGroupByColumnSelect}
+              onAggregateColumnSelect={handleAggregateColumnSelect}
+              onHavingOperatorSelect={handleHavingOperatorSelect}
+              onHavingValueSelect={handleHavingValueSelect}
             />
           </div>
         )}
