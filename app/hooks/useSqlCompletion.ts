@@ -48,7 +48,8 @@ export const useSqlCompletion = (
     limit?: SingleValue<SelectOption>
   ) => void,
   onColumnSelect?: (value: MultiValue<SelectOption>) => void,
-  onDistinctSelect?: (value: boolean) => void
+  onDistinctSelect?: (value: boolean) => void,
+  onGroupByColumnSelect?: (value: MultiValue<SelectOption>) => void
 ) => {
   const allColumns = getAllColumns(tableNames, tableColumns);
 
@@ -159,16 +160,17 @@ export const useSqlCompletion = (
           onValueSelect,
           onLogicalOperatorSelect
         ) ||
-        // suggestGroupByClause(
-        //   docText,
-        //   currentWord,
-        //   pos,
-        //   word,
-        //   tableColumns,
-        //   stripQuotes,
-        //   needsQuotes,
-        //   ast
-        // ) ||
+        suggestGroupByClause(
+          docText,
+          currentWord,
+          pos,
+          word,
+          tableColumns,
+          stripQuotes,
+          needsQuotes,
+          ast,
+          onGroupByColumnSelect
+        ) ||
         suggestHavingClause(
           docText,
           currentWord,
@@ -207,6 +209,7 @@ export const useSqlCompletion = (
       onValueSelect,
       onLogicalOperatorSelect,
       onOrderBySelect,
+      onGroupByColumnSelect,
     ]
   );
 

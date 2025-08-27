@@ -1,16 +1,16 @@
 export const needsQuotes = (id: string): boolean => {
-  // PSEUDOCODE:
-  // 1. Check if identifier contains special characters or reserved keywords
-  // 2. Return true if quotes are needed, false otherwise
+  // 1. If it's clearly a function/expression with parentheses, don't quote
+  if (/\w+\s*\(.*\)/.test(id)) {
+    return false;
+  }
 
-  const isAggregate =
-    /^(COUNT|SUM|AVG|MAX|MIN|ROUND)(\s*\((\s*DISTINCT)?\s*(["']?[\w_]+["']?|\*)\s*(,\s*\d+)?\s*\))$/i.test(
-      id
-    );
+  // 2. Explicit aggregate check (covers COUNT, SUM, AVG, MIN, MAX, ROUND)
+  const isAggregate = /^(COUNT|SUM|AVG|MAX|MIN|ROUND)\s*\(.*\)$/i.test(id);
   if (isAggregate) {
     return false;
   }
 
+  // 3. Reserved keywords list
   const reservedKeywords = [
     "SELECT",
     "FROM",
@@ -33,6 +33,10 @@ export const needsQuotes = (id: string): boolean => {
     "CROSS",
     "ON",
   ];
+
+  // 4. Quote if:
+  //    - Doesn't match normal SQL identifier
+  //    - OR is a reserved keyword
   return (
     !/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(id) ||
     reservedKeywords.includes(id.toUpperCase())

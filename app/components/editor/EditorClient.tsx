@@ -6,12 +6,14 @@ import TableSelect from "./TableSelect";
 import ColumnSelect from "./ColumnSelect";
 import WhereClauseSelect from "./WhereClauseSelect";
 import OrderByLimitSelect from "./OrderByLimitSelect";
+import GroupBySelect from "./GroupBySelect";
 import CodeMirrorEditor from "./CodeMirrorEditor";
 import {
   TableSchema,
   SelectOption,
   WhereClause,
   OrderByClause,
+  JoinClause,
 } from "@/app/types/query";
 import { needsQuotes } from "@/app/utils/sqlCompletion/needsQuotes";
 import { stripQuotes } from "@/app/utils/sqlCompletion/stripQuotes";
@@ -30,6 +32,9 @@ export default function EditorClient({
 }: EditorClientProps) {
   const [selectedTable, setSelectedTable] = useState<SelectOption | null>(null);
   const [selectedColumns, setSelectedColumns] = useState<SelectOption[]>([]);
+  const [selectedGroupByColumns, setSelectedGroupByColumns] = useState<
+    SelectOption[]
+  >([]);
   const [whereClause, setWhereClause] = useState<WhereClause>({
     conditions: [{ column: null, operator: null, value: null, value2: null }],
   });
@@ -97,6 +102,7 @@ export default function EditorClient({
   const handleTableSelect = useCallback(
     (value: SelectOption | null) => {
       setSelectedTable(value);
+      setSelectedGroupByColumns([]);
 
       if (value) {
         const tableName = needsQuotes(value.value)
@@ -125,7 +131,7 @@ export default function EditorClient({
           );
         } else {
           const newQuery = currentQuery.replace(
-            /\bFROM\s+([a-zA-Z_][a-zA-Z0-9_"]*)?(?=\s*(WHERE|ORDER\s+BY|LIMIT|;|$))/i,
+            /\bFROM\s+([a-zA-Z_][a-zA-Z0-9_"]*)?(?=\s*(WHERE|GROUP\s+BY|ORDER\s+BY|LIMIT|;|$))/i,
             `FROM ${tableName} `
           );
           setQuery(newQuery);
@@ -193,10 +199,18 @@ export default function EditorClient({
 
       let whereClause = "";
       const whereMatch = newQuery.match(
-        /\bWHERE\s+(.+?)(?=\s*(ORDER\s+BY|LIMIT|;|$))/i
+        /\bWHERE\s+(.+?)(?=\s*(GROUP\s+BY|ORDER\s+BY|LIMIT|;|$))/i
       );
       if (whereMatch) {
         whereClause = whereMatch[0].trim();
+      }
+
+      let groupByClause = "";
+      const groupByMatch = newQuery.match(
+        /\bGROUP\s+BY\s+(.+?)(?=\s*(ORDER\s+BY|LIMIT|;|$))/i
+      );
+      if (groupByMatch) {
+        groupByClause = groupByMatch[0].trim();
       }
 
       let orderByClause = "";
@@ -232,6 +246,9 @@ export default function EditorClient({
       if (whereClause) {
         newQuery += ` ${whereClause}`;
       }
+      if (groupByClause) {
+        newQuery += ` ${groupByClause}`;
+      }
       if (orderByClause) {
         newQuery += ` ${orderByClause}`;
       }
@@ -240,7 +257,7 @@ export default function EditorClient({
       }
 
       newQuery = newQuery.trim();
-      if (newQuery.match(/\b(FROM|WHERE|ORDER\s+BY|LIMIT)\b/i)) {
+      if (newQuery.match(/\b(FROM|WHERE|GROUP\s+BY|ORDER\s+BY|LIMIT)\b/i)) {
         newQuery += ";";
       } else {
         newQuery += " ";
@@ -251,10 +268,13 @@ export default function EditorClient({
     [query, selectedTable, isDistinct]
   );
 
-  const handleDistinctSelect = useCallback((value: boolean) => {
-    setIsDistinct(value);
-    handleDistinctChange(value);
-  }, []);
+  const handleDistinctSelect = useCallback(
+    (value: boolean) => {
+      setIsDistinct(value);
+      handleDistinctChange(value);
+    },
+    [query, selectedColumns, selectedTable]
+  );
 
   const handleDistinctChange = useCallback(
     (value: boolean) => {
@@ -286,12 +306,138 @@ export default function EditorClient({
           : "";
         newQuery = `SELECT ${value ? "DISTINCT " : ""}${colsString}${
           tableName ? ` FROM ${tableName}` : ""
-        } `;
+        }`;
       }
 
       setQuery(newQuery.trim() + " ");
     },
     [query, selectedColumns, selectedTable]
+  );
+
+  const handleGroupByColumnSelect = useCallback(
+    (value: MultiValue<SelectOption>) => {
+      const groupByColumns = Array.from(value) as SelectOption[];
+      setSelectedGroupByColumns(groupByColumns);
+
+      if (!selectedTable) return;
+
+      const tableName = needsQuotes(selectedTable.value)
+        ? `"${selectedTable.value}"`
+        : selectedTable.value;
+
+      const columnsString =
+        selectedColumns.length === 0 ||
+        selectedColumns.some((col) => col.value === "*")
+          ? "*"
+          : selectedColumns
+              .map((col) =>
+                col.aggregate
+                  ? col.value
+                  : needsQuotes(col.value)
+                  ? `"${col.value}"`
+                  : col.value
+              )
+              .join(", ");
+
+      let newQuery = `SELECT ${
+        isDistinct ? "DISTINCT " : ""
+      }${columnsString} FROM ${tableName}`;
+
+      let whereClauseString = "";
+      const whereMatch = query.match(
+        /\bWHERE\s+(.+?)(?=\s*(GROUP\s+BY|ORDER\s+BY|LIMIT|;|$))/i
+      );
+      if (whereMatch) {
+        whereClauseString = whereMatch[0].trim();
+      } else if (
+        whereClause &&
+        whereClause.conditions &&
+        Array.isArray(whereClause.conditions)
+      ) {
+        const conditionsStrings = whereClause.conditions
+          .filter((cond) => cond.column && cond.operator && cond.value)
+          .map((cond, index) => {
+            const colName = needsQuotes(cond.column!.value)
+              ? `"${cond.column!.value}"`
+              : cond.column!.value;
+            const logicalOp: string =
+              index > 0 ? cond.logicalOperator?.value || "AND" : "";
+            const op = String(cond.operator?.value ?? "").toUpperCase();
+
+            if (op === "IS NULL" || op === "IS NOT NULL") {
+              return `${logicalOp} ${colName} ${op}`.trim();
+            }
+
+            if (op === "BETWEEN" && cond.value && cond.value2) {
+              const val1 = needsQuotes(cond.value.value)
+                ? `'${stripQuotes(cond.value.value)}'`
+                : cond.value.value;
+              const val2 = needsQuotes(cond.value2.value)
+                ? `'${stripQuotes(cond.value2.value)}'`
+                : cond.value2.value;
+              return `${logicalOp} ${colName} BETWEEN ${val1} AND ${val2}`.trim();
+            }
+
+            const val = needsQuotes(cond.value!.value)
+              ? `'${stripQuotes(cond.value!.value)}'`
+              : cond.value!.value;
+            return `${logicalOp} ${colName} ${op} ${val}`.trim();
+          });
+
+        if (conditionsStrings.length > 0) {
+          whereClauseString = "WHERE " + conditionsStrings.join(" ");
+        }
+      }
+
+      if (whereClauseString) {
+        newQuery += ` ${whereClauseString}`;
+      }
+
+      if (groupByColumns.length > 0) {
+        const groupByString = groupByColumns
+          .map((col) =>
+            col.aggregate
+              ? col.value
+              : needsQuotes(col.value)
+              ? `"${col.value}"`
+              : col.value
+          )
+          .join(", ");
+        newQuery += ` GROUP BY ${groupByString}`;
+      }
+
+      if (orderByClause.column) {
+        const columnName = needsQuotes(orderByClause.column.value)
+          ? `"${orderByClause.column.value}"`
+          : orderByClause.column.value;
+        const direction = orderByClause.direction?.value || "";
+        newQuery += ` ORDER BY ${columnName}${
+          direction ? ` ${direction}` : ""
+        }`;
+      }
+
+      if (limit) {
+        newQuery += ` LIMIT ${limit.value}`;
+      }
+
+      newQuery = newQuery.trim();
+      if (newQuery.match(/\b(FROM|WHERE|GROUP\s+BY|ORDER\s+BY|LIMIT)\b/i)) {
+        newQuery += ";";
+      } else {
+        newQuery += " ";
+      }
+
+      setQuery(newQuery);
+    },
+    [
+      selectedTable,
+      selectedColumns,
+      isDistinct,
+      whereClause,
+      orderByClause,
+      limit,
+      query,
+    ]
   );
 
   const handleOrderBySelect = useCallback(
@@ -549,6 +695,13 @@ export default function EditorClient({
         newQuery += " WHERE " + conditionsStrings.join(" ");
       }
 
+      if (selectedGroupByColumns.length > 0) {
+        const groupByString = selectedGroupByColumns
+          .map((col) => (needsQuotes(col.value) ? `"${col.value}"` : col.value))
+          .join(", ");
+        newQuery += ` GROUP BY ${groupByString}`;
+      }
+
       if (orderByClause.column) {
         const col = needsQuotes(orderByClause.column.value)
           ? `"${orderByClause.column.value}"`
@@ -563,7 +716,14 @@ export default function EditorClient({
 
       setQuery(newQuery.trim() + ";");
     },
-    [selectedTable, selectedColumns, orderByClause, limit, isDistinct]
+    [
+      selectedTable,
+      selectedColumns,
+      selectedGroupByColumns,
+      orderByClause,
+      limit,
+      isDistinct,
+    ]
   );
 
   const updateQueryWithOrderByAndLimit = useCallback(
@@ -591,14 +751,13 @@ export default function EditorClient({
               )
               .join(", ");
 
-      let newQuery = query
-        .replace(/\s+/g, " ")
-        .replace(/;+\s*$/, "")
-        .trim();
+      let newQuery = `SELECT ${
+        isDistinct ? "DISTINCT " : ""
+      }${columnsString} FROM ${tableName}`;
 
       let whereClauseString = "";
-      const whereMatch = newQuery.match(
-        /\bWHERE\s+(.+?)(?=\s*(ORDER\s+BY|LIMIT|;|$))/i
+      const whereMatch = query.match(
+        /\bWHERE\s+(.+?)(?=\s*(GROUP\s+BY|ORDER\s+BY|LIMIT|;|$))/i
       );
       if (whereMatch) {
         whereClauseString = whereMatch[0].trim();
@@ -644,12 +803,15 @@ export default function EditorClient({
         }
       }
 
-      newQuery = `SELECT ${
-        isDistinct ? "DISTINCT " : ""
-      }${columnsString} FROM ${tableName}`;
-
       if (whereClauseString) {
         newQuery += ` ${whereClauseString}`;
+      }
+
+      if (selectedGroupByColumns.length > 0) {
+        const groupByString = selectedGroupByColumns
+          .map((col) => (needsQuotes(col.value) ? `"${col.value}"` : col.value))
+          .join(", ");
+        newQuery += ` GROUP BY ${groupByString}`;
       }
 
       if (updatedOrderBy.column) {
@@ -667,7 +829,7 @@ export default function EditorClient({
       }
 
       newQuery = newQuery.trim();
-      if (newQuery.match(/\b(FROM|WHERE|ORDER\s+BY|LIMIT)\b/i)) {
+      if (newQuery.match(/\b(FROM|WHERE|GROUP\s+BY|ORDER\s+BY|LIMIT)\b/i)) {
         newQuery += ";";
       } else {
         newQuery += " ";
@@ -675,7 +837,14 @@ export default function EditorClient({
 
       setQuery(newQuery);
     },
-    [selectedTable, selectedColumns, query, isDistinct, whereClause]
+    [
+      selectedTable,
+      selectedColumns,
+      selectedGroupByColumns,
+      query,
+      isDistinct,
+      whereClause,
+    ]
   );
 
   const handleQueryChange = useCallback(
@@ -683,7 +852,7 @@ export default function EditorClient({
       console.log("Handling query change, input query:", newQuery);
 
       let normalizedQuery = newQuery
-        .replace(/;+\s*(?=ORDER\s+BY|LIMIT|WHERE|FROM)/gi, " ")
+        .replace(/;+\s*(?=ORDER\s+BY|LIMIT|WHERE|FROM|GROUP\s+BY)/gi, " ")
         .replace(/;+$/, "")
         .trim();
 
@@ -712,6 +881,7 @@ export default function EditorClient({
         console.log("Clearing state due to empty query.");
         setSelectedTable(null);
         setSelectedColumns([]);
+        setSelectedGroupByColumns([]);
         setWhereClause({
           conditions: [
             { column: null, operator: null, value: null, value2: null },
@@ -826,8 +996,23 @@ export default function EditorClient({
         setSelectedColumns([]);
       }
 
+      const groupByMatch = normalizedQuery.match(
+        /\bGROUP\s+BY\s+(.+?)(?=\s*(ORDER\s+BY|LIMIT|;|$))/i
+      );
+      if (groupByMatch && tableName) {
+        const groupByStr = groupByMatch[1].trim();
+        const groupByColumns = groupByStr
+          .split(",")
+          .map((col) => stripQuotes(col.trim()))
+          .filter((col) => tableColumns[tableName]?.includes(col))
+          .map((col) => ({ value: col, label: col }));
+        setSelectedGroupByColumns(groupByColumns);
+      } else {
+        setSelectedGroupByColumns([]);
+      }
+
       const whereMatch = normalizedQuery.match(
-        /\bWHERE\s+(.+?)(?=\s*(ORDER\s+BY|LIMIT|;|$))/i
+        /\bWHERE\s+(.+?)(?=\s*(GROUP\s+BY|ORDER\s+BY|LIMIT|;|$))/i
       );
       if (whereMatch && tableName) {
         const whereClauseStr = whereMatch[1].trim();
@@ -1003,6 +1188,14 @@ export default function EditorClient({
               metadataLoading={false}
               joinClauses={[]}
             />
+            <GroupBySelect
+              selectedTable={selectedTable}
+              tableColumns={tableColumns}
+              selectedGroupByColumns={selectedGroupByColumns}
+              onGroupByColumnSelect={handleGroupByColumnSelect}
+              metadataLoading={false}
+              joinClauses={[]}
+            />
             <CodeMirrorEditor
               selectedColumns={selectedColumns}
               uniqueValues={uniqueValues}
@@ -1018,6 +1211,7 @@ export default function EditorClient({
               onOrderBySelect={handleOrderBySelect}
               onColumnSelect={handleColumnSelect}
               onDistinctSelect={handleDistinctSelect}
+              onGroupByColumnSelect={handleGroupByColumnSelect}
             />
           </div>
         )}
