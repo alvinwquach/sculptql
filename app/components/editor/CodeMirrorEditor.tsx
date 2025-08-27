@@ -48,6 +48,19 @@ interface CodeMirrorEditorProps {
   onColumnSelect?: (value: MultiValue<SelectOption>) => void;
   onDistinctSelect?: (value: boolean) => void;
   onGroupByColumnSelect: (value: MultiValue<SelectOption>) => void;
+  onAggregateColumnSelect?: (
+    value: SingleValue<SelectOption>,
+    conditionIndex: number
+  ) => void;
+  onHavingOperatorSelect?: (
+    value: SingleValue<SelectOption>,
+    conditionIndex: number
+  ) => void;
+  onHavingValueSelect?: (
+    value: SingleValue<SelectOption>,
+    conditionIndex: number,
+    isValue2: boolean
+  ) => void;
 }
 
 export default function CodeMirrorEditor({
@@ -66,6 +79,9 @@ export default function CodeMirrorEditor({
   onColumnSelect,
   onDistinctSelect,
   onGroupByColumnSelect,
+  onAggregateColumnSelect,
+  onHavingOperatorSelect,
+  onHavingValueSelect,
 }: CodeMirrorEditorProps) {
   const editorRef = useRef<EditorView | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -90,7 +106,10 @@ export default function CodeMirrorEditor({
     onOrderBySelect,
     onColumnSelect,
     onDistinctSelect,
-    onGroupByColumnSelect
+    onGroupByColumnSelect,
+    onAggregateColumnSelect,
+    onHavingOperatorSelect,
+    onHavingValueSelect
   );
 
   useEffect(() => {

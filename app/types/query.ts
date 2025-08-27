@@ -1,6 +1,14 @@
 import { LucideIcon } from "lucide-react";
 import { Select } from "node-sql-parser";
 
+export interface HavingClause {
+  condition: {
+    aggregateColumn: SelectOption | null;
+    operator: SelectOption | null;
+    value: SelectOption | null;
+  };
+}
+
 export interface QueryResult {
   rows: Record<string, unknown>[];
   rowCount?: number;
