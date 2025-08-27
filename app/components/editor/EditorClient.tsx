@@ -162,7 +162,7 @@ export default function EditorClient({ schema, error }: EditorClientProps) {
 
       const colsString =
         newCols.length === 0
-          ? "" 
+          ? "*"
           : newCols.some((col) => col.value === "*")
           ? "*"
           : newCols
@@ -171,12 +171,51 @@ export default function EditorClient({ schema, error }: EditorClientProps) {
               )
               .join(", ");
 
-      let newQuery = query.replace(
-        /^\s*SELECT\s+(DISTINCT\s+)?(.+?)(?=\s+FROM|\s*$)/i,
-        `SELECT ${isDistinct ? "DISTINCT " : ""}${colsString}`
-      );
+      let newQuery = query
+        .replace(/\s+/g, " ")
+        .replace(/;+\s*$/, "")
+        .trim();
 
-      if (!/SELECT/i.test(newQuery)) {
+      let whereClause = "";
+      const whereMatch = newQuery.match(
+        /\bWHERE\s+(.+?)(?=\s*(ORDER\s+BY|LIMIT|;|$))/i
+      );
+      if (whereMatch) {
+        whereClause = whereMatch[0].trim();
+        console.log(
+          "Extracted WHERE clause in handleColumnSelect:",
+          whereClause
+        );
+      }
+
+      let orderByClause = "";
+      const orderByMatch = newQuery.match(
+        /\bORDER\s+BY\s+(.+?)(?=\s*(LIMIT|;|$))/i
+      );
+      if (orderByMatch) {
+        orderByClause = orderByMatch[0].trim();
+        console.log(
+          "Extracted ORDER BY clause in handleColumnSelect:",
+          orderByClause
+        );
+      }
+
+      let limitClause = "";
+      const limitMatch = newQuery.match(/\bLIMIT\s+(\d+)\s*?(?=;|$)/i);
+      if (limitMatch) {
+        limitClause = limitMatch[0].trim();
+        console.log(
+          "Extracted LIMIT clause in handleColumnSelect:",
+          limitClause
+        );
+      }
+
+      if (newQuery.match(/\bSELECT\b/i)) {
+        newQuery = newQuery.replace(
+          /^\s*SELECT\s+(DISTINCT\s+)?(.+?)(?=\s+FROM|\s*$)/i,
+          `SELECT ${isDistinct ? "DISTINCT " : ""}${colsString}`
+        );
+      } else {
         const tableName = selectedTable
           ? needsQuotes(selectedTable.value)
             ? `"${selectedTable.value}"`
@@ -184,10 +223,28 @@ export default function EditorClient({ schema, error }: EditorClientProps) {
           : "";
         newQuery = `SELECT ${isDistinct ? "DISTINCT " : ""}${colsString}${
           tableName ? ` FROM ${tableName}` : ""
-        } `;
+        }`;
       }
 
-      setQuery(newQuery.trim() + " ");
+      if (whereClause) {
+        newQuery += ` ${whereClause}`;
+      }
+      if (orderByClause) {
+        newQuery += ` ${orderByClause}`;
+      }
+      if (limitClause) {
+        newQuery += ` ${limitClause}`;
+      }
+
+      newQuery = newQuery.trim();
+      if (newQuery.match(/\b(FROM|WHERE|ORDER\s+BY|LIMIT)\b/i)) {
+        newQuery += ";";
+      } else {
+        newQuery += " ";
+      }
+
+      console.log("Updated query in handleColumnSelect:", newQuery);
+      setQuery(newQuery);
     },
     [query, selectedTable, isDistinct]
   );
@@ -503,7 +560,10 @@ export default function EditorClient({ schema, error }: EditorClientProps) {
 
   const updateQueryWithOrderByAndLimit = useCallback(
     (updatedOrderBy: OrderByClause, updatedLimit: SelectOption | null) => {
-      if (!selectedTable) return;
+      if (!selectedTable) {
+        console.log("No table selected, skipping query update.");
+        return;
+      }
 
       const tableName = needsQuotes(selectedTable.value)
         ? `"${selectedTable.value}"`
@@ -519,67 +579,128 @@ export default function EditorClient({ schema, error }: EditorClientProps) {
               )
               .join(", ");
 
-      let newQuery = query.replace(
-        /^\s*SELECT\s+(DISTINCT\s+)?(.+?)(?=\s+FROM|\s*$)/i,
-        `SELECT ${isDistinct ? "DISTINCT " : ""}${columnsString}`
-      );
+      let newQuery = query
+        .replace(/\s+/g, " ")
+        .replace(/;+\s*$/, "")
+        .trim();
 
-      if (!newQuery.match(/\bSELECT\b/i)) {
-        newQuery = `SELECT ${isDistinct ? "DISTINCT " : ""}${columnsString} `;
-      }
-
-      if (!newQuery.match(/\bFROM\b/i)) {
-        newQuery += `FROM ${tableName} `;
-      }
-
-      const whereMatch = query.match(
-        /\bWHERE\s+.*?(?=\b(ORDER\s+BY|LIMIT|;|$))/i
+      // Step 1: Extract existing WHERE clause
+      let whereClauseString = "";
+      const whereMatch = newQuery.match(
+        /\bWHERE\s+(.+?)(?=\s*(ORDER\s+BY|LIMIT|;|$))/i
       );
       if (whereMatch) {
-        newQuery = newQuery.replace(
-          /\bWHERE\s+.*?(?=\b(ORDER\s+BY|LIMIT|;|$))/i,
-          ""
-        );
-        newQuery += ` ${whereMatch[0]}`;
+        whereClauseString = whereMatch[0].trim();
+        console.log("Extracted WHERE clause:", whereClauseString);
+      } else {
+        console.log("No WHERE clause found in query:", newQuery);
+        // If no WHERE clause in query, build it from whereClause state if valid
+        if (
+          whereClause &&
+          whereClause.conditions &&
+          Array.isArray(whereClause.conditions)
+        ) {
+          const conditionsStrings = whereClause.conditions
+            .filter((cond) => cond.column && cond.operator && cond.value)
+            .map((cond, index) => {
+              const colName = needsQuotes(cond.column!.value)
+                ? `"${cond.column!.value}"`
+                : cond.column!.value;
+              const logicalOp: string =
+                index > 0 ? cond.logicalOperator?.value || "AND" : "";
+              const op = cond.operator!.value.toUpperCase();
+
+              if (op === "IS NULL" || op === "IS NOT NULL") {
+                return `${logicalOp} ${colName} ${op}`.trim();
+              }
+
+              if (op === "BETWEEN" && cond.value && cond.value2) {
+                const val1 = needsQuotes(cond.value.value)
+                  ? `'${stripQuotes(cond.value.value)}'`
+                  : cond.value.value;
+                const val2 = needsQuotes(cond.value2.value)
+                  ? `'${stripQuotes(cond.value2.value)}'`
+                  : cond.value2.value;
+                return `${logicalOp} ${colName} BETWEEN ${val1} AND ${val2}`.trim();
+              }
+
+              const val = needsQuotes(cond.value!.value)
+                ? `'${stripQuotes(cond.value!.value)}'`
+                : cond.value!.value;
+              return `${logicalOp} ${colName} ${op} ${val}`.trim();
+            });
+
+          if (conditionsStrings.length > 0) {
+            whereClauseString = "WHERE " + conditionsStrings.join(" ");
+            console.log(
+              "Reconstructed WHERE clause from state:",
+              whereClauseString
+            );
+          }
+        } else {
+          console.log(
+            "whereClause or whereClause.conditions is invalid:",
+            whereClause
+          );
+        }
       }
 
-      newQuery = newQuery.replace(/\bORDER\s+BY\s+.*?(?=\b(LIMIT|;|$))/i, "");
+      // Step 2: Build the base query with SELECT and FROM
+      newQuery = `SELECT ${
+        isDistinct ? "DISTINCT " : ""
+      }${columnsString} FROM ${tableName}`;
 
+      // Step 3: Append WHERE clause if it exists
+      if (whereClauseString) {
+        newQuery += ` ${whereClauseString}`;
+      }
+
+      // Step 4: Append ORDER BY clause if present
       if (updatedOrderBy.column) {
         const columnName = needsQuotes(updatedOrderBy.column.value)
           ? `"${updatedOrderBy.column.value}"`
           : updatedOrderBy.column.value;
         const direction = updatedOrderBy.direction?.value || "";
-        newQuery += ` ORDER BY ${columnName} ${direction}`.trim();
+        newQuery += ` ORDER BY ${columnName}${
+          direction ? ` ${direction}` : ""
+        }`;
       }
 
-      newQuery = newQuery.replace(/\bLIMIT\s+\d+\s*?(?=;|$)/i, "");
+      // Step 5: Append LIMIT clause if present
       if (updatedLimit) {
         newQuery += ` LIMIT ${updatedLimit.value}`;
       }
 
-      setQuery(`${newQuery.trim()};`);
+      // Step 6: Add semicolon if query is complete
+      newQuery = newQuery.trim();
+      if (newQuery.match(/\b(FROM|WHERE|ORDER\s+BY|LIMIT)\b/i)) {
+        newQuery += ";";
+      } else {
+        newQuery += " ";
+      }
+
+      console.log("Updated query with ORDER BY and LIMIT:", newQuery);
+      setQuery(newQuery);
     },
-    [selectedTable, selectedColumns, query, isDistinct]
+    [selectedTable, selectedColumns, query, isDistinct, whereClause]
   );
 
   const handleQueryChange = useCallback(
     (newQuery: string) => {
-      let normalizedQuery = newQuery.replace(/;+$/, "").trim();
-      normalizedQuery = normalizedQuery.replace(
-        /\bFROM\s+([a-zA-Z_][a-zA-Z0-9_"]*)\s*(ORDER\s+BY|LIMIT|;|$)/i,
-        (match, tableName, suffix) => {
-          return `FROM ${tableName} ${suffix}`;
-        }
-      );
-      if (
-        normalizedQuery.match(/\b(LIMIT\s+\d+|ORDER\s+BY\s+.*)$/i) &&
-        normalizedQuery
-      ) {
-        normalizedQuery = `${normalizedQuery};`;
+      console.log("Handling query change, input query:", newQuery);
+
+      let normalizedQuery = newQuery
+        .replace(/;+\s*(?=ORDER\s+BY|LIMIT|WHERE|FROM)/gi, " ")
+        .replace(/;+$/, "")
+        .trim();
+
+      if (normalizedQuery.match(/\b(LIMIT\s+\d+|ORDER\s+BY\s+.*)$/i)) {
+        normalizedQuery += ";";
       } else {
-        normalizedQuery = normalizedQuery ? `${normalizedQuery} ` : "";
+        normalizedQuery += " ";
       }
+
+      console.log("Normalized query:", normalizedQuery);
       setQuery(normalizedQuery);
 
       const isDistinctQuery = normalizedQuery.match(/\bSELECT\s+DISTINCT\b/i);
@@ -591,9 +712,11 @@ export default function EditorClient({ schema, error }: EditorClientProps) {
       const tableName = tableMatch ? stripQuotes(tableMatch[1]) : null;
       if (tableName && tableNames.includes(tableName)) {
         if (!selectedTable || selectedTable.value !== tableName) {
+          console.log("Setting selected table:", tableName);
           setSelectedTable({ value: tableName, label: tableName });
         }
       } else if (!normalizedQuery) {
+        console.log("Clearing state due to empty query.");
         setSelectedTable(null);
         setSelectedColumns([]);
         setWhereClause({
@@ -638,11 +761,13 @@ export default function EditorClient({ schema, error }: EditorClientProps) {
         setSelectedColumns([]);
       }
 
+      // Parse WHERE clause
       const whereMatch = normalizedQuery.match(
-        /\bWHERE\s+(.+?)(?=\b(ORDER\s+BY|LIMIT|;|$))/i
+        /\bWHERE\s+(.+?)(?=\s*(ORDER\s+BY|LIMIT|;|$))/i
       );
       if (whereMatch && tableName) {
         const whereClauseStr = whereMatch[1].trim();
+        console.log("Parsing WHERE clause:", whereClauseStr);
         const conditions: WhereClause["conditions"] = [];
         const conditionParts = whereClauseStr.split(/\b(AND|OR)\b/i);
 
@@ -657,7 +782,9 @@ export default function EditorClient({ schema, error }: EditorClientProps) {
             continue;
           }
           if (part) {
-            const columnMatch = part.match(/^((?:"[\w]+"|'[\w]+'|[\w_]+))/i);
+            const columnMatch = part.match(
+              /^((?:"[^"]+"|'[^']+'|[a-zA-Z_][a-zA-Z0-9_]*))/i
+            );
             if (columnMatch) {
               const column = stripQuotes(columnMatch[1]);
               if (tableColumns[tableName]?.includes(column)) {
@@ -666,7 +793,7 @@ export default function EditorClient({ schema, error }: EditorClientProps) {
                   operator: null,
                   value: null,
                   value2: null,
-                  logicalOperator: i === 0 ? currentLogicalOperator : null,
+                  logicalOperator: i === 0 ? null : currentLogicalOperator,
                 };
 
                 const operatorMatch = part.match(
@@ -678,7 +805,7 @@ export default function EditorClient({ schema, error }: EditorClientProps) {
 
                   if (operator !== "IS NULL" && operator !== "IS NOT NULL") {
                     const valueMatch = part.match(
-                      /\b(?:[=!><]=?|LIKE|BETWEEN)\s*('[^']*'|[0-9]+(?:\.[0-9]+)?)/i
+                      /\b(?:[=!><]=?|LIKE|BETWEEN)\s*('[^']*'|[0-9]+(?:\.[0-9]+)?|[a-zA-Z_][a-zA-Z0-9_]*)/i
                     );
                     if (valueMatch) {
                       const value = stripQuotes(valueMatch[1]);
@@ -686,58 +813,37 @@ export default function EditorClient({ schema, error }: EditorClientProps) {
 
                       if (operator === "BETWEEN") {
                         const value2Match = part.match(
-                          /\bAND\s*('[^']*'|[0-9]+(?:\.[0-9]+)?)/i
+                          /\bAND\s*('[^']*'|[0-9]+(?:\.[0-9]+)?|[a-zA-Z_][a-zA-Z0-9_]*)/i
                         );
                         if (value2Match) {
                           const value2 = stripQuotes(value2Match[1]);
                           condition.value2 = { value: value2, label: value2 };
                         }
                       }
+                    } else {
+                      console.log("No value match for condition:", part);
                     }
                   }
+                  conditions.push(condition);
                 }
-                conditions.push(condition);
               }
             }
           }
         }
 
         if (conditions.length > 0) {
+          console.log("Parsed WHERE clause conditions:", conditions);
           setWhereClause({ conditions });
         } else {
-          const columnMatch = whereClauseStr.match(
-            /^((?:"[\w]+"|'[\w]+'|[\w_]+))/i
-          );
-          if (columnMatch && tableName) {
-            const column = stripQuotes(columnMatch[1]);
-            if (tableColumns[tableName]?.includes(column)) {
-              setWhereClause({
-                conditions: [
-                  {
-                    column: { value: column, label: column },
-                    operator: null,
-                    value: null,
-                    value2: null,
-                    logicalOperator: null,
-                  },
-                ],
-              });
-            } else {
-              setWhereClause({
-                conditions: [
-                  { column: null, operator: null, value: null, value2: null },
-                ],
-              });
-            }
-          } else {
-            setWhereClause({
-              conditions: [
-                { column: null, operator: null, value: null, value2: null },
-              ],
-            });
-          }
+          console.log("No valid WHERE clause conditions found, resetting.");
+          setWhereClause({
+            conditions: [
+              { column: null, operator: null, value: null, value2: null },
+            ],
+          });
         }
       } else {
+        console.log("No WHERE clause found, resetting.");
         setWhereClause({
           conditions: [
             { column: null, operator: null, value: null, value2: null },
@@ -746,11 +852,15 @@ export default function EditorClient({ schema, error }: EditorClientProps) {
       }
 
       const orderByMatch = normalizedQuery.match(
-        /\bORDER\s+BY\s+((?:"[\w]+"|'[\w]+'|[\w_]+)\s*(ASC|DESC)?)(?=\b(LIMIT|;|$))/i
+        /\bORDER\s+BY\s+((?:"[\w]+"|'[\w]+'|[\w_]+)\s*(ASC|DESC)?)(?=\s*(LIMIT|;|$))/i
       );
       if (orderByMatch && tableName) {
         const column = stripQuotes(orderByMatch[1]);
         if (tableColumns[tableName]?.includes(column)) {
+          console.log("Parsed ORDER BY clause:", {
+            column,
+            direction: orderByMatch[2],
+          });
           setOrderByClause({
             column: { value: column, label: column },
             direction: orderByMatch[2]
@@ -765,14 +875,17 @@ export default function EditorClient({ schema, error }: EditorClientProps) {
           });
         }
       } else {
+        console.log("No ORDER BY clause found, resetting.");
         setOrderByClause({ column: null, direction: null });
       }
 
       const limitMatch = normalizedQuery.match(/\bLIMIT\s+(\d+)/i);
       if (limitMatch && /^\d+$/.test(limitMatch[1])) {
         const limitValue = limitMatch[1];
+        console.log("Parsed LIMIT clause:", limitValue);
         setLimit({ value: limitValue, label: limitValue });
       } else {
+        console.log("No LIMIT clause found, resetting.");
         setLimit(null);
       }
     },
