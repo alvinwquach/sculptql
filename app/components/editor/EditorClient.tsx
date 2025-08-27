@@ -20,9 +20,14 @@ import { SingleValue, MultiValue } from "react-select";
 interface EditorClientProps {
   schema: TableSchema[];
   error: string | null;
+  isMySQL?: boolean;
 }
 
-export default function EditorClient({ schema, error }: EditorClientProps) {
+export default function EditorClient({
+  schema,
+  error,
+  isMySQL,
+}: EditorClientProps) {
   const [selectedTable, setSelectedTable] = useState<SelectOption | null>(null);
   const [selectedColumns, setSelectedColumns] = useState<SelectOption[]>([]);
   const [whereClause, setWhereClause] = useState<WhereClause>({
@@ -735,7 +740,7 @@ export default function EditorClient({ schema, error }: EditorClientProps) {
           setSelectedColumns([{ value: "*", label: "All Columns (*)" }]);
         } else {
           const columnRegex =
-            /(?:"[^"]+"|'[^']+'|[a-zA-Z_][a-zA-Z0-9_]*|COUNT\(\*\)|(?:SUM|MAX|MIN|AVG|ROUND|COUNT)\((?:DISTINCT\s+)?(?:[^,)]+)(?:,\s*\d+)?\))/gi;
+            /(?:"[^"]+"|'[^']+'|[a-zA-Z_][a-zA-Z0-9_]*|COUNT\(\*\)|(?:SUM|AVG|MAX|MIN|ROUND|COUNT)\((?:DISTINCT\s+)?(?:[^,)]+)(?:,\s*(\d+))?\))/gi;
           const parsedColumns: SelectOption[] = [];
           let match;
           while ((match = columnRegex.exec(columnsStr)) !== null) {
@@ -748,25 +753,31 @@ export default function EditorClient({ schema, error }: EditorClientProps) {
                 label: "COUNT(*)",
                 aggregate: true,
               });
-            } else if (col.match(/^(SUM|MAX|MIN|AVG|ROUND|COUNT)\(/i)) {
+            } else if (col.match(/^(SUM|AVG|MAX|MIN|ROUND|COUNT)\(/i)) {
               const funcMatch = col.match(
-                /^(SUM|MAX|MIN|AVG|ROUND|COUNT)\((?:DISTINCT\s+)?(.+?)(?:,\s*(\d+))?\)$/i
+                /^(SUM|AVG|MAX|MIN|ROUND|COUNT)\((?:DISTINCT\s+)?(.+?)(?:,\s*(\d+))?\)$/i
               );
               if (funcMatch) {
                 const func = funcMatch[1];
                 const targetCol = stripQuotes(funcMatch[2]);
                 const isDistinct = col.includes("DISTINCT");
-                if (tableColumns[tableName]?.includes(targetCol)) {
+                // Allow DISTINCT for non-COUNT aggregates only if isMySQL
+                if (
+                  tableColumns[tableName]?.includes(targetCol) &&
+                  (!isDistinct || func === "COUNT")
+                ) {
                   parsedColumns.push({
                     value: isDistinct
-                      ? `COUNT(DISTINCT ${
+                      ? `${func}(DISTINCT ${
                           needsQuotes(targetCol) ? `"${targetCol}"` : targetCol
-                        })`
+                        }${funcMatch[3] ? `, ${funcMatch[3]}` : ""})`
                       : `${func}(${
                           needsQuotes(targetCol) ? `"${targetCol}"` : targetCol
                         }${funcMatch[3] ? `, ${funcMatch[3]}` : ""})`,
                     label: isDistinct
-                      ? `COUNT(DISTINCT ${targetCol})`
+                      ? `${func}(DISTINCT ${targetCol}${
+                          funcMatch[3] ? `, ${funcMatch[3]}` : ""
+                        })`
                       : `${func}(${targetCol}${
                           funcMatch[3] ? `, ${funcMatch[3]}` : ""
                         })`,
@@ -941,6 +952,7 @@ export default function EditorClient({ schema, error }: EditorClientProps) {
               metadataLoading={false}
               isDistinct={isDistinct}
               onDistinctChange={handleDistinctChange}
+              isMySQL={isMySQL}
             />
             <WhereClauseSelect
               selectedTable={selectedTable}
