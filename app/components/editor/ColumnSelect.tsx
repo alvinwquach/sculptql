@@ -38,12 +38,12 @@ export default function ColumnSelect({
             label: col,
           })) || []),
           ...(tableColumns[selectedTable.value]?.flatMap((col) => [
-            // {
-            //   value: `SUM(${col})`,
-            //   label: `SUM(${col})`,
-            //   isAggregate: true,
-            //   targetColumn: col,
-            // },
+            {
+              value: `SUM(${col})`,
+              label: `SUM(${col})`,
+              isAggregate: true,
+              targetColumn: col,
+            },
             // {
             //   value: `AVG(${col})`,
             //   label: `AVG(${col})`,
