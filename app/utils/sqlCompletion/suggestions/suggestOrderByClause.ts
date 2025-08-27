@@ -55,7 +55,7 @@ export const suggestOrderByClause = (
   // Returns: CompletionResult or null
 
   // Normalize docText to handle multiple spaces and ensure consistent spacing
-  let normalizedDocText = docText
+  const normalizedDocText = docText
     .replace(/\s+/g, " ")
     .replace(
       /(FROM\s+((?:"[^"]+"|'[^']+'|[a-zA-Z_][a-zA-Z0-9_]*)))(ORDER\s+BY)/i,
