@@ -45,7 +45,7 @@ export const suggestHavingClause = (
     !!node &&
     typeof node === "object" &&
     "type" in node &&
-    (node as any).type === "select";
+    (node as { type: unknown }).type === "select";
 
   const isTableReference = (
     fromItem: unknown
@@ -53,8 +53,8 @@ export const suggestHavingClause = (
     !!fromItem &&
     typeof fromItem === "object" &&
     "table" in fromItem &&
-    (typeof (fromItem as any).table === "string" ||
-      (fromItem as any).table === null);
+    (typeof (fromItem as { table: unknown }).table === "string" ||
+      (fromItem as { table: unknown }).table === null);
 
   // --- Extract table ---
   let selectedTable: string | null = null;
