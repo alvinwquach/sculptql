@@ -47,12 +47,12 @@ export default function ColumnSelect({
                 isAggregate: true,
                 targetColumn: col,
               },
-              // {
-              //   value: `AVG(${col})`,
-              //   label: `AVG(${col})`,
-              //   isAggregate: true,
-              //   targetColumn: col,
-              // },
+              {
+                value: `AVG(${col})`,
+                label: `AVG(${col})`,
+                isAggregate: true,
+                targetColumn: col,
+              },
               {
                 value: `MAX(${col})`,
                 label: `MAX(${col})`,
@@ -66,7 +66,7 @@ export default function ColumnSelect({
                 targetColumn: col,
               },
               // {
-              //   value: `ROUND(${col}, 2)`,
+              //   value: `ROUND(${col}, 2)`
               //   label: `ROUND(${col}, 2)`,
               //   isAggregate: true,
               //   targetColumn: col,
