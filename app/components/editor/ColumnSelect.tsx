@@ -14,6 +14,7 @@ interface ColumnSelectProps {
   metadataLoading: boolean;
   isDistinct: boolean;
   onDistinctChange: (value: boolean) => void;
+  isMySQL?: boolean;
 }
 
 export default function ColumnSelect({
@@ -24,6 +25,7 @@ export default function ColumnSelect({
   metadataLoading,
   isDistinct,
   onDistinctChange,
+  isMySQL = false,
 }: ColumnSelectProps) {
   const aggregateFunctions = [
     { value: "COUNT(*)", label: "COUNT(*)", isAggregate: true },
@@ -37,55 +39,88 @@ export default function ColumnSelect({
             value: col,
             label: col,
           })) || []),
-          ...(tableColumns[selectedTable.value]?.flatMap((col) => [
-            {
-              value: `SUM(${col})`,
-              label: `SUM(${col})`,
-              isAggregate: true,
-              targetColumn: col,
-            },
-            // {
-            //   value: `AVG(${col})`,
-            //   label: `AVG(${col})`,
-            //   isAggregate: true,
-            //   targetColumn: col,
-            // },
-            // {
-            //   value: `MAX(${col})`,
-            //   label: `MAX(${col})`,
-            //   isAggregate: true,
-            //   targetColumn: col,
-            // },
-            // {
-            //   value: `MIN(${col})`,
-            //   label: `MIN(${col})`,
-            //   isAggregate: true,
-            //   targetColumn: col,
-            // },
-            // {
-            //   value: `ROUND(${col},`,
-            //   label: `ROUND(${col})`,
-            //   isAggregate: true,
-            //   targetColumn: col,
-            // },
-            {
-              value: `COUNT(${col})`,
-              label: `COUNT(${col})`,
-              isAggregate: true,
-              targetColumn: col,
-            },
-            {
-              value: `COUNT(DISTINCT ${col})`,
-              label: `COUNT(DISTINCT ${col})`,
-              isAggregate: true,
-              targetColumn: col,
-            },
-          ]) || []),
+          ...(tableColumns[selectedTable.value]?.flatMap((col) => {
+            const aggregates = [
+              {
+                value: `SUM(${col})`,
+                label: `SUM(${col})`,
+                isAggregate: true,
+                targetColumn: col,
+              },
+              // {
+              //   value: `AVG(${col})`,
+              //   label: `AVG(${col})`,
+              //   isAggregate: true,
+              //   targetColumn: col,
+              // },
+              {
+                value: `MAX(${col})`,
+                label: `MAX(${col})`,
+                isAggregate: true,
+                targetColumn: col,
+              },
+              {
+                value: `MIN(${col})`,
+                label: `MIN(${col})`,
+                isAggregate: true,
+                targetColumn: col,
+              },
+              // {
+              //   value: `ROUND(${col}, 2)`,
+              //   label: `ROUND(${col}, 2)`,
+              //   isAggregate: true,
+              //   targetColumn: col,
+              // },
+              {
+                value: `COUNT(${col})`,
+                label: `COUNT(${col})`,
+                isAggregate: true,
+                targetColumn: col,
+              },
+              {
+                value: `COUNT(DISTINCT ${col})`,
+                label: `COUNT(DISTINCT ${col})`,
+                isAggregate: true,
+                targetColumn: col,
+              },
+            ];
+
+            if (isMySQL) {
+              aggregates.push(
+                {
+                  value: `SUM(DISTINCT ${col})`,
+                  label: `SUM(DISTINCT ${col})`,
+                  isAggregate: true,
+                  targetColumn: col,
+                },
+                {
+                  value: `AVG(DISTINCT ${col})`,
+                  label: `AVG(DISTINCT ${col})`,
+                  isAggregate: true,
+                  targetColumn: col,
+                },
+                {
+                  value: `MAX(DISTINCT ${col})`,
+                  label: `MAX(DISTINCT ${col})`,
+                  isAggregate: true,
+                  targetColumn: col,
+                },
+                {
+                  value: `MIN(DISTINCT ${col})`,
+                  label: `MIN(DISTINCT ${col})`,
+                  isAggregate: true,
+                  targetColumn: col,
+                }
+              );
+            }
+
+            return aggregates;
+          }) || []),
           ...aggregateFunctions,
         ]
       : [];
     return columns;
-  }, [selectedTable, tableColumns]);
+  }, [selectedTable, tableColumns, isMySQL]);
 
   const handleChange = (value: MultiValue<SelectOption>) => {
     const lastSelected = value[value.length - 1];
