@@ -7,7 +7,7 @@ import { Plus, Trash2 } from "lucide-react";
 import { CteClause, SelectOption, TableColumn } from "@/app/types/query";
 import { selectStyles } from "../../utils/selectStyles";
 
-interface WithSelectorProps {
+interface WithSelectProps {
   selectedTable: SelectOption | null;
   tableNames: string[];
   tableColumns: TableColumn;
@@ -49,7 +49,7 @@ interface WithSelectorProps {
   metadataLoading: boolean;
 }
 
-export default function WithSelector({
+export default function WithSelect({
   selectedTable,
   tableNames,
   tableColumns,
@@ -67,7 +67,7 @@ export default function WithSelector({
   onAddCteClause,
   onRemoveCteClause,
   metadataLoading,
-}: WithSelectorProps) {
+}: WithSelectProps) {
   const tableOptions: SelectOption[] = useMemo(
     () =>
       tableNames

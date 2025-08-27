@@ -6,7 +6,7 @@ import { X } from "lucide-react";
 import { SelectOption, TableColumn, JoinClause } from "@/app/types/query";
 import { selectStyles } from "../../utils/selectStyles";
 
-interface JoinSelectorProps {
+interface JoinSelectProps {
   selectedTable: SelectOption | null;
   tableNames: string[];
   tableColumns: TableColumn;
@@ -44,7 +44,7 @@ export default function JoinSelector({
   onAddJoinClause,
   onRemoveJoinClause,
   metadataLoading,
-}: JoinSelectorProps) {
+}: JoinSelectProps) {
   const tableOptions: SelectOption[] = tableNames
     .filter((table) => table !== selectedTable?.value)
     .map((table) => ({ value: table, label: table }));

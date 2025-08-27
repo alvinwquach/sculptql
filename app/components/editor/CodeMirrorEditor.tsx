@@ -1,5 +1,4 @@
 "use client";
-
 import { useEffect, useRef, useState } from "react";
 import { EditorView, keymap, drawSelection } from "@codemirror/view";
 import { EditorState, Compartment } from "@codemirror/state";
@@ -16,8 +15,14 @@ import { Maximize2, Minimize2, Wand2 } from "lucide-react";
 import { useSqlCompletion } from "@/app/hooks/useSqlCompletion";
 import { needsQuotes } from "@/app/utils/sqlCompletion/needsQuotes";
 import { stripQuotes } from "@/app/utils/sqlCompletion/stripQuotes";
-import { TableColumn, SelectOption } from "@/app/types/query";
+import { TableColumn, SelectOption, Tab } from "@/app/types/query";
 import { MultiValue, SingleValue } from "react-select";
+import QueryTabs from "./QueryTabs";
+import {
+  getLocalStorageItem,
+  setLocalStorageItem,
+  removeLocalStorageItem,
+} from "@/app/utils/localStorageUtils";
 
 interface CodeMirrorEditorProps {
   query: string;
@@ -91,6 +96,85 @@ export default function CodeMirrorEditor({
   const [error, setError] = useState<string | null>(null);
   const isMac =
     typeof navigator !== "undefined" && /Mac/i.test(navigator.platform);
+
+  const [queryTabs, setQueryTabs] = useState<Tab[]>([
+    { id: 1, title: "Query 1", query: query || "" },
+  ]);
+  const [activeTab, setActiveTab] = useState<number>(1);
+
+  useEffect(() => {
+    const savedTabs = getLocalStorageItem<Tab[]>("queryTabs", [
+      { id: 1, title: "Query 1", query: query || "" },
+    ]);
+    const savedActiveTab = getLocalStorageItem<number>("activeTab", 1);
+
+    const validActiveTab = savedTabs.some((tab) => tab.id === savedActiveTab)
+      ? savedActiveTab
+      : savedTabs[0].id;
+    setQueryTabs(savedTabs);
+    setActiveTab(validActiveTab);
+  }, []);
+
+  useEffect(() => {
+    setLocalStorageItem("queryTabs", queryTabs);
+  }, [queryTabs]);
+
+  useEffect(() => {
+    setLocalStorageItem("activeTab", activeTab);
+  }, [activeTab]);
+
+  useEffect(() => {
+    const currentTab = queryTabs.find((tab) => tab.id === activeTab);
+    if (currentTab && editorRef.current) {
+      const currentEditorContent = editorRef.current.state.doc.toString();
+      if (currentTab.query !== currentEditorContent) {
+        editorRef.current.dispatch({
+          changes: {
+            from: 0,
+            to: editorRef.current.state.doc.length,
+            insert: currentTab.query,
+          },
+        });
+        onQueryChange(currentTab.query);
+      }
+    }
+  }, [activeTab, queryTabs, onQueryChange]);
+
+  const handleQueryChange = (newQuery: string) => {
+    setQueryTabs((prevTabs) =>
+      prevTabs.map((tab) =>
+        tab.id === activeTab ? { ...tab, query: newQuery } : tab
+      )
+    );
+    onQueryChange(newQuery);
+  };
+
+  const handleTabClick = (id: number) => {
+    setActiveTab(id);
+  };
+
+  const handleTabClose = (id: number) => {
+    if (queryTabs.length === 1) return;
+    const newTabs = queryTabs.filter((tab) => tab.id !== id);
+    setQueryTabs(newTabs);
+    if (activeTab === id) {
+      setActiveTab(newTabs[0].id);
+    }
+  };
+
+  const handleTabReorder = (newTabs: Tab[]) => {
+    setQueryTabs(newTabs);
+  };
+
+  const addNewTab = () => {
+    if (queryTabs.length >= 5) return;
+
+    const newId = Math.max(...queryTabs.map((tab) => tab.id), 0) + 1;
+    const newTab = { id: newId, title: `Query ${newId}`, query: "" };
+    setQueryTabs([...queryTabs, newTab]);
+    setActiveTab(newId);
+  };
+
   const sqlCompletion = useSqlCompletion(
     tableNames,
     tableColumns,
@@ -160,7 +244,7 @@ export default function CodeMirrorEditor({
     );
 
     const state = EditorState.create({
-      doc: query,
+      doc: queryTabs.find((tab) => tab.id === activeTab)?.query || "",
       extensions: [
         keymap.of([
           {
@@ -181,7 +265,7 @@ export default function CodeMirrorEditor({
                     insert: formatted,
                   },
                 });
-                onQueryChange(formatted);
+                handleQueryChange(formatted);
               } catch (err) {
                 console.error("SQL formatting failed:", err);
               }
@@ -212,13 +296,10 @@ export default function CodeMirrorEditor({
       isInitialRender.current = true;
     };
   }, [
-    query,
-    sqlCompletion,
     tableNames,
     tableColumns,
     selectedColumns,
     uniqueValues,
-    onQueryChange,
     onTableSelect,
     onWhereColumnSelect,
     onOperatorSelect,
@@ -228,20 +309,8 @@ export default function CodeMirrorEditor({
     onColumnSelect,
     onDistinctSelect,
     isMac,
+    sqlCompletion,
   ]);
-
-  useEffect(() => {
-    if (editorRef.current && editorRef.current.state.doc.toString() !== query) {
-      editorRef.current.dispatch({
-        changes: {
-          from: 0,
-          to: editorRef.current.state.doc.length,
-          insert: query,
-        },
-      });
-      editorRef.current.focus();
-    }
-  }, [query]);
 
   return (
     <div
@@ -249,6 +318,23 @@ export default function CodeMirrorEditor({
         fullScreenEditor ? "fixed inset-0 z-50 bg-[#0f172a] p-4" : ""
       }`}
     >
+      <div className="rounded-lg flex items-center bg-[#1e293b]  border-slate-700">
+        <QueryTabs
+          queryTabs={queryTabs}
+          activeTab={activeTab}
+          onTabClick={handleTabClick}
+          onTabClose={handleTabClose}
+          onTabReorder={handleTabReorder}
+        />
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={addNewTab}
+          className="text-green-300 hover:bg-transparent hover:text-green-400"
+        >
+          + New Tab
+        </Button>
+      </div>
       <div ref={containerRef} className="flex-1" />
       {error && <p className="text-red-300 mt-2">{error}</p>}
       <div className="absolute top-2 right-2 z-50 flex flex-col gap-2">
@@ -295,7 +381,7 @@ export default function CodeMirrorEditor({
                     insert: formatted,
                   },
                 });
-                onQueryChange(formatted);
+                handleQueryChange(formatted);
               } catch (err) {
                 console.error("SQL formatting failed:", err);
               }

@@ -55,14 +55,14 @@ export default function QueryTabs({
   };
 
   return (
-    <div className="flex items-center border-b border-slate-700 bg-[#1e293b] overflow-x-auto">
+    <div className="flex items-center rounded-t-lg border-b border-slate-700 bg-[#1e293b] overflow-x-auto">
       {queryTabs.map((tab) => (
         <div
           key={tab.id}
           className={`flex items-center px-3 py-1 sm:px-4 sm:py-2 cursor-move whitespace-nowrap text-sm sm:text-base transition-all duration-300 ${
             activeTab === tab.id
               ? "bg-[#2d3748] text-[#f8f9fa]"
-              : "bg-[#1e293b] text-[#9ca3af] hover:bg-[#2d3748] hover:text-[#f8f9fa]" // Inactive tab styling
+              : "bg-[#1e293b] text-[#9ca3af] hover:bg-[#2d3748] hover:text-[#f8f9fa]"
           } ${dragId === tab.id ? "opacity-50" : ""}`}
           draggable
           onDragStart={handleDragStart(tab.id)}
