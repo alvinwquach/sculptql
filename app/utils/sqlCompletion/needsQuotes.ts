@@ -3,6 +3,14 @@ export const needsQuotes = (id: string): boolean => {
   // 1. Check if identifier contains special characters or reserved keywords
   // 2. Return true if quotes are needed, false otherwise
 
+  const isAggregate =
+    /^(COUNT|SUM|AVG|MAX|MIN|ROUND)(\s*\((\s*DISTINCT)?\s*(["']?[\w_]+["']?|\*)\s*(,\s*\d+)?\s*\))$/i.test(
+      id
+    );
+  if (isAggregate) {
+    return false;
+  }
+
   const reservedKeywords = [
     "SELECT",
     "FROM",

@@ -17,15 +17,6 @@ export const suggestColumnsAfterSelect = (
   onColumnSelect?: (value: MultiValue<SelectOption>) => void,
   onDistinctSelect?: (value: boolean) => void
 ): CompletionResult | null => {
-  // PSEUDOCODE:
-  // 1. Check if query is after SELECT or SELECT DISTINCT (including in CTE or UNION)
-  // 2. Check if in a CTE subquery and count parentheses
-  // 3. If inside an aggregate function (e.g., AVG(), ROUND()), suggest columns
-  // 4. If after ROUND(column, suggest decimal places
-  // 5. If after SELECT *, suggest FROM or ) (if in CTE)
-  // 6. Suggest columns, DISTINCT, aggregate functions, *, or ) (if in CTE) after SELECT
-  // 7. Return null if in CASE or after a column in SELECT
-  // Check if in a CTE subquery and count parentheses
   const isInCteSubquery = /\bWITH\s+[\w"]*\s+AS\s*\(\s*SELECT\b.*$/i.test(
     docText
   );
@@ -36,7 +27,7 @@ export const suggestColumnsAfterSelect = (
   const selectRegex = /\bSELECT\s*(DISTINCT\s*)?$/i;
   const unionSelectRegex = /\bUNION\s*(ALL\s*)?SELECT\s*(DISTINCT\s*)?$/i;
   const aggrFuncRegex =
-    /\bSELECT\s+(DISTINCT\s+)?(?:SUM|MAX|MIN|AVG|ROUND)\(\s*([a-zA-Z_][a-zA-Z0-9_"]*)?\s*$/i;
+    /\bSELECT\s+(DISTINCT\s+)?(?:SUM|MAX|MIN|AVG|ROUND|COUNT)\(\s*([a-zA-Z_][a-zA-Z0-9_"]*)?\s*$/i;
   const roundDecimalRegex =
     /\bSELECT\s+(DISTINCT\s+)?ROUND\(\s*(?:"[\w]+"|'[\w]+'|[\w_]+)\s*,\s*(\d*)?\s*$/i;
   const inCaseStatementRegex = /\bCASE\s+([^;]*?)$/i;
@@ -46,7 +37,6 @@ export const suggestColumnsAfterSelect = (
     /\bWITH\s+[\w"]+\s+AS\s*\(\s*SELECT\s*(DISTINCT\s*)?$/i;
   const afterColumnRegex = /\bSELECT\s+([^;]*?)(?:"[\w]+"|'[\w]+'|[\w_]+)\s*$/i;
 
-  // Avoid suggestions in CASE statements
   if (inCaseStatementRegex.test(docText)) {
     return null;
   }
@@ -80,10 +70,8 @@ export const suggestColumnsAfterSelect = (
         ? ast.some((node: Select) => node.type === "select" && node.distinct)
         : ast.type === "select" && ast.distinct));
 
-  // Extract selected column names for exclusion
   const selectedColumnNames = selectedColumns.map((c) => c.value.toLowerCase());
 
-  // Suggest decimals for ROUND
   if (roundDecimalMatch) {
     const partialNumber = roundDecimalMatch[2] || "";
     const decimalOptions = ["0", "1", "2", "3", "4"].filter((num) =>
@@ -102,10 +90,10 @@ export const suggestColumnsAfterSelect = (
     };
   }
 
-  // Suggest columns inside aggregate functions
   if (aggrMatch) {
     const partialColumn = aggrMatch[2] ? stripQuotes(aggrMatch[2]) : "";
     const isRoundFunction = aggrMatch[0].toUpperCase().includes("ROUND(");
+    const isCountFunction = aggrMatch[0].toUpperCase().includes("COUNT(");
 
     const filteredColumns = allColumns.filter((column) => {
       const colLower = column.toLowerCase();
@@ -129,9 +117,14 @@ export const suggestColumnsAfterSelect = (
             from: number,
             to: number
           ) => {
+            const func = aggrMatch[0].match(
+              /(SUM|MAX|MIN|AVG|ROUND|COUNT)/i
+            )![1];
             const applyText = needsQuotes(column)
               ? isRoundFunction
                 ? `"${column}", `
+                : isCountFunction && func === "COUNT"
+                ? `"${column}"`
                 : `"${column}"`
               : isRoundFunction
               ? `${column}, `
@@ -142,7 +135,12 @@ export const suggestColumnsAfterSelect = (
             if (onColumnSelect) {
               const newSelectedColumns = [
                 ...selectedColumns.filter((c) => c.value !== "*"),
-                { value: column, label: column },
+                {
+                  value: `${func}(${column})`,
+                  label: `${func}(${column})`,
+                  isAggregate: true,
+                  targetColumn: column,
+                },
               ];
               onColumnSelect(newSelectedColumns);
             }
@@ -155,7 +153,6 @@ export const suggestColumnsAfterSelect = (
     }
   }
 
-  // Suggest FROM or ) after SELECT *
   if (selectStarMatch) {
     const options = [
       {
@@ -183,7 +180,6 @@ export const suggestColumnsAfterSelect = (
     };
   }
 
-  // Suggest columns, DISTINCT, aggregates, *, or ) after SELECT, or columns after a comma
   if (
     isInSelectClause ||
     selectRegex.test(docText.trim()) ||
@@ -191,7 +187,6 @@ export const suggestColumnsAfterSelect = (
     cteSelectRegex.test(docText) ||
     afterSelectColumnMatch
   ) {
-    // Parse existing columns in the SELECT clause
     const selectMatch = docText.match(
       /SELECT\s+(DISTINCT\s+)?(.+?)(?=\s+FROM|\s*$)/i
     );
@@ -228,7 +223,6 @@ export const suggestColumnsAfterSelect = (
                 let newQuery = currentQuery;
 
                 if (newQuery.match(/^\s*SELECT\s+/i)) {
-                  // Insert DISTINCT after SELECT, preserving rest of the query
                   const selectMatch = newQuery.match(/^\s*SELECT\s+/i);
                   if (selectMatch) {
                     const insertPos = selectMatch[0].length;
@@ -238,7 +232,6 @@ export const suggestColumnsAfterSelect = (
                       newQuery.slice(insertPos);
                   }
                 } else {
-                  // If no SELECT, add SELECT DISTINCT and preserve rest
                   newQuery = `SELECT DISTINCT ${newQuery}`;
                 }
 
@@ -259,7 +252,22 @@ export const suggestColumnsAfterSelect = (
             {
               label: "COUNT(*)",
               type: "function",
-              apply: "COUNT(*) ",
+              apply: (
+                view: EditorView,
+                completion: Completion,
+                from: number,
+                to: number
+              ) => {
+                view.dispatch({
+                  changes: { from, to, insert: "COUNT(*), " },
+                });
+                if (onColumnSelect) {
+                  onColumnSelect([
+                    ...selectedColumns.filter((c) => c.value !== "*"),
+                    { value: "COUNT(*)", label: "COUNT(*)", aggregate: true },
+                  ]);
+                }
+              },
               detail: "Count all rows",
             },
             {
@@ -379,6 +387,211 @@ export const suggestColumnsAfterSelect = (
         },
         detail: "Column name",
       })),
+      ...filteredColumns.flatMap((column) => [
+        {
+          label: `COUNT(${column})`,
+          type: "function",
+          apply: (
+            view: EditorView,
+            completion: Completion,
+            from: number,
+            to: number
+          ) => {
+            const applyText = needsQuotes(column)
+              ? `COUNT("${column}"), `
+              : `COUNT(${column}), `;
+            view.dispatch({
+              changes: { from, to, insert: applyText },
+            });
+            if (onColumnSelect) {
+              onColumnSelect([
+                ...selectedColumns.filter((c) => c.value !== "*"),
+                {
+                  value: `COUNT(${column})`,
+                  label: `COUNT(${column})`,
+                  aggregate: true,
+                  column: column,
+                },
+              ]);
+            }
+          },
+          detail: "Count non-null values",
+        },
+        {
+          label: `COUNT(DISTINCT ${column})`,
+          type: "function",
+          apply: (
+            view: EditorView,
+            completion: Completion,
+            from: number,
+            to: number
+          ) => {
+            const applyText = needsQuotes(column)
+              ? `COUNT(DISTINCT "${column}"), `
+              : `COUNT(DISTINCT ${column}), `;
+            view.dispatch({
+              changes: { from, to, insert: applyText },
+            });
+            if (onColumnSelect) {
+              onColumnSelect([
+                ...selectedColumns.filter((c) => c.value !== "*"),
+                {
+                  value: `COUNT(DISTINCT ${column})`,
+                  label: `COUNT(DISTINCT ${column})`,
+                  aggregate: true,
+                  column: column,
+                },
+              ]);
+            }
+          },
+          detail: "Count distinct values",
+        },
+        {
+          label: `SUM(${column})`,
+          type: "function",
+          apply: (
+            view: EditorView,
+            completion: Completion,
+            from: number,
+            to: number
+          ) => {
+            const applyText = needsQuotes(column)
+              ? `SUM("${column}"), `
+              : `SUM(${column}), `;
+            view.dispatch({
+              changes: { from, to, insert: applyText },
+            });
+            if (onColumnSelect) {
+              onColumnSelect([
+                ...selectedColumns.filter((c) => c.value !== "*"),
+                {
+                  value: `SUM(${column})`,
+                  label: `SUM(${column})`,
+                  aggregate: true,
+                  column: column,
+                },
+              ]);
+            }
+          },
+          detail: "Sum of column values",
+        },
+        {
+          label: `AVG(${column})`,
+          type: "function",
+          apply: (
+            view: EditorView,
+            completion: Completion,
+            from: number,
+            to: number
+          ) => {
+            const applyText = needsQuotes(column)
+              ? `AVG("${column}"), `
+              : `AVG(${column}), `;
+            view.dispatch({
+              changes: { from, to, insert: applyText },
+            });
+            if (onColumnSelect) {
+              onColumnSelect([
+                ...selectedColumns.filter((c) => c.value !== "*"),
+                {
+                  value: `AVG(${column})`,
+                  label: `AVG(${column})`,
+                  aggregate: true,
+                  column: column,
+                },
+              ]);
+            }
+          },
+          detail: "Average of column values",
+        },
+        {
+          label: `MAX(${column})`,
+          type: "function",
+          apply: (
+            view: EditorView,
+            completion: Completion,
+            from: number,
+            to: number
+          ) => {
+            const applyText = needsQuotes(column)
+              ? `MAX("${column}"), `
+              : `MAX(${column}), `;
+            view.dispatch({
+              changes: { from, to, insert: applyText },
+            });
+            if (onColumnSelect) {
+              onColumnSelect([
+                ...selectedColumns.filter((c) => c.value !== "*"),
+                {
+                  value: `MAX(${column})`,
+                  label: `MAX(${column})`,
+                  aggregate: true,
+                  column: column,
+                },
+              ]);
+            }
+          },
+          detail: "Maximum column value",
+        },
+        {
+          label: `MIN(${column})`,
+          type: "function",
+          apply: (
+            view: EditorView,
+            completion: Completion,
+            from: number,
+            to: number
+          ) => {
+            const applyText = needsQuotes(column)
+              ? `MIN("${column}"), `
+              : `MIN(${column}), `;
+            view.dispatch({
+              changes: { from, to, insert: applyText },
+            });
+            if (onColumnSelect) {
+              onColumnSelect([
+                ...selectedColumns.filter((c) => c.value !== "*"),
+                {
+                  value: `MIN(${column})`,
+                  label: `MIN(${column})`,
+                  aggregate: true,
+                  column: column,
+                },
+              ]);
+            }
+          },
+          detail: "Minimum column value",
+        },
+        {
+          label: `ROUND(${column})`,
+          type: "function",
+          apply: (
+            view: EditorView,
+            completion: Completion,
+            from: number,
+            to: number
+          ) => {
+            const applyText = needsQuotes(column)
+              ? `ROUND("${column}", `
+              : `ROUND(${column}, `;
+            view.dispatch({
+              changes: { from, to, insert: applyText },
+            });
+            if (onColumnSelect) {
+              onColumnSelect([
+                ...selectedColumns.filter((c) => c.value !== "*"),
+                {
+                  value: `ROUND(${column})`,
+                  label: `ROUND(${column})`,
+                  aggregate: true,
+                  column: column,
+                },
+              ]);
+            }
+          },
+          detail: "Round column values",
+        },
+      ]),
     ];
 
     if (afterColumnMatch && !afterSelectColumnMatch) {
