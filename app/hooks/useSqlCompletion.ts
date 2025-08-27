@@ -173,6 +173,17 @@ export const useSqlCompletion = (
           onValueSelect,
           onLogicalOperatorSelect
         ) ||
+        suggestOrderByClause(
+          docText,
+          currentWord,
+          pos,
+          word,
+          tableColumns,
+          stripQuotes,
+          needsQuotes,
+          ast,
+          onOrderBySelect
+        ) ||
         suggestGroupByClause(
           docText,
           currentWord,
@@ -196,17 +207,6 @@ export const useSqlCompletion = (
           onAggregateColumnSelect,
           onHavingOperatorSelect,
           onHavingValueSelect
-        ) ||
-        suggestOrderByClause(
-          docText,
-          currentWord,
-          pos,
-          word,
-          tableColumns,
-          stripQuotes,
-          needsQuotes,
-          ast,
-          onOrderBySelect
         ) ||
         suggestUnionClause(docText, currentWord, pos, word, ast)
       );

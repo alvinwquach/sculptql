@@ -513,9 +513,9 @@ export const suggestWhereClause = (
 
   // Suggest AND, OR, ORDER BY, or ")" after complete condition
   const afterConditionRegex =
-    /\b(WHERE|AND|OR)\s+((?:"[\w]+"|'[\w]+'|[\w_]+))\s*([=!><]=?|LIKE|IS\s+NULL|IS\s+NOT\s+NULL)\s*('[^']*'|[0-9]+(?:\.[0-9]+)?)\s*$/i;
+    /\b(WHERE|AND|OR)\s+((?:"[\w]+"|'[\w]+'|[\w_]+))\s*([=!><]=?|LIKE|IS\s+NULL|IS\s+NOT\s+NULL)\s*('[^']*'|[0-9]+(?:\.[0-9]+)?)\s*(?!.*\bORDER\s+BY\b)$/i;
   const afterBetweenRegex =
-    /\b(WHERE|AND|OR)\s+((?:"[\w]+"|'[\w]+'|[\w_]+))\s*BETWEEN\s*('[^']*'|[0-9]+(?:\.[0-9]+)?)\s*AND\s*('[^']*'|[0-9]+(?:\.[0-9]+)?)\s*$/i;
+    /\b(WHERE|AND|OR)\s+((?:"[\w]+"|'[\w]+'|[\w_]+))\s*BETWEEN\s*('[^']*'|[0-9]+(?:\.[0-9]+)?)\s*AND\s*('[^']*'|[0-9]+(?:\.[0-9]+)?)\s*(?!.*\bORDER\s+BY\b)$/i;
   if (afterConditionRegex.test(docText) || afterBetweenRegex.test(docText)) {
     const column = afterConditionRegex.test(docText)
       ? afterConditionRegex.exec(docText)![2]

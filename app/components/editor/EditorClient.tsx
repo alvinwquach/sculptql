@@ -935,7 +935,7 @@ export default function EditorClient({
           ? `"${orderByClause.column.value}"`
           : orderByClause.column.value;
         const dir = orderByClause.direction?.value || "";
-        newQuery += ` ORDER BY ${col} ${dir}`.trim();
+        newQuery += ` ORDER BY ${col}${dir ? ` ${dir}` : ""}`;
       }
 
       if (limit) {
