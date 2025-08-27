@@ -159,16 +159,16 @@ export const useSqlCompletion = (
           onValueSelect,
           onLogicalOperatorSelect
         ) ||
-        suggestGroupByClause(
-          docText,
-          currentWord,
-          pos,
-          word,
-          tableColumns,
-          stripQuotes,
-          needsQuotes,
-          ast
-        ) ||
+        // suggestGroupByClause(
+        //   docText,
+        //   currentWord,
+        //   pos,
+        //   word,
+        //   tableColumns,
+        //   stripQuotes,
+        //   needsQuotes,
+        //   ast
+        // ) ||
         suggestHavingClause(
           docText,
           currentWord,
