@@ -107,7 +107,6 @@ export default function ColumnSelect({
                 isAggregate: true,
                 targetColumn: col,
               },
-              // Add ROUND(AVG(column), decimals) for common precisions
               {
                 value: `ROUND(AVG(${col}), 0)`,
                 label: `ROUND(AVG(${col}), 0)`,
