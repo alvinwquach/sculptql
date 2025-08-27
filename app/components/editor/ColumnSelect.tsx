@@ -32,148 +32,154 @@ export default function ColumnSelect({
   ];
 
   const columnOptions: SelectOption[] = useMemo(() => {
-    const columns = selectedTable
-      ? [
-          { value: "*", label: "All Columns (*)" },
-          ...(tableColumns[selectedTable.value]?.map((col) => ({
-            value: col,
-            label: col,
-          })) || []),
-          ...(tableColumns[selectedTable.value]?.flatMap((col) => {
-            const aggregates = [
-              {
-                value: `SUM(${col})`,
-                label: `SUM(${col})`,
-                isAggregate: true,
-                targetColumn: col,
-              },
-              {
-                value: `AVG(${col})`,
-                label: `AVG(${col})`,
-                isAggregate: true,
-                targetColumn: col,
-              },
-              {
-                value: `MAX(${col})`,
-                label: `MAX(${col})`,
-                isAggregate: true,
-                targetColumn: col,
-              },
-              {
-                value: `MIN(${col})`,
-                label: `MIN(${col})`,
-                isAggregate: true,
-                targetColumn: col,
-              },
-              {
-                value: `ROUND(${col}, 0)`,
-                label: `ROUND(${col}, 0)`,
-                isAggregate: false,
-                targetColumn: col,
-              },
-              {
-                value: `ROUND(${col}, 1)`,
-                label: `ROUND(${col}, 1)`,
-                isAggregate: false,
-                targetColumn: col,
-              },
-              {
-                value: `ROUND(${col}, 2)`,
-                label: `ROUND(${col}, 2)`,
-                isAggregate: false,
-                targetColumn: col,
-              },
-              {
-                value: `ROUND(${col}, 3)`,
-                label: `ROUND(${col}, 3)`,
-                isAggregate: false,
-                targetColumn: col,
-              },
-              {
-                value: `ROUND(${col}, 4)`,
-                label: `ROUND(${col}, 4)`,
-                isAggregate: false,
-                targetColumn: col,
-              },
-              {
-                value: `COUNT(${col})`,
-                label: `COUNT(${col})`,
-                isAggregate: true,
-                targetColumn: col,
-              },
-              {
-                value: `COUNT(DISTINCT ${col})`,
-                label: `COUNT(DISTINCT ${col})`,
-                isAggregate: true,
-                targetColumn: col,
-              },
-              {
-                value: `ROUND(AVG(${col}), 0)`,
-                label: `ROUND(AVG(${col}), 0)`,
-                isAggregate: true,
-                targetColumn: col,
-              },
-              {
-                value: `ROUND(AVG(${col}), 1)`,
-                label: `ROUND(AVG(${col}), 1)`,
-                isAggregate: true,
-                targetColumn: col,
-              },
-              {
-                value: `ROUND(AVG(${col}), 2)`,
-                label: `ROUND(AVG(${col}), 2)`,
-                isAggregate: true,
-                targetColumn: col,
-              },
-              {
-                value: `ROUND(AVG(${col}), 3)`,
-                label: `ROUND(AVG(${col}), 3)`,
-                isAggregate: true,
-                targetColumn: col,
-              },
-              {
-                value: `ROUND(AVG(${col}), 4)`,
-                label: `ROUND(AVG(${col}), 4)`,
-                isAggregate: true,
-                targetColumn: col,
-              },
-            ];
+    if (!selectedTable) return [];
 
-            if (isMySQL) {
-              aggregates.push(
-                {
-                  value: `SUM(DISTINCT ${col})`,
-                  label: `SUM(DISTINCT ${col})`,
-                  isAggregate: true,
-                  targetColumn: col,
-                },
-                {
-                  value: `AVG(DISTINCT ${col})`,
-                  label: `AVG(DISTINCT ${col})`,
-                  isAggregate: true,
-                  targetColumn: col,
-                },
-                {
-                  value: `MAX(DISTINCT ${col})`,
-                  label: `MAX(DISTINCT ${col})`,
-                  isAggregate: true,
-                  targetColumn: col,
-                },
-                {
-                  value: `MIN(DISTINCT ${col})`,
-                  label: `MIN(DISTINCT ${col})`,
-                  isAggregate: true,
-                  targetColumn: col,
-                }
-              );
+    const columns = [
+      { value: "*", label: "All Columns (*)" },
+      ...(tableColumns[selectedTable.value]?.map((col) => ({
+        value: col,
+        label: col,
+      })) || []),
+      ...(tableColumns[selectedTable.value]?.flatMap((col) => {
+        const aggregates = [
+          {
+            value: `SUM_${col}`, // Unique value by prefixing function
+            label: `SUM(${col})`,
+            isAggregate: true,
+            targetColumn: col,
+          },
+          {
+            value: `AVG_${col}`,
+            label: `AVG(${col})`,
+            isAggregate: true,
+            targetColumn: col,
+          },
+          {
+            value: `MAX_${col}`,
+            label: `MAX(${col})`,
+            isAggregate: true,
+            targetColumn: col,
+          },
+          {
+            value: `MIN_${col}`,
+            label: `MIN(${col})`,
+            isAggregate: true,
+            targetColumn: col,
+          },
+          {
+            value: `ROUND_${col}_0`,
+            label: `ROUND(${col}, 0)`,
+            isAggregate: false,
+            targetColumn: col,
+          },
+          {
+            value: `ROUND_${col}_1`,
+            label: `ROUND(${col}, 1)`,
+            isAggregate: false,
+            targetColumn: col,
+          },
+          {
+            value: `ROUND_${col}_2`,
+            label: `ROUND(${col}, 2)`,
+            isAggregate: false,
+            targetColumn: col,
+          },
+          {
+            value: `ROUND_${col}_3`,
+            label: `ROUND(${col}, 3)`,
+            isAggregate: false,
+            targetColumn: col,
+          },
+          {
+            value: `ROUND_${col}_4`,
+            label: `ROUND(${col}, 4)`,
+            isAggregate: false,
+            targetColumn: col,
+          },
+          {
+            value: `COUNT_${col}`,
+            label: `COUNT(${col})`,
+            isAggregate: true,
+            targetColumn: col,
+          },
+          {
+            value: `COUNT_DISTINCT_${col}`,
+            label: `COUNT(DISTINCT ${col})`,
+            isAggregate: true,
+            targetColumn: col,
+          },
+          {
+            value: `ROUND_AVG_${col}_0`,
+            label: `ROUND(AVG(${col}), 0)`,
+            isAggregate: true,
+            targetColumn: col,
+          },
+          {
+            value: `ROUND_AVG_${col}_1`,
+            label: `ROUND(AVG(${col}), 1)`,
+            isAggregate: true,
+            targetColumn: col,
+          },
+          {
+            value: `ROUND_AVG_${col}_2`,
+            label: `ROUND(AVG(${col}), 2)`,
+            isAggregate: true,
+            targetColumn: col,
+          },
+          {
+            value: `ROUND_AVG_${col}_3`,
+            label: `ROUND(AVG(${col}), 3)`,
+            isAggregate: true,
+            targetColumn: col,
+          },
+          {
+            value: `ROUND_AVG_${col}_4`,
+            label: `ROUND(AVG(${col}), 4)`,
+            isAggregate: true,
+            targetColumn: col,
+          },
+        ];
+
+        if (isMySQL) {
+          aggregates.push(
+            {
+              value: `SUM_DISTINCT_${col}`,
+              label: `SUM(DISTINCT ${col})`,
+              isAggregate: true,
+              targetColumn: col,
+            },
+            {
+              value: `AVG_DISTINCT_${col}`,
+              label: `AVG(DISTINCT ${col})`,
+              isAggregate: true,
+              targetColumn: col,
+            },
+            {
+              value: `MAX_DISTINCT_${col}`,
+              label: `MAX(DISTINCT ${col})`,
+              isAggregate: true,
+              targetColumn: col,
+            },
+            {
+              value: `MIN_DISTINCT_${col}`,
+              label: `MIN(DISTINCT ${col})`,
+              isAggregate: true,
+              targetColumn: col,
             }
+          );
+        }
 
-            return aggregates;
-          }) || []),
-          ...aggregateFunctions,
-        ]
-      : [];
-    return columns;
+        return aggregates;
+      }) || []),
+      ...aggregateFunctions,
+    ];
+
+    // Ensure uniqueness by filtering out duplicates
+    const uniqueColumns = Array.from(
+      new Map(columns.map((option) => [option.value, option])).values()
+    );
+
+    return uniqueColumns;
   }, [selectedTable, tableColumns, isMySQL]);
 
   const handleChange = (value: MultiValue<SelectOption>) => {
