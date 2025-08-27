@@ -65,12 +65,36 @@ export default function ColumnSelect({
                 isAggregate: true,
                 targetColumn: col,
               },
-              // {
-              //   value: `ROUND(${col}, 2)`
-              //   label: `ROUND(${col}, 2)`,
-              //   isAggregate: true,
-              //   targetColumn: col,
-              // },
+              {
+                value: `ROUND(${col}, 0)`,
+                label: `ROUND(${col}, 0)`,
+                isAggregate: false,
+                targetColumn: col,
+              },
+              {
+                value: `ROUND(${col}, 1)`,
+                label: `ROUND(${col}, 1)`,
+                isAggregate: false,
+                targetColumn: col,
+              },
+              {
+                value: `ROUND(${col}, 2)`,
+                label: `ROUND(${col}, 2)`,
+                isAggregate: false,
+                targetColumn: col,
+              },
+              {
+                value: `ROUND(${col}, 3)`,
+                label: `ROUND(${col}, 3)`,
+                isAggregate: false,
+                targetColumn: col,
+              },
+              {
+                value: `ROUND(${col}, 4)`,
+                label: `ROUND(${col}, 4)`,
+                isAggregate: false,
+                targetColumn: col,
+              },
               {
                 value: `COUNT(${col})`,
                 label: `COUNT(${col})`,
@@ -80,6 +104,36 @@ export default function ColumnSelect({
               {
                 value: `COUNT(DISTINCT ${col})`,
                 label: `COUNT(DISTINCT ${col})`,
+                isAggregate: true,
+                targetColumn: col,
+              },
+              {
+                value: `ROUND(AVG(${col}), 0)`,
+                label: `ROUND(AVG(${col}), 0)`,
+                isAggregate: true,
+                targetColumn: col,
+              },
+              {
+                value: `ROUND(AVG(${col}), 1)`,
+                label: `ROUND(AVG(${col}), 1)`,
+                isAggregate: true,
+                targetColumn: col,
+              },
+              {
+                value: `ROUND(AVG(${col}), 2)`,
+                label: `ROUND(AVG(${col}), 2)`,
+                isAggregate: true,
+                targetColumn: col,
+              },
+              {
+                value: `ROUND(AVG(${col}), 3)`,
+                label: `ROUND(AVG(${col}), 3)`,
+                isAggregate: true,
+                targetColumn: col,
+              },
+              {
+                value: `ROUND(AVG(${col}), 4)`,
+                label: `ROUND(AVG(${col}), 4)`,
                 isAggregate: true,
                 targetColumn: col,
               },

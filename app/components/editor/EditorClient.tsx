@@ -26,7 +26,7 @@ interface EditorClientProps {
 export default function EditorClient({
   schema,
   error,
-  isMySQL,
+  isMySQL = false,
 }: EditorClientProps) {
   const [selectedTable, setSelectedTable] = useState<SelectOption | null>(null);
   const [selectedColumns, setSelectedColumns] = useState<SelectOption[]>([]);
@@ -167,7 +167,6 @@ export default function EditorClient({
 
   const handleColumnSelect = useCallback(
     (value: MultiValue<SelectOption>) => {
-      // If "*" is selected, only keep the "*" option
       const newCols = value.some((col) => col.value === "*")
         ? [{ value: "*", label: "All Columns (*)" }]
         : value.filter((col) => col.value !== "*");
@@ -597,7 +596,6 @@ export default function EditorClient({
         .replace(/;+\s*$/, "")
         .trim();
 
-      // Step 1: Extract existing WHERE clause
       let whereClauseString = "";
       const whereMatch = newQuery.match(
         /\bWHERE\s+(.+?)(?=\s*(ORDER\s+BY|LIMIT|;|$))/i
@@ -605,7 +603,6 @@ export default function EditorClient({
       if (whereMatch) {
         whereClauseString = whereMatch[0].trim();
       } else {
-        // If no WHERE clause in query, build it from whereClause state if valid
         if (
           whereClause &&
           whereClause.conditions &&
@@ -647,17 +644,14 @@ export default function EditorClient({
         }
       }
 
-      // Step 2: Build the base query with SELECT and FROM
       newQuery = `SELECT ${
         isDistinct ? "DISTINCT " : ""
       }${columnsString} FROM ${tableName}`;
 
-      // Step 3: Append WHERE clause if it exists
       if (whereClauseString) {
         newQuery += ` ${whereClauseString}`;
       }
 
-      // Step 4: Append ORDER BY clause if present
       if (updatedOrderBy.column) {
         const columnName = needsQuotes(updatedOrderBy.column.value)
           ? `"${updatedOrderBy.column.value}"`
@@ -668,12 +662,10 @@ export default function EditorClient({
         }`;
       }
 
-      // Step 5: Append LIMIT clause if present
       if (updatedLimit) {
         newQuery += ` LIMIT ${updatedLimit.value}`;
       }
 
-      // Step 6: Add semicolon if query is complete
       newQuery = newQuery.trim();
       if (newQuery.match(/\b(FROM|WHERE|ORDER\s+BY|LIMIT)\b/i)) {
         newQuery += ";";
@@ -740,7 +732,7 @@ export default function EditorClient({
           setSelectedColumns([{ value: "*", label: "All Columns (*)" }]);
         } else {
           const columnRegex =
-            /(?:"[^"]+"|'[^']+'|[a-zA-Z_][a-zA-Z0-9_]*|COUNT\(\*\)|(?:SUM|AVG|MAX|MIN|ROUND|COUNT)\((?:DISTINCT\s+)?(?:[^,)]+)(?:,\s*(\d+))?\))/gi;
+            /(?:"[^"]+"|'[^']+'|[a-zA-Z_][a-zA-Z0-9_]*|COUNT\(\*\)|ROUND\((?:AVG|SUM|MAX|MIN|COUNT)\((?:DISTINCT\s+)?(?:[^,)]+)\)(?:,\s*(\d+))?\)|(?:SUM|AVG|MAX|MIN|ROUND|COUNT)\((?:DISTINCT\s+)?(?:[^,)]+)(?:,\s*(\d+))?\))/gi;
           const parsedColumns: SelectOption[] = [];
           let match;
           while ((match = columnRegex.exec(columnsStr)) !== null) {
@@ -757,31 +749,62 @@ export default function EditorClient({
               const funcMatch = col.match(
                 /^(SUM|AVG|MAX|MIN|ROUND|COUNT)\((?:DISTINCT\s+)?(.+?)(?:,\s*(\d+))?\)$/i
               );
-              if (funcMatch) {
-                const func = funcMatch[1];
-                const targetCol = stripQuotes(funcMatch[2]);
+              const nestedMatch = col.match(
+                /^ROUND\((AVG|SUM|MAX|MIN|COUNT)\((?:DISTINCT\s+)?(.+?)\)(?:,\s*(\d+))?\)$/i
+              );
+              if (nestedMatch) {
+                const innerFunc = nestedMatch[1];
+                const targetCol = stripQuotes(nestedMatch[2]);
+                const decimals = nestedMatch[3] || null;
                 const isDistinct = col.includes("DISTINCT");
-                // Allow DISTINCT for non-COUNT aggregates only if isMySQL
                 if (
                   tableColumns[tableName]?.includes(targetCol) &&
-                  (!isDistinct || func === "COUNT")
+                  (!isDistinct || innerFunc === "COUNT" || isMySQL)
+                ) {
+                  parsedColumns.push({
+                    value: isDistinct
+                      ? `ROUND(${innerFunc}(DISTINCT ${
+                          needsQuotes(targetCol) ? `"${targetCol}"` : targetCol
+                        })${decimals ? `, ${decimals}` : ""})`
+                      : `ROUND(${innerFunc}(${
+                          needsQuotes(targetCol) ? `"${targetCol}"` : targetCol
+                        })${decimals ? `, ${decimals}` : ""})`,
+                    label: isDistinct
+                      ? `ROUND(${innerFunc}(DISTINCT ${targetCol})${
+                          decimals ? `, ${decimals}` : ""
+                        })`
+                      : `ROUND(${innerFunc}(${targetCol})${
+                          decimals ? `, ${decimals}` : ""
+                        })`,
+                    aggregate: true,
+                    column: targetCol,
+                  });
+                }
+              } else if (funcMatch) {
+                const func = funcMatch[1];
+                const targetCol = stripQuotes(funcMatch[2]);
+                const decimals = funcMatch[3] || null;
+                const isDistinct = col.includes("DISTINCT");
+                if (
+                  tableColumns[tableName]?.includes(targetCol) &&
+                  (!isDistinct || func === "COUNT" || isMySQL)
                 ) {
                   parsedColumns.push({
                     value: isDistinct
                       ? `${func}(DISTINCT ${
                           needsQuotes(targetCol) ? `"${targetCol}"` : targetCol
-                        }${funcMatch[3] ? `, ${funcMatch[3]}` : ""})`
+                        }${decimals ? `, ${decimals}` : ""})`
                       : `${func}(${
                           needsQuotes(targetCol) ? `"${targetCol}"` : targetCol
-                        }${funcMatch[3] ? `, ${funcMatch[3]}` : ""})`,
+                        }${decimals ? `, ${decimals}` : ""})`,
                     label: isDistinct
                       ? `${func}(DISTINCT ${targetCol}${
-                          funcMatch[3] ? `, ${funcMatch[3]}` : ""
+                          decimals ? `, ${decimals}` : ""
                         })`
                       : `${func}(${targetCol}${
-                          funcMatch[3] ? `, ${funcMatch[3]}` : ""
+                          decimals ? `, ${decimals}` : ""
                         })`,
-                    aggregate: true,
+                    aggregate: func !== "ROUND",
                     column: targetCol,
                   });
                 }
@@ -928,7 +951,7 @@ export default function EditorClient({
         setLimit(null);
       }
     },
-    [selectedTable, tableNames, tableColumns]
+    [selectedTable, tableNames, tableColumns, isMySQL]
   );
 
   return (
