@@ -25,17 +25,66 @@ export default function ColumnSelect({
   isDistinct,
   onDistinctChange,
 }: ColumnSelectProps) {
+  const aggregateFunctions = [
+    { value: "COUNT(*)", label: "COUNT(*)", isAggregate: true },
+  ];
+
   const columnOptions: SelectOption[] = useMemo(() => {
-    const options = selectedTable
+    const columns = selectedTable
       ? [
           { value: "*", label: "All Columns (*)" },
           ...(tableColumns[selectedTable.value]?.map((col) => ({
             value: col,
             label: col,
           })) || []),
+          ...(tableColumns[selectedTable.value]?.flatMap((col) => [
+            // {
+            //   value: `SUM(${col})`,
+            //   label: `SUM(${col})`,
+            //   isAggregate: true,
+            //   targetColumn: col,
+            // },
+            // {
+            //   value: `AVG(${col})`,
+            //   label: `AVG(${col})`,
+            //   isAggregate: true,
+            //   targetColumn: col,
+            // },
+            // {
+            //   value: `MAX(${col})`,
+            //   label: `MAX(${col})`,
+            //   isAggregate: true,
+            //   targetColumn: col,
+            // },
+            // {
+            //   value: `MIN(${col})`,
+            //   label: `MIN(${col})`,
+            //   isAggregate: true,
+            //   targetColumn: col,
+            // },
+            // {
+            //   value: `ROUND(${col},`,
+            //   label: `ROUND(${col})`,
+            //   isAggregate: true,
+            //   targetColumn: col,
+            // },
+            {
+              value: `COUNT(${col})`,
+              label: `COUNT(${col})`,
+              isAggregate: true,
+              targetColumn: col,
+            },
+            {
+              value: `COUNT(DISTINCT ${col})`,
+              label: `COUNT(DISTINCT ${col})`,
+              isAggregate: true,
+              targetColumn: col,
+            },
+          ]) || []),
+          ...aggregateFunctions,
         ]
       : [];
-    return options;
+    return columns;
   }, [selectedTable, tableColumns]);
 
   const handleChange = (value: MultiValue<SelectOption>) => {
@@ -98,7 +147,7 @@ export default function ColumnSelect({
         options={columnOptions}
         value={selectedColumns}
         onChange={handleChange}
-        placeholder="Select column(s)"
+        placeholder="Select column(s) or aggregate(s)"
         isMulti
         isClearable
         isDisabled={!selectedTable || metadataLoading}

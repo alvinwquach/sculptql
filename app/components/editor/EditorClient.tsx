@@ -106,7 +106,11 @@ export default function EditorClient({ schema, error }: EditorClientProps) {
               ? "*"
               : selectedColumns
                   .map((col) =>
-                    needsQuotes(col.value) ? `"${col.value}"` : col.value
+                    col.aggregate
+                      ? col.value
+                      : needsQuotes(col.value)
+                      ? `"${col.value}"`
+                      : col.value
                   )
                   .join(", ");
           setQuery(
@@ -136,7 +140,11 @@ export default function EditorClient({ schema, error }: EditorClientProps) {
             ? "*"
             : selectedColumns
                 .map((col) =>
-                  needsQuotes(col.value) ? `"${col.value}"` : col.value
+                  col.aggregate
+                    ? col.value
+                    : needsQuotes(col.value)
+                    ? `"${col.value}"`
+                    : col.value
                 )
                 .join(", ");
         setQuery(`SELECT${isDistinct ? " DISTINCT" : ""} ${columnsString} `);
@@ -154,6 +162,7 @@ export default function EditorClient({ schema, error }: EditorClientProps) {
 
   const handleColumnSelect = useCallback(
     (value: MultiValue<SelectOption>) => {
+      // If "*" is selected, only keep the "*" option
       const newCols = value.some((col) => col.value === "*")
         ? [{ value: "*", label: "All Columns (*)" }]
         : value.filter((col) => col.value !== "*");
@@ -163,11 +172,13 @@ export default function EditorClient({ schema, error }: EditorClientProps) {
       const colsString =
         newCols.length === 0
           ? "*"
-          : newCols.some((col) => col.value === "*")
-          ? "*"
           : newCols
               .map((col) =>
-                needsQuotes(col.value) ? `"${col.value}"` : col.value
+                col.aggregate
+                  ? col.value
+                  : needsQuotes(col.value)
+                  ? `"${col.value}"`
+                  : col.value
               )
               .join(", ");
 
@@ -182,10 +193,6 @@ export default function EditorClient({ schema, error }: EditorClientProps) {
       );
       if (whereMatch) {
         whereClause = whereMatch[0].trim();
-        console.log(
-          "Extracted WHERE clause in handleColumnSelect:",
-          whereClause
-        );
       }
 
       let orderByClause = "";
@@ -194,20 +201,12 @@ export default function EditorClient({ schema, error }: EditorClientProps) {
       );
       if (orderByMatch) {
         orderByClause = orderByMatch[0].trim();
-        console.log(
-          "Extracted ORDER BY clause in handleColumnSelect:",
-          orderByClause
-        );
       }
 
       let limitClause = "";
       const limitMatch = newQuery.match(/\bLIMIT\s+(\d+)\s*?(?=;|$)/i);
       if (limitMatch) {
         limitClause = limitMatch[0].trim();
-        console.log(
-          "Extracted LIMIT clause in handleColumnSelect:",
-          limitClause
-        );
       }
 
       if (newQuery.match(/\bSELECT\b/i)) {
@@ -243,7 +242,6 @@ export default function EditorClient({ schema, error }: EditorClientProps) {
         newQuery += " ";
       }
 
-      console.log("Updated query in handleColumnSelect:", newQuery);
       setQuery(newQuery);
     },
     [query, selectedTable, isDistinct]
@@ -260,12 +258,14 @@ export default function EditorClient({ schema, error }: EditorClientProps) {
 
       const colsString =
         selectedColumns.length === 0
-          ? ""
-          : selectedColumns.some((col) => col.value === "*")
           ? "*"
           : selectedColumns
               .map((col) =>
-                needsQuotes(col.value) ? `"${col.value}"` : col.value
+                col.aggregate
+                  ? col.value
+                  : needsQuotes(col.value)
+                  ? `"${col.value}"`
+                  : col.value
               )
               .join(", ");
 
@@ -494,7 +494,11 @@ export default function EditorClient({ schema, error }: EditorClientProps) {
           ? "*"
           : selectedColumns
               .map((col) =>
-                needsQuotes(col.value) ? `"${col.value}"` : col.value
+                col.aggregate
+                  ? col.value
+                  : needsQuotes(col.value)
+                  ? `"${col.value}"`
+                  : col.value
               )
               .join(", ");
 
@@ -575,7 +579,11 @@ export default function EditorClient({ schema, error }: EditorClientProps) {
           ? "*"
           : selectedColumns
               .map((col) =>
-                needsQuotes(col.value) ? `"${col.value}"` : col.value
+                col.aggregate
+                  ? col.value
+                  : needsQuotes(col.value)
+                  ? `"${col.value}"`
+                  : col.value
               )
               .join(", ");
 
@@ -591,9 +599,7 @@ export default function EditorClient({ schema, error }: EditorClientProps) {
       );
       if (whereMatch) {
         whereClauseString = whereMatch[0].trim();
-        console.log("Extracted WHERE clause:", whereClauseString);
       } else {
-        console.log("No WHERE clause found in query:", newQuery);
         // If no WHERE clause in query, build it from whereClause state if valid
         if (
           whereClause &&
@@ -632,16 +638,7 @@ export default function EditorClient({ schema, error }: EditorClientProps) {
 
           if (conditionsStrings.length > 0) {
             whereClauseString = "WHERE " + conditionsStrings.join(" ");
-            console.log(
-              "Reconstructed WHERE clause from state:",
-              whereClauseString
-            );
           }
-        } else {
-          console.log(
-            "whereClause or whereClause.conditions is invalid:",
-            whereClause
-          );
         }
       }
 
@@ -679,7 +676,6 @@ export default function EditorClient({ schema, error }: EditorClientProps) {
         newQuery += " ";
       }
 
-      console.log("Updated query with ORDER BY and LIMIT:", newQuery);
       setQuery(newQuery);
     },
     [selectedTable, selectedColumns, query, isDistinct, whereClause]
@@ -738,17 +734,52 @@ export default function EditorClient({ schema, error }: EditorClientProps) {
         if (columnsStr === "*" || columnsStr === "") {
           setSelectedColumns([{ value: "*", label: "All Columns (*)" }]);
         } else {
-          const columnRegex = /(?:"[^"]+"|'[^']+'|[a-zA-Z_][a-zA-Z0-9_]*)/g;
-          const parsedColumns = [];
+          const columnRegex =
+            /(?:"[^"]+"|'[^']+'|[a-zA-Z_][a-zA-Z0-9_]*|COUNT\(\*\)|(?:SUM|MAX|MIN|AVG|ROUND|COUNT)\((?:DISTINCT\s+)?(?:[^,)]+)(?:,\s*\d+)?\))/gi;
+          const parsedColumns: SelectOption[] = [];
           let match;
           while ((match = columnRegex.exec(columnsStr)) !== null) {
-            const col = stripQuotes(match[0]);
-            if (
-              col &&
-              (col === "*" ||
-                (tableName && tableColumns[tableName]?.includes(col)))
-            ) {
-              parsedColumns.push({ value: col, label: col });
+            const col = match[0];
+            if (col === "*") {
+              parsedColumns.push({ value: "*", label: "All Columns (*)" });
+            } else if (col === "COUNT(*)") {
+              parsedColumns.push({
+                value: "COUNT(*)",
+                label: "COUNT(*)",
+                aggregate: true,
+              });
+            } else if (col.match(/^(SUM|MAX|MIN|AVG|ROUND|COUNT)\(/i)) {
+              const funcMatch = col.match(
+                /^(SUM|MAX|MIN|AVG|ROUND|COUNT)\((?:DISTINCT\s+)?(.+?)(?:,\s*(\d+))?\)$/i
+              );
+              if (funcMatch) {
+                const func = funcMatch[1];
+                const targetCol = stripQuotes(funcMatch[2]);
+                const isDistinct = col.includes("DISTINCT");
+                if (tableColumns[tableName]?.includes(targetCol)) {
+                  parsedColumns.push({
+                    value: isDistinct
+                      ? `COUNT(DISTINCT ${
+                          needsQuotes(targetCol) ? `"${targetCol}"` : targetCol
+                        })`
+                      : `${func}(${
+                          needsQuotes(targetCol) ? `"${targetCol}"` : targetCol
+                        }${funcMatch[3] ? `, ${funcMatch[3]}` : ""})`,
+                    label: isDistinct
+                      ? `COUNT(DISTINCT ${targetCol})`
+                      : `${func}(${targetCol}${
+                          funcMatch[3] ? `, ${funcMatch[3]}` : ""
+                        })`,
+                    aggregate: true,
+                    column: targetCol,
+                  });
+                }
+              }
+            } else {
+              const cleanCol = stripQuotes(col);
+              if (tableColumns[tableName]?.includes(cleanCol)) {
+                parsedColumns.push({ value: cleanCol, label: cleanCol });
+              }
             }
           }
           setSelectedColumns(
@@ -761,7 +792,6 @@ export default function EditorClient({ schema, error }: EditorClientProps) {
         setSelectedColumns([]);
       }
 
-      // Parse WHERE clause
       const whereMatch = normalizedQuery.match(
         /\bWHERE\s+(.+?)(?=\s*(ORDER\s+BY|LIMIT|;|$))/i
       );
@@ -820,8 +850,6 @@ export default function EditorClient({ schema, error }: EditorClientProps) {
                           condition.value2 = { value: value2, label: value2 };
                         }
                       }
-                    } else {
-                      console.log("No value match for condition:", part);
                     }
                   }
                   conditions.push(condition);

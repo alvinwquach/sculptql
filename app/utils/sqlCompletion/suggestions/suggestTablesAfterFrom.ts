@@ -13,7 +13,11 @@ interface AggrFuncExpr {
   type: "aggr_func";
   name: string;
   args:
-    | { expr: ColumnRefExprFixed }
+    | {
+        expr:
+          | ColumnRefExprFixed
+          | { type: "distinct"; expr: ColumnRefExprFixed };
+      }
     | { expr: ColumnRefExprFixed; decimals: number };
 }
 
@@ -42,50 +46,6 @@ export const suggestTablesAfterFrom = (
   ast: Select | Select[] | null,
   onTableSelect?: (value: SelectOption | null) => void
 ): CompletionResult | null => {
-  // PSEUDOCODE:
-  // 1. Define type guards:
-  //    - isSelectNode: check if node is a Select AST node
-  //    - isColumnRefExpr: check if expression is a column reference
-  //    - isAggrFuncExpr: check if expression is an aggregate function
-  //
-  // 2. Define helper getSelectedColumns:
-  //    - If AST is available, iterate over columns
-  //      - If column is a column_ref → extract column name
-  //      - If column is a CASE expression → extract column(s) from WHEN conditions
-  //      - If column is an aggregate function (COUNT, SUM, etc.) → extract inner column
-  //    - Else fallback: parse raw SELECT text with regex/split
-  //    - Return cleaned list of selected column names
-  //
-  // 3. Define regex patterns for contexts:
-  //    - afterFromRegex: detect `SELECT ... FROM` position
-  //    - afterTableRegex: detect `SELECT ... FROM table_name` position
-  //    - afterCaseEndOrAliasRegex: detect `CASE ... END [AS alias] FROM`
-  //    - selectFromRegex: detect `SELECT * FROM` or `SELECT columns FROM`
-  //    - Also detect CTE subquery context (WITH ... AS (SELECT ...)) and count parentheses
-  //
-  // 4. Handle case: after `SELECT ... FROM`
-  //    - Extract selected columns (from AST or regex parsing)
-  //    - If query just closed a CTE, add CTE alias as valid table option
-  //    - Else, get valid tables for the first selected column (or fallback to all tables)
-  //    - Filter valid tables by current word typed
-  //    - If matches exist, return table suggestions
-  //
-  // 5. Handle case: after a specific table in FROM clause
-  //    - Match the table name in the FROM clause
-  //    - If valid, suggest next possible keywords:
-  //      - `)` (if still inside an open CTE subquery)
-  //      - `INNER JOIN`, `LEFT JOIN`, `RIGHT JOIN`, `CROSS JOIN`
-  //      - `WHERE`, `GROUP BY`
-  //    - Return filtered options
-  //
-  // 6. Handle case: after CASE END expression in SELECT
-  //    - Extract selected columns from AST
-  //    - Get valid tables for these columns (or fallback to all tables)
-  //    - Filter tables by current word typed
-  //    - If matches exist, return table suggestions
-  //
-  // 7. If no condition matched, return null (no suggestions)
-
   // Type guard for Select node
   const isSelectNode = (node: unknown): node is Select =>
     !!node &&
@@ -112,6 +72,17 @@ export const suggestTablesAfterFrom = (
       (expr as { name: string }).name.toUpperCase()
     );
 
+  // Type guard for DISTINCT expression within aggregate
+  const isDistinctExpr = (
+    expr: unknown
+  ): expr is { type: "distinct"; expr: ColumnRefExprFixed } =>
+    !!expr &&
+    typeof expr === "object" &&
+    "type" in expr &&
+    (expr as { type: unknown }).type === "distinct" &&
+    "expr" in expr &&
+    isColumnRefExpr((expr as { expr: unknown }).expr);
+
   // Extract selected columns from AST or SELECT clause text
   const getSelectedColumns = (
     selectText: string,
@@ -134,8 +105,11 @@ export const suggestTablesAfterFrom = (
                 .filter((col): col is string => !!col) || []
             );
           } else if (col.expr && isAggrFuncExpr(col.expr)) {
-            if (isColumnRefExpr(col.expr.args.expr)) {
-              return stripQuotes(col.expr.args.expr.column);
+            const args = col.expr.args;
+            if (isColumnRefExpr(args.expr)) {
+              return stripQuotes(args.expr.column);
+            } else if (isDistinctExpr(args.expr)) {
+              return stripQuotes(args.expr.expr.column);
             }
           }
           return null;
@@ -143,9 +117,19 @@ export const suggestTablesAfterFrom = (
         .flat()
         .filter((col): col is string => !!col);
     }
+    // Fallback: parse raw SELECT text
     return selectText
       .split(",")
-      .map((col) => stripQuotes(col.trim()))
+      .map((col) => {
+        // Match regular columns or aggregates like COUNT(DISTINCT column)
+        const aggrMatch = col.match(
+          /(?:COUNT|SUM|MAX|MIN|AVG|ROUND)\(\s*(?:DISTINCT\s+)?(?:("[^"]+"|'[^']+'|[a-zA-Z_][a-zA-Z0-9_]*))\s*(?:,\s*\d+)?\)/i
+        );
+        if (aggrMatch) {
+          return stripQuotes(aggrMatch[1]);
+        }
+        return stripQuotes(col.trim());
+      })
       .filter((col) => col && col !== "*" && !col.match(/\bCASE\b/i));
   };
 
@@ -156,8 +140,9 @@ export const suggestTablesAfterFrom = (
     /\bSELECT\s+(DISTINCT\s+)?(.+?)\s+FROM\s+([a-zA-Z_][a-zA-Z0-9_"]*)\s*$/i;
   const afterCaseEndOrAliasRegex =
     /\bCASE\s+.*?\bEND(\s+AS\s+"[^"]*")?\s+FROM\s*$/i;
-  // Regex to match SELECT * FROM or SELECT columns FROM in any context
-  const selectFromRegex = /\bSELECT\s*(DISTINCT\s*)?(.*?)\s+FROM\s*$/i;
+  // Updated regex to handle aggregates with DISTINCT
+  const selectFromRegex =
+    /\bSELECT\s*(DISTINCT\s*)?([\w\s()*,"']*?)\s+FROM\s*$/i;
   // Check if inside a CTE subquery
   const isInCteSubquery = /\bWITH\s+[\w"]*\s+AS\s*\(\s*SELECT\b.*$/i.test(
     docText
@@ -167,7 +152,7 @@ export const suggestTablesAfterFrom = (
     ? (docText.match(/\(/g) || []).length - (docText.match(/\)/g) || []).length
     : 0;
 
-  // Handle suggestions after SELECT * FROM or SELECT columns FROM
+  // Handle suggestions after SELECT ... FROM
   if (selectFromRegex.test(docText)) {
     const match = docText.match(selectFromRegex);
     let selectedColumns: string[] = [];
@@ -238,7 +223,7 @@ export const suggestTablesAfterFrom = (
   if (afterTableRegex.test(docText)) {
     const tableName = docText.match(afterTableRegex)![3];
     const filteredTables = getValidTables(null, tableColumns).filter(
-      (table) => table.toLowerCase() === tableName.toLowerCase()
+      (table) => table.toLowerCase() === stripQuotes(tableName).toLowerCase()
     );
 
     if (filteredTables.length > 0) {
@@ -289,7 +274,7 @@ export const suggestTablesAfterFrom = (
           label: "ORDER BY",
           type: "keyword",
           apply: "ORDER BY ",
-          detail: "Group results by column",
+          detail: "Sort results by column",
         },
       ];
 
@@ -301,12 +286,12 @@ export const suggestTablesAfterFrom = (
             : options.filter((opt) => opt.label !== ")"),
         filter: true,
         validFor:
-          /^(INNER\s+JOIN|LEFT\s+JOIN|RIGHT\s+JOIN|CROSS\s+JOIN|WHERE|GROUP\s+BY|\))$/i,
+          /^(INNER\s+JOIN|LEFT\s+JOIN|RIGHT\s+JOIN|CROSS\s+JOIN|WHERE|GROUP\s+BY|ORDER\s+BY|\))$/i,
       };
     }
   }
 
-  // Handle suggestions after FROM or CASE END (with or without AS)
+  // Handle suggestions after CASE END (with or without AS)
   if (afterCaseEndOrAliasRegex.test(docText)) {
     const selectNode = Array.isArray(ast)
       ? ast.find(isSelectNode) ?? null
