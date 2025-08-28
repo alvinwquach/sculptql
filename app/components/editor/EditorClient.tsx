@@ -64,8 +64,6 @@ export default function EditorClient({
   const [havingClause, setHavingClause] = useState<HavingClause>({
     condition: { aggregateColumn: null, operator: null, value: null },
   });
-
-  // Query History State
   const [queryHistory, setQueryHistory] = useState<QueryHistoryItem[]>([]);
   const [pinnedQueries, setPinnedQueries] = useState<PinnedQuery[]>([]);
   const [bookmarkedQueries, setBookmarkedQueries] = useState<BookmarkedQuery[]>(
@@ -74,7 +72,7 @@ export default function EditorClient({
   const [labeledQueries, setLabeledQueries] = useState<LabeledQuery[]>([]);
   const [showHistory, setShowHistory] = useState<boolean>(true);
   const [queryResult, setQueryResult] = useState<QueryResult | null>(null);
-  const [queryError, setQueryError] = useState<string | null>(null); // New state for query errors
+  const [queryError, setQueryError] = useState<string | null>(null); 
 
   useEffect(() => {
     setQueryHistory(getLocalStorageItem("queryHistory", []));
