@@ -1,4 +1,5 @@
 "use client";
+
 import { useEffect, useRef, useState } from "react";
 import { EditorView, keymap, drawSelection } from "@codemirror/view";
 import { EditorState, Compartment } from "@codemirror/state";
@@ -18,6 +19,13 @@ import { stripQuotes } from "@/app/utils/sqlCompletion/stripQuotes";
 import { TableColumn, SelectOption, Tab } from "@/app/types/query";
 import { MultiValue, SingleValue } from "react-select";
 import QueryTabs from "./QueryTabs";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+
 import {
   getLocalStorageItem,
   setLocalStorageItem,
@@ -167,12 +175,37 @@ export default function CodeMirrorEditor({
   };
 
   const addNewTab = () => {
-    if (queryTabs.length >= 5) return;
-
     const newId = Math.max(...queryTabs.map((tab) => tab.id), 0) + 1;
     const newTab = { id: newId, title: `Query ${newId}`, query: "" };
     setQueryTabs([...queryTabs, newTab]);
     setActiveTab(newId);
+  };
+
+  const handleFormatSQL = () => {
+    const editor = editorRef.current;
+    if (!editor) return;
+
+    const currentText = editor.state.doc.toString();
+    if (!currentText) return;
+
+    try {
+      const formatted = formatSQL(currentText, {
+        language: "postgresql",
+        keywordCase: "upper",
+      });
+
+      editor.dispatch({
+        changes: {
+          from: 0,
+          to: editor.state.doc.length,
+          insert: formatted,
+        },
+      });
+
+      handleQueryChange(formatted);
+    } catch (err) {
+      console.error("SQL formatting failed:", err);
+    }
   };
 
   const sqlCompletion = useSqlCompletion(
@@ -195,6 +228,18 @@ export default function CodeMirrorEditor({
     onHavingOperatorSelect,
     onHavingValueSelect
   );
+
+  const updateListener = EditorView.updateListener.of((update) => {
+    if (update.docChanged) {
+      const newQuery = update.state.doc.toString();
+      setQueryTabs((prevTabs) =>
+        prevTabs.map((tab) =>
+          tab.id === activeTab ? { ...tab, query: newQuery } : tab
+        )
+      );
+      onQueryChange(newQuery);
+    }
+  });
 
   useEffect(() => {
     if (!containerRef.current || editorRef.current) return;
@@ -282,6 +327,7 @@ export default function CodeMirrorEditor({
         customTheme,
         syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
         EditorView.lineWrapping,
+        updateListener,
       ],
     });
 
@@ -310,6 +356,7 @@ export default function CodeMirrorEditor({
     onDistinctSelect,
     isMac,
     sqlCompletion,
+    activeTab,
   ]);
 
   return (
@@ -318,14 +365,7 @@ export default function CodeMirrorEditor({
         fullScreenEditor ? "fixed inset-0 z-50 bg-[#0f172a] p-4" : ""
       }`}
     >
-      <div className="rounded-lg flex items-center bg-[#1e293b]  border-slate-700">
-        <QueryTabs
-          queryTabs={queryTabs}
-          activeTab={activeTab}
-          onTabClick={handleTabClick}
-          onTabClose={handleTabClose}
-          onTabReorder={handleTabReorder}
-        />
+      <TooltipProvider delayDuration={150}>
         <Button
           variant="ghost"
           size="sm"
@@ -334,63 +374,66 @@ export default function CodeMirrorEditor({
         >
           + New Tab
         </Button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setFullScreenEditor(!fullScreenEditor)}
+              className="text-green-300 hover:bg-transparent hover:text-green-400 transition-all duration-300"
+              aria-label={
+                fullScreenEditor
+                  ? "Exit editor fullscreen"
+                  : "Enter editor fullscreen"
+              }
+            >
+              {fullScreenEditor ? (
+                <Minimize2 className="w-5 h-5" />
+              ) : (
+                <Maximize2 className="w-5 h-5" />
+              )}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            {fullScreenEditor ? "Exit fullscreen" : "Enter fullscreen"}
+          </TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleFormatSQL}
+              className="text-blue-300 hover:bg-transparent hover:text-blue-400 transition-all duration-300"
+              aria-label="Format SQL"
+            >
+              <Wand2 className="w-5 h-5" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            Format SQL ({isMac ? "⌘+⇧+F" : "Ctrl+Shift+F"})
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+      <div className="rounded-lg flex items-center bg-[#1e293b]  border-slate-700">
+        <QueryTabs
+          queryTabs={queryTabs}
+          activeTab={activeTab}
+          onTabClick={handleTabClick}
+          onTabClose={handleTabClose}
+          onTabReorder={handleTabReorder}
+        />
       </div>
       <div ref={containerRef} className="flex-1" />
       {error && <p className="text-red-300 mt-2">{error}</p>}
       <div className="absolute top-2 right-2 z-50 flex flex-col gap-2">
         <div className="relative group">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setFullScreenEditor(!fullScreenEditor)}
-            className="text-green-300 hover:bg-transparent hover:text-green-400 transition-all duration-300"
-            aria-label={
-              fullScreenEditor
-                ? "Exit editor fullscreen"
-                : "Enter editor fullscreen"
-            }
-          >
-            {fullScreenEditor ? (
-              <Minimize2 className="w-5 h-5" />
-            ) : (
-              <Maximize2 className="w-5 h-5" />
-            )}
-          </Button>
           <div className="absolute top-1 right-8 z-30 hidden md:group-hover:block bg-gray-700 text-white text-xs rounded px-3 py-2 shadow-lg whitespace-nowrap">
             {fullScreenEditor ? "Exit fullscreen" : "Enter fullscreen"}
             <div className="absolute top-1/2 -right-1 w-2 h-2 bg-gray-700 rotate-45 -translate-y-1/2" />
           </div>
         </div>
         <div className="relative group">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => {
-              if (!editorRef.current) return;
-              const currentText = editorRef.current.state.doc.toString();
-              if (!currentText) return;
-              try {
-                const formatted = formatSQL(currentText, {
-                  language: "postgresql",
-                  keywordCase: "upper",
-                });
-                editorRef.current.dispatch({
-                  changes: {
-                    from: 0,
-                    to: editorRef.current.state.doc.length,
-                    insert: formatted,
-                  },
-                });
-                handleQueryChange(formatted);
-              } catch (err) {
-                console.error("SQL formatting failed:", err);
-              }
-            }}
-            className="text-blue-300 hover:bg-transparent hover:text-blue-400 transition-all duration-300"
-            aria-label="Format SQL"
-          >
-            <Wand2 className="w-5 h-5" />
-          </Button>
           <div className="absolute top-1 right-8 z-30 hidden md:group-hover:block bg-gray-700 text-white text-xs rounded px-3 py-2 shadow-lg whitespace-nowrap">
             Format SQL ({isMac ? "⌘+⇧+F" : "Ctrl+Shift+F"})
             <div className="absolute top-1/2 -right-1 w-2 h-2 bg-gray-700 rotate-45 -translate-y-1/2" />
