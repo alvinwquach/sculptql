@@ -9,6 +9,7 @@ import * as mssql from "mssql";
 import oracledb, { Pool as OraclePool } from "oracledb";
 import chalk from "chalk";
 import { config as dotenvConfig } from "dotenv";
+import openUrl from "open";
 
 dotenvConfig({ path: ".env" });
 
@@ -156,6 +157,21 @@ async function main() {
       `✅ ${dialect} connection pool is active. Press Ctrl+C to exit.`
     )
   );
+
+  const isDev = process.env.NODE_ENV !== "production";
+  const webUrl =
+    (isDev
+      ? "http://localhost:3000"
+      : process.env.NEXT_PUBLIC_BASE_URL ?? "https://sculptql.com") + "/editor";
+
+  console.log(chalk.cyan(`🔗 Open the web interface: ${webUrl}`));
+
+  try {
+    await openUrl(webUrl);
+    console.log(chalk.green("🌐 Browser opened successfully"));
+  } catch (err) {
+    console.error(chalk.red("❌ Failed to open browser:"), err);
+  }
 
   const closePool = async () => {
     console.log(chalk.green("\n✅ Closing connection pool..."));
