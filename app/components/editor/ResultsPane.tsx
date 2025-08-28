@@ -43,7 +43,6 @@ interface ResultsPaneProps {
     startIndex: number,
     endIndex: number
   ) => void;
-  fullScreenEditor: boolean;
   currentPage: number;
   pageSize: number;
   onPageChange: (page: number) => void;
@@ -64,18 +63,13 @@ export default function ResultsPane({
   onExportToCsv,
   onExportToJson,
   onExportToMarkdown,
-  fullScreenEditor,
   currentPage,
   pageSize,
   onPageChange,
   onPageSizeChange,
 }: ResultsPaneProps) {
   return (
-    <div
-      className={`flex-1 p-6 overflow-auto ${
-        fullScreenEditor ? "" : "h-full"
-      } space-y-6 bg-[#0f172a]`}
-    >
+    <div className={`flex-1 p-6 overflow-auto bg-[#0f172a]`}>
       {error && (
         <div className="bg-red-900/20 border border-red-500/30 text-red-300 p-4 rounded-xl shadow-lg transition-all duration-200">
           {error}

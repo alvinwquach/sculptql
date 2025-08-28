@@ -123,12 +123,11 @@ export default function QueryHistory({
 
   return (
     <div
-      className={`md:w-64 w-full md:h-full h-auto md:flex-shrink-0 transition-all duration-300"
-      g-[#1e293b] border-slate-700 ${
-        showHistory ? "block" : "hidden"
-      } flex-shrink-0`}
+      className={`w-56 bg-[#0f172a] border-r border-slate-700/50 p-2 overflow-y-auto transition-all duration-300 ${
+        showHistory ? "block md:w-56" : "hidden md:w-0"
+      } md:h-full md:flex-shrink-0`}
     >
-      <div className="flex flex-col p-2 border-slate-700">
+      <div className="flex flex-col space-y-2">
         <div className="flex justify-between items-center">
           <h2 className="text-sm font-bold text-green-300">Query History</h2>
           <Button
@@ -141,17 +140,15 @@ export default function QueryHistory({
             <Trash2 className="w-4 h-4" />
           </Button>
         </div>
-        <div className="mt-2">
-          <div className="relative">
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search queries..."
-              className="w-full p-1.5 text-sm bg-[#2d3748] text-white border border-slate-600 rounded pl-8"
-            />
-            <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-          </div>
+        <div className="relative">
+          <input
+            type="text"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Search queries..."
+            className="w-full p-1.5 text-sm bg-[#2d3748] text-white border border-slate-600 rounded pl-8 focus:outline-none focus:ring-2 focus:ring-green-500"
+          />
+          <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
         </div>
       </div>
       <ScrollArea className="h-[calc(100%-5rem)] p-2">

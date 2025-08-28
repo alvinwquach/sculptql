@@ -115,6 +115,7 @@ export interface TableDescription {
   primary_keys: string[];
   foreign_keys: ForeignKeySchema[];
 }
+
 export interface Column {
   column_name: string;
   data_type: string;
