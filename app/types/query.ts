@@ -10,6 +10,7 @@ export interface HavingClause {
 }
 
 export interface QueryResult {
+  error?: string;
   rows: Record<string, unknown>[];
   rowCount?: number;
   fields: string[];

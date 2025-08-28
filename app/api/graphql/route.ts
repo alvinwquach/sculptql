@@ -1,6 +1,12 @@
-import { Column, ForeignKey, Table } from "@/app/types/query";
+import {
+  Column,
+  ExplainAnalyzeJSON,
+  ForeignKey,
+  Table,
+  QueryResult,
+} from "@/app/types/query";
 import { createSchema, createYoga } from "graphql-yoga";
-import { Pool } from "pg";
+import { FieldDef, Pool } from "pg";
 
 // Define the Next.js context type
 interface NextContext {
@@ -12,6 +18,7 @@ const CustomResponse = Response as typeof Response & {
   json: (data: unknown, init?: ResponseInit) => Response;
 };
 
+// Configure PostgreSQL connection pool
 const pool = new Pool({
   host: process.env.DB_HOST,
   port: Number(process.env.DB_PORT),
@@ -25,17 +32,14 @@ const pool = new Pool({
 });
 
 interface SchemaArgs {
-  // Optional search string to filter tables
-  tableSearch?: string;
-  // Optional search string to filter columns
-  columnSearch?: string;
-
-  // Optional limit for number of rows to fetch
-  limit?: number;
+  tableSearch?: string; // optional filter for table names
+  columnSearch?: string; // optional filter for column names
+  limit?: number; // optional row limit
 }
 
-// Define GraphQL type definitions
+// Step 1: Define GraphQL type definitions
 const typeDefs = /* GraphQL */ `
+  # Column metadata
   type Column {
     column_name: String!
     data_type: String!
@@ -43,6 +47,7 @@ const typeDefs = /* GraphQL */ `
     is_primary_key: Boolean!
   }
 
+  # Foreign key metadata
   type ForeignKey {
     column_name: String!
     referenced_table: String!
@@ -50,6 +55,7 @@ const typeDefs = /* GraphQL */ `
     constraint_name: String!
   }
 
+  # Table metadata + sample values
   type Table {
     table_catalog: String!
     table_schema: String!
@@ -61,23 +67,43 @@ const typeDefs = /* GraphQL */ `
     foreign_keys: [ForeignKey!]!
     values(limit: Int): [JSON!]!
   }
-  # JSON scalar for row data
+
+  # Query execution result
+  type QueryResult {
+    rows: [JSON!]!
+    rowCount: Int
+    fields: [String!]!
+    payloadSize: Float
+    totalTime: Float
+    errorsCount: Int!
+    error: String
+  }
+
+  # JSON scalar for dynamic row data
   scalar JSON
+
+  # Root query type
   type Query {
     schema(tableSearch: String, columnSearch: String, limit: Int): [Table!]!
   }
+
+  # Root mutation type
+  type Mutation {
+    runQuery(query: String!): QueryResult!
+  }
 `;
 
-// Resolver functions for GraphQL queries
+// Step 2: Define resolver functions for GraphQL
 const resolvers = {
   Query: {
+    // Resolver: fetch schema metadata (tables, columns, PKs, FKs, sample data)
     schema: async (
       _: unknown,
       { tableSearch = "", columnSearch = "", limit }: SchemaArgs
     ): Promise<Table[]> => {
       const client = await pool.connect();
       try {
-        // Step 1: Query tables from PostgreSQL information_schema
+        // Step 2a: Query tables from PostgreSQL information_schema
         let tablesQuery = `
           SELECT table_catalog, table_schema, table_name, table_type
           FROM information_schema.tables
@@ -100,11 +126,11 @@ const resolvers = {
 
         const schema: Table[] = [];
 
-        // Step 2: Loop through each table and fetch columns, keys, and data
+        // Step 2b: Loop through tables and fetch details
         for (const table of tablesResult.rows) {
           const { table_name } = table;
 
-          // Step 2a: Fetch columns for the current table
+          // Fetch columns
           let columnsQuery = `
             SELECT column_name, data_type, is_nullable
             FROM information_schema.columns
@@ -113,32 +139,7 @@ const resolvers = {
           const columnParams: string[] = [table_name];
 
           if (columnSearch) {
-            columnsQuery += ` AND (column_name ILIKE $2 OR data_type ILIKE $2`;
-            if (columnSearch.includes("primary")) {
-              columnsQuery += ` OR EXISTS (
-                SELECT 1 FROM information_schema.table_constraints tc
-                JOIN information_schema.key_column_usage kcu
-                  ON tc.constraint_name = kcu.constraint_name
-                  AND tc.table_schema = kcu.table_schema
-                WHERE tc.constraint_type = 'PRIMARY KEY'
-                  AND tc.table_schema = 'public'
-                  AND tc.table_name = $1
-                  AND kcu.column_name = columns.column_name
-              )`;
-            }
-            if (columnSearch.includes("foreign")) {
-              columnsQuery += ` OR EXISTS (
-                SELECT 1 FROM information_schema.table_constraints tc
-                JOIN information_schema.key_column_usage kcu
-                  ON tc.constraint_name = kcu.constraint_name
-                  AND tc.table_schema = kcu.table_schema
-                WHERE tc.constraint_type = 'FOREIGN KEY'
-                  AND tc.table_schema = 'public'
-                  AND tc.table_name = $1
-                  AND kcu.column_name = columns.column_name
-              )`;
-            }
-            columnsQuery += `)`;
+            columnsQuery += ` AND (column_name ILIKE $2 OR data_type ILIKE $2)`;
             columnParams.push(`%${columnSearch}%`);
           }
 
@@ -151,7 +152,7 @@ const resolvers = {
 
           if (columnSearch && columnsResult.rows.length === 0) continue;
 
-          // Step 2b: Fetch primary keys
+          // Fetch primary keys
           const primaryKeyQuery = `
             SELECT kcu.column_name
             FROM information_schema.table_constraints tc
@@ -168,9 +169,10 @@ const resolvers = {
           );
           const primaryKeys = primaryKeyResult.rows.map((r) => r.column_name);
 
-          // Step 2c: Fetch foreign keys
+          // Fetch foreign keys
           const foreignKeyQuery = `
-            SELECT kcu.column_name, ccu.table_name AS referenced_table, ccu.column_name AS referenced_column, tc.constraint_name
+            SELECT kcu.column_name, ccu.table_name AS referenced_table, 
+                   ccu.column_name AS referenced_column, tc.constraint_name
             FROM information_schema.table_constraints tc
             JOIN information_schema.key_column_usage kcu
               ON tc.constraint_name = kcu.constraint_name
@@ -187,26 +189,23 @@ const resolvers = {
             [table_name]
           );
 
-          // Step 2d: Fetch table data (values)
+          // Fetch sample values
           let valuesQuery = `SELECT * FROM public.${table_name}`;
           const valuesParams: number[] = [];
-
           if (typeof limit === "number") {
             valuesQuery += ` LIMIT $1`;
             valuesParams.push(limit);
           }
-
           const valuesResult = await client.query(valuesQuery, valuesParams);
-          // Rows as JSON objects
           const values = valuesResult.rows;
 
-          // Step 2e: Construct Column objects
+          // Construct Column objects
           const columns: Column[] = columnsResult.rows.map((col) => ({
             ...col,
             is_primary_key: primaryKeys.includes(col.column_name),
           }));
 
-          // Step 2f: Construct Table object
+          // Construct Table object
           schema.push({
             ...table,
             comment: null,
@@ -223,18 +222,89 @@ const resolvers = {
       }
     },
   },
+
+  Mutation: {
+    // Resolver: run arbitrary SQL query and return result
+    runQuery: async (
+      _: unknown,
+      { query }: { query: string }
+    ): Promise<QueryResult> => {
+      if (!query) {
+        return {
+          error: "Missing required field: query",
+          errorsCount: 1,
+          rows: [],
+          fields: [],
+          rowCount: 0,
+          payloadSize: 0,
+          totalTime: 0,
+        };
+      }
+
+      const client = await pool.connect();
+      let errorsCount = 0;
+
+      try {
+        // Execute query
+        const response = await client.query(query);
+
+        // Try to run EXPLAIN ANALYZE for timings
+        let planningTime = 0;
+        let executionTimeFromExplain = 0;
+        try {
+          const explainQuery = `EXPLAIN (ANALYZE, FORMAT JSON) ${query}`;
+          const explainResult = await client.query(explainQuery);
+          const plans = explainResult.rows[0][
+            "QUERY PLAN"
+          ] as ExplainAnalyzeJSON[];
+          const plan = plans[0];
+          planningTime = plan.PlanningTime ?? 0;
+          executionTimeFromExplain = plan.ExecutionTime ?? 0;
+        } catch {
+          errorsCount += 1;
+        }
+
+        // Calculate payload size and total time
+        const payloadString = JSON.stringify(response.rows);
+        const payloadSize = Buffer.byteLength(payloadString, "utf8") / 1024;
+        const totalTime = planningTime + executionTimeFromExplain;
+
+        return {
+          rows: response.rows as Record<string, unknown>[],
+          rowCount: response.rowCount ?? undefined,
+          fields: response.fields.map((field: FieldDef) => field.name),
+          payloadSize: Number(payloadSize.toFixed(4)),
+          totalTime: Number(totalTime.toFixed(4)),
+          errorsCount,
+        };
+      } catch (error) {
+        errorsCount += 1;
+        return {
+          error: (error as Error).message || "Unknown error",
+          errorsCount,
+          rows: [],
+          fields: [],
+          rowCount: 0,
+          payloadSize: 0,
+          totalTime: 0,
+        };
+      } finally {
+        client.release();
+      }
+    },
+  },
 };
 
 // Step 3: Create Yoga GraphQL server
 const { handleRequest } = createYoga<NextContext>({
   schema: createSchema({ typeDefs, resolvers }),
-  // While using Next.js file convention for routing, we need to configure Yoga to use the correct endpoint
   graphqlEndpoint: "/api/graphql",
   fetchAPI: {
     Response: CustomResponse,
   },
 });
 
+// Step 4: Export handlers for Next.js API route
 export {
   handleRequest as GET,
   handleRequest as POST,
