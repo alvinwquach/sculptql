@@ -123,8 +123,8 @@ export default function QueryHistory({
 
   return (
     <div
-      className={`w-72 bg-[#0f172a] border-r border-slate-700/50 p-2 overflow-y-auto transition-all duration-300 ${
-        showHistory ? "block md:w-72" : "hidden md:w-0"
+      className={`w-56 bg-[#0f172a] border-r border-slate-700/50 p-2 overflow-y-auto transition-all duration-300 ${
+        showHistory ? "block md:w-56" : "hidden md:w-0"
       } md:h-full md:flex-shrink-0`}
     >
       <div className="flex flex-col space-y-2">

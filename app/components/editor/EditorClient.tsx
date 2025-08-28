@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useCallback, useEffect, useMemo } from "react";
-import { Card, CardContent } from "@/components/ui/card";
 import TableSelect from "./TableSelect";
 import ColumnSelect from "./ColumnSelect";
 import WhereClauseSelect from "./WhereClauseSelect";
@@ -76,7 +75,9 @@ export default function EditorClient({
     []
   );
   const [labeledQueries, setLabeledQueries] = useState<LabeledQuery[]>([]);
-  const [showHistory, setShowHistory] = useState<boolean>(true);
+  const [showHistory, setShowHistory] = useState<boolean>(() => {
+    return getLocalStorageItem("showQueryHistory", false);
+  });
   const [queryResult, setQueryResult] = useState<QueryResult | null>(null);
   const [queryError, setQueryError] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>("table");
@@ -109,6 +110,32 @@ export default function EditorClient({
   useEffect(() => {
     setLocalStorageItem("labeledQueries", labeledQueries);
   }, [labeledQueries]);
+
+  useEffect(() => {
+    setLocalStorageItem("showQueryHistory", showHistory);
+  }, [showHistory]);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // Run Query shortcut: Ctrl+Enter or Cmd+Enter
+      if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
+        event.preventDefault();
+        runQuery(query);
+      }
+      // Toggle History shortcut: Ctrl+H or Cmd+H
+      if ((event.ctrlKey || event.metaKey) && event.key === "h") {
+        event.preventDefault();
+        setShowHistory((prev) => {
+          const newState = !prev;
+          setLocalStorageItem("showQueryHistory", newState);
+          return newState;
+        });
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [query]);
 
   const exportToCsv = useCallback(
     (exportAll: boolean = false, startIndex: number, endIndex: number) => {
@@ -1913,32 +1940,73 @@ export default function EditorClient({
 
   return (
     <div className="flex flex-col bg-[#0f172a] text-white h-screen">
-      <div className="flex flex-1 w-full min-w-0 overflow-hidden">
+      <div className="flex flex-1 w-full min-w-0 overflow-hidden flex-col lg:flex-row">
         {showHistory && (
-          <QueryHistory
-            showHistory={showHistory}
-            history={queryHistory}
-            pinnedQueries={pinnedQueries}
-            bookmarkedQueries={bookmarkedQueries}
-            labeledQueries={labeledQueries}
-            clearHistory={clearHistory}
-            loadQueryFromHistory={loadQueryFromHistory}
-            runQueryFromHistory={runQueryFromHistory}
-            addPinnedQuery={addPinnedQuery}
-            removePinnedQuery={removePinnedQuery}
-            addBookmarkedQuery={addBookmarkedQuery}
-            removeBookmarkedQuery={removeBookmarkedQuery}
-            addLabeledQuery={addLabeledQuery}
-            removeLabeledQuery={removeLabeledQuery}
-          />
+          <div className="w-full lg:w-[14rem] h-64 lg:h-auto  border-b lg:border-b-0 lg:border-r border-slate-700 flex-shrink-0">
+            <QueryHistory
+              showHistory={showHistory}
+              history={queryHistory}
+              pinnedQueries={pinnedQueries}
+              bookmarkedQueries={bookmarkedQueries}
+              labeledQueries={labeledQueries}
+              clearHistory={clearHistory}
+              loadQueryFromHistory={loadQueryFromHistory}
+              runQueryFromHistory={runQueryFromHistory}
+              addPinnedQuery={addPinnedQuery}
+              removePinnedQuery={removePinnedQuery}
+              addBookmarkedQuery={addBookmarkedQuery}
+              removeBookmarkedQuery={removeBookmarkedQuery}
+              addLabeledQuery={addLabeledQuery}
+              removeLabeledQuery={removeLabeledQuery}
+            />
+          </div>
         )}
-
-        <div className="flex flex-1 flex-col lg:flex-row w-full min-w-0">
-          <div className="flex-1 w-full p-4 overflow-y-auto space-y-4 sm:space-y-6">
+        <div className="flex flex-1 flex-col lg:flex-row w-full min-w-0 overflow-hidden">
+          <div className="flex-1 w-full p-4 overflow-y-auto space-y-4 sm:space-y-6 min-h-0">
             {error ? (
               <p className="text-red-300">{error}</p>
             ) : (
               <>
+                <div className="flex justify-end gap-4 flex-wrap mt-5">
+                  <div className="relative group">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={toggleHistory}
+                      className="flex items-center px-3 py-1.5 rounded-full transition duration-200 border border-slate-600 shadow-md bg-gradient-to-br from-green-600 to-green-700 text-white hover:from-emerald-600 hover:to-emerald-700 focus:ring-2 focus:ring-green-400"
+                      aria-label={
+                        showHistory
+                          ? "Hide query history"
+                          : "Show query history"
+                      }
+                    >
+                      <LucideHistory className="w-4 h-4 mr-1 text-white" />
+                      {showHistory ? "Hide History" : "Show History"}
+                    </Button>
+                    <div className="absolute -top-10 left-1/2 -translate-x-1/2 z-50 hidden group-hover:block bg-gray-800 text-white text-xs font-medium rounded-md px-2 py-1 shadow-lg whitespace-nowrap">
+                      {navigator.platform.includes("Mac") ? "⌘+H" : "Ctrl+H"}
+                      <div className="absolute bottom-[-5px] left-1/2 -translate-x-1/2 w-2 h-2 bg-gray-800 rotate-45" />
+                    </div>
+                  </div>
+                  <div className="relative group">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => runQuery(query)}
+                      className="flex items-center px-3 py-1.5 rounded-full transition duration-200 border border-slate-600 shadow-md bg-gradient-to-br from-green-600 to-green-700 text-white hover:from-emerald-600 hover:to-emerald-700 focus:ring-2 focus:ring-green-400"
+                      aria-label="Run query"
+                    >
+                      <LucidePlay className="w-4 h-4 mr-1 text-white" />
+                      Run Query
+                    </Button>
+                    <div className="absolute -top-10 left-1/2 -translate-x-1/2 z-50 hidden group-hover:block bg-gray-800 text-white text-xs font-medium rounded-md px-2 py-1 shadow-lg whitespace-nowrap">
+                      {navigator.platform.includes("Mac")
+                        ? "⌘+Enter"
+                        : "Ctrl+Enter"}
+                      <div className="absolute bottom-[-5px] left-1/2 -translate-x-1/2 w-2 h-2 bg-gray-800 rotate-45" />
+                    </div>
+                  </div>
+                </div>
                 <TableSelect
                   tableNames={tableNames}
                   selectedTable={selectedTable}
@@ -2024,31 +2092,10 @@ export default function EditorClient({
                   onHavingValueSelect={handleHavingValueSelect}
                   runQuery={runQuery}
                 />
-                <div className="flex justify-end gap-4">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={toggleHistory}
-                    className="px-2.5 py-1 rounded-lg transition-all duration-300 ease-in-out border-2 shadow-sm bg-gradient-to-r from-green-600 to-green-700 text-white border-slate-700 hover:from-emerald-600 hover:to-emerald-700"
-                  >
-                    <LucideHistory className="w-4 h-4 mr-1 text-white" />
-                    {showHistory ? "Hide History" : "Show History"}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => runQuery(query)}
-                    className="px-2.5 py-1 rounded-lg transition-all duration-300 ease-in-out border-2 shadow-sm bg-gradient-to-r from-green-600 to-green-700 text-white border-slate-700 hover:from-emerald-600 hover:to-emerald-700"
-                  >
-                    <LucidePlay className="w-4 h-4 mr-1 text-white" />
-                    Run Query
-                  </Button>
-                </div>
               </>
             )}
           </div>
-
-          <div className="flex flex-1 w-full min-w-0 p-4 overflow-y-auto space-y-4 sm:space-y-6">
+          <div className="flex-1 w-full p-4 overflow-y-auto space-y-4 sm:space-y-6 min-h-0">
             <ResultsPane
               error={queryError ?? ""}
               loading={false}
