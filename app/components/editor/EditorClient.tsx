@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import TableSelect from "./TableSelect";
 import ColumnSelect from "./ColumnSelect";
@@ -21,6 +21,10 @@ import {
   BookmarkedQuery,
   LabeledQuery,
   QueryResult,
+  ViewMode,
+  ChartDataItem,
+  ColumnSchema,
+  TableDescription,
 } from "@/app/types/query";
 import { needsQuotes } from "@/app/utils/sqlCompletion/needsQuotes";
 import { stripQuotes } from "@/app/utils/sqlCompletion/stripQuotes";
@@ -35,6 +39,7 @@ import {
 } from "@/app/utils/localStorageUtils";
 import { useMutation } from "@apollo/client/react";
 import { RUN_QUERY } from "@/app/graphql/mutations/runQuery";
+import ResultsPane from "./ResultsPane";
 
 interface EditorClientProps {
   schema: TableSchema[];
@@ -74,6 +79,9 @@ export default function EditorClient({
   const [showHistory, setShowHistory] = useState<boolean>(true);
   const [queryResult, setQueryResult] = useState<QueryResult | null>(null);
   const [queryError, setQueryError] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<ViewMode>("table");
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(10);
   const [runQueryMutation] = useMutation<
     { runQuery: QueryResult },
     { query: string }
@@ -101,6 +109,235 @@ export default function EditorClient({
   useEffect(() => {
     setLocalStorageItem("labeledQueries", labeledQueries);
   }, [labeledQueries]);
+
+  const exportToCsv = useCallback(
+    (exportAll: boolean = false, startIndex: number, endIndex: number) => {
+      if (!queryResult || !queryResult.rows || !queryResult.fields) return;
+      const headers = queryResult.fields.join(",");
+      const rows = queryResult.rows
+        .slice(
+          exportAll ? 0 : startIndex,
+          exportAll ? queryResult.rows.length : endIndex
+        )
+        .map((row) =>
+          queryResult.fields
+            .map((field) => {
+              const value = row[field] !== null ? String(row[field]) : "";
+              if (value.includes(",") || value.includes('"')) {
+                return `"${value.replace(/"/g, '""')}"`;
+              }
+              return value;
+            })
+            .join(",")
+        );
+      const csvContent = [headers, ...rows].join("\n");
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.setAttribute("href", url);
+      link.setAttribute(
+        "download",
+        `query_results_${new Date().toISOString()}.csv`
+      );
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    },
+    [queryResult]
+  );
+
+  const exportToJson = useCallback(
+    (exportAll: boolean = false, startIndex: number, endIndex: number) => {
+      if (!queryResult || !queryResult.rows) return;
+      const jsonContent = JSON.stringify(
+        queryResult.rows.slice(
+          exportAll ? 0 : startIndex,
+          exportAll ? queryResult.rows.length : endIndex
+        ),
+        null,
+        2
+      );
+      const blob = new Blob([jsonContent], {
+        type: "application/json;charset=utf-8;",
+      });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.setAttribute("href", url);
+      link.setAttribute(
+        "download",
+        `query_results_${new Date().toISOString()}.json`
+      );
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    },
+    [queryResult]
+  );
+
+  const exportToMarkdown = useCallback(
+    (exportAll: boolean = false, startIndex: number, endIndex: number) => {
+      if (!queryResult || !queryResult.rows || !queryResult.fields) return;
+      const headers = queryResult.fields.join(" | ");
+      const separator = queryResult.fields.map(() => "---").join(" | ");
+      const rows = queryResult.rows
+        .slice(
+          exportAll ? 0 : startIndex,
+          exportAll ? queryResult.rows.length : endIndex
+        )
+        .map((row) =>
+          queryResult.fields
+            .map((field) => {
+              const value = row[field] !== null ? String(row[field]) : "";
+              return value.replace(/\|/g, "\\|").replace(/\n/g, " ");
+            })
+            .join(" | ")
+        );
+      const markdownContent = [
+        `| ${headers} |`,
+        `| ${separator} |`,
+        ...rows.map((row) => `| ${row} |`),
+      ].join("\n");
+      const blob = new Blob([markdownContent], {
+        type: "text/markdown;charset=utf-8;",
+      });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.setAttribute("href", url);
+      link.setAttribute(
+        "download",
+        `query_results_${new Date().toISOString()}.md`
+      );
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    },
+    [queryResult]
+  );
+
+  const handleViewModeChange = useCallback((mode: ViewMode) => {
+    setViewMode(mode);
+    setCurrentPage(1);
+  }, []);
+
+  const handlePageChange = useCallback(
+    (page: number) => {
+      const totalRows = queryResult?.rows?.length || 0;
+      const totalPages = Math.ceil(totalRows / pageSize);
+      if (page >= 1 && page <= totalPages) {
+        setCurrentPage(page);
+      }
+    },
+    [queryResult, pageSize]
+  );
+
+  const handlePageSizeChange = useCallback((size: number) => {
+    setPageSize(size);
+    setCurrentPage(1);
+  }, []);
+
+  const selectedTableName = selectedTable?.value || "";
+  const table = useMemo(() => {
+    return schema.filter((t) => t.table_name === selectedTableName);
+  }, [schema, selectedTableName]);
+
+  const tableDescription = useMemo(() => {
+    const selected = schema.find((t) => t.table_name === selectedTableName);
+    if (!selected) return null;
+
+    return {
+      table_name: selected.table_name,
+      columns: selected.columns.map(
+        (col): ColumnSchema => ({
+          column_name: col.column_name,
+          data_type: col.data_type,
+          is_nullable: col.is_nullable,
+          column_default: col.column_default,
+          is_primary_key: col.is_primary_key,
+          is_indexed: col.is_indexed,
+          index_names: col.index_names,
+          uniqueValues: col.uniqueValues,
+        })
+      ),
+      primary_keys: selected.primary_keys,
+      foreign_keys: selected.foreign_keys,
+    } as TableDescription;
+  }, [schema, selectedTableName]);
+
+  const statsChartData: ChartDataItem[] = useMemo(
+    () =>
+      queryResult
+        ? [
+            {
+              name: "Total Time",
+              value: queryResult.totalTime ?? 0,
+              unit: "ms",
+            },
+            {
+              name: "Errors",
+              value: queryResult.errorsCount ?? 0,
+              unit: "count",
+            },
+          ]
+        : [],
+    [queryResult]
+  );
+
+  const resultChartData: ChartDataItem[] = useMemo(() => {
+    if (!queryResult || !queryResult.rows || !queryResult.fields) return [];
+
+    const numericalColumns = queryResult.fields.filter((field) =>
+      queryResult.rows.every((row) => typeof row[field] === "number")
+    );
+
+    const categoricalColumns = queryResult.fields.filter(
+      (field) => !numericalColumns.includes(field)
+    );
+
+    if (categoricalColumns.length > 0 && numericalColumns.length > 0) {
+      const categoryField = categoricalColumns[0];
+      const valueField = numericalColumns[0];
+
+      const groupedData = queryResult.rows.reduce(
+        (acc: Record<string, number>, row) => {
+          const category = String(row[categoryField]);
+          const value = Number(row[valueField]) || 0;
+          acc[category] = (acc[category] ?? 0) + value;
+          return acc;
+        },
+        {}
+      );
+
+      return Object.entries(groupedData).map(([name, value]) => ({
+        name,
+        value,
+        unit: "count",
+      }));
+    }
+
+    if (categoricalColumns.length > 0) {
+      const categoryField = categoricalColumns[0];
+
+      const counts = queryResult.rows.reduce(
+        (acc: Record<string, number>, row) => {
+          const category = String(row[categoryField]);
+          acc[category] = (acc[category] ?? 0) + 1;
+          return acc;
+        },
+        {}
+      );
+
+      return Object.entries(counts).map(([name, value]) => ({
+        name,
+        value,
+        unit: "count",
+      }));
+    }
+
+    return [];
+  }, [queryResult]);
 
   const updateQueryFromHavingClause = useCallback(
     (updatedHavingClause: HavingClause) => {
@@ -1618,6 +1855,7 @@ export default function EditorClient({
           setQueryError(data.runQuery.error || "Failed to execute query");
         } else if (data?.runQuery) {
           setQueryResult(data.runQuery);
+          setViewMode("table");
         } else {
           setQueryError("No data returned from query");
         }
@@ -1674,144 +1912,165 @@ export default function EditorClient({
   }, []);
 
   return (
-    <div className="flex flex-col md:flex-row min-h-screen">
-      {showHistory && (
-        <QueryHistory
-          showHistory={showHistory}
-          history={queryHistory}
-          pinnedQueries={pinnedQueries}
-          bookmarkedQueries={bookmarkedQueries}
-          labeledQueries={labeledQueries}
-          clearHistory={clearHistory}
-          loadQueryFromHistory={loadQueryFromHistory}
-          runQueryFromHistory={runQueryFromHistory}
-          addPinnedQuery={addPinnedQuery}
-          removePinnedQuery={removePinnedQuery}
-          addBookmarkedQuery={addBookmarkedQuery}
-          removeBookmarkedQuery={removeBookmarkedQuery}
-          addLabeledQuery={addLabeledQuery}
-          removeLabeledQuery={removeLabeledQuery}
-        />
-      )}
-      <Card className="flex-1 mx-auto bg-[#0f172a] border-slate-700/50 shadow-lg overflow-hidden">
-        <CardContent className="p-4 space-y-4">
-          {error ? (
-            <p className="text-red-300">{error}</p>
-          ) : (
-            <div className="space-y-4">
-              <TableSelect
-                tableNames={tableNames}
-                selectedTable={selectedTable}
-                onTableSelect={handleTableSelect}
-                metadataLoading={false}
-              />
-              <ColumnSelect
-                selectedTable={selectedTable}
-                tableColumns={tableColumns}
-                selectedColumns={selectedColumns}
-                onColumnSelect={handleColumnSelect}
-                metadataLoading={false}
-                isDistinct={isDistinct}
-                onDistinctChange={handleDistinctChange}
-                isMySQL={isMySQL}
-              />
-              <WhereClauseSelect
-                selectedTable={selectedTable}
-                tableColumns={tableColumns}
-                whereClause={whereClause}
-                uniqueValues={uniqueValues}
-                onLogicalOperatorSelect={handleLogicalOperatorSelect}
-                onWhereColumnSelect={handleWhereColumnSelect}
-                onOperatorSelect={handleOperatorSelect}
-                onValueSelect={handleValueSelect}
-                metadataLoading={false}
-                operatorOptions={operatorOptions}
-                logicalOperatorOptions={logicalOperatorOptions}
-                joinClauses={[]}
-                onDeleteCondition={handleDeleteCondition}
-              />
-              <OrderByLimitSelect
-                selectedTable={selectedTable}
-                tableColumns={tableColumns}
-                orderByClause={orderByClause}
-                limit={limit}
-                onOrderByColumnSelect={handleOrderByColumnSelect}
-                onOrderByDirectionSelect={handleOrderByDirectionSelect}
-                onLimitSelect={handleLimitSelect}
-                metadataLoading={false}
-                joinClauses={[]}
-              />
-              <GroupBySelect
-                selectedTable={selectedTable}
-                tableColumns={tableColumns}
-                selectedGroupByColumns={selectedGroupByColumns}
-                onGroupByColumnSelect={handleGroupByColumnSelect}
-                metadataLoading={false}
-                joinClauses={[]}
-              />
-              <HavingSelect
-                selectedTable={selectedTable}
-                tableColumns={tableColumns}
-                havingClause={havingClause}
-                uniqueValues={uniqueValues}
-                onAggregateColumnSelect={handleAggregateColumnSelect}
-                onOperatorSelect={handleHavingOperatorSelect}
-                onValueSelect={handleHavingValueSelect}
-                metadataLoading={false}
-                operatorOptions={operatorOptions}
-                logicalOperatorOptions={logicalOperatorOptions}
-                joinClauses={[]}
-                isMySQL={isMySQL}
-              />
-              <CodeMirrorEditor
-                selectedColumns={selectedColumns}
-                uniqueValues={uniqueValues}
-                query={query}
-                tableNames={tableNames}
-                tableColumns={tableColumns}
-                onQueryChange={handleQueryChange}
-                onTableSelect={handleTableSelect}
-                onWhereColumnSelect={handleWhereColumnSelect}
-                onOperatorSelect={handleOperatorSelect}
-                onValueSelect={handleValueSelect}
-                onLogicalOperatorSelect={handleLogicalOperatorSelect}
-                onOrderBySelect={handleOrderBySelect}
-                onColumnSelect={handleColumnSelect}
-                onDistinctSelect={handleDistinctSelect}
-                onGroupByColumnSelect={handleGroupByColumnSelect}
-                onAggregateColumnSelect={handleAggregateColumnSelect}
-                onHavingOperatorSelect={handleHavingOperatorSelect}
-                onHavingValueSelect={handleHavingValueSelect}
-                runQuery={runQuery}
-              />
-              <div className="flex justify-end gap-4">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={toggleHistory}
-                  className={`px-2.5 py-1 rounded-lg transition-all duration-300 ease-in-out border-2 shadow-sm
-      bg-gradient-to-r from-green-600 to-green-700 text-white border-[#1e293b] shadow-md
-      hover:from-emerald-600 hover:to-emerald-700`}
-                >
-                  <LucideHistory className="w-4 h-4 mr-1 text-white" />
-                  {showHistory ? "Hide History" : "Show History"}
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => runQuery(query)}
-                  className="px-2.5 py-1 rounded-lg transition-all duration-300 ease-in-out border-2 shadow-sm
-      bg-gradient-to-r from-green-600 to-green-700 text-white border-[#1e293b] shadow-md
-      hover:from-emerald-600 hover:to-emerald-700"
-                >
-                  <LucidePlay className="w-4 h-4 mr-1 text-white" />
-                  Run Query
-                </Button>
-              </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+    <div className="flex flex-col bg-[#0f172a] text-white h-screen">
+      <div className="flex flex-1 w-full min-w-0 overflow-hidden">
+        {showHistory && (
+          <QueryHistory
+            showHistory={showHistory}
+            history={queryHistory}
+            pinnedQueries={pinnedQueries}
+            bookmarkedQueries={bookmarkedQueries}
+            labeledQueries={labeledQueries}
+            clearHistory={clearHistory}
+            loadQueryFromHistory={loadQueryFromHistory}
+            runQueryFromHistory={runQueryFromHistory}
+            addPinnedQuery={addPinnedQuery}
+            removePinnedQuery={removePinnedQuery}
+            addBookmarkedQuery={addBookmarkedQuery}
+            removeBookmarkedQuery={removeBookmarkedQuery}
+            addLabeledQuery={addLabeledQuery}
+            removeLabeledQuery={removeLabeledQuery}
+          />
+        )}
+
+        <div className="flex flex-1 flex-col lg:flex-row w-full min-w-0">
+          <div className="flex-1 w-full p-4 overflow-y-auto space-y-4 sm:space-y-6">
+            {error ? (
+              <p className="text-red-300">{error}</p>
+            ) : (
+              <>
+                <TableSelect
+                  tableNames={tableNames}
+                  selectedTable={selectedTable}
+                  onTableSelect={handleTableSelect}
+                  metadataLoading={false}
+                />
+                <ColumnSelect
+                  selectedTable={selectedTable}
+                  tableColumns={tableColumns}
+                  selectedColumns={selectedColumns}
+                  onColumnSelect={handleColumnSelect}
+                  metadataLoading={false}
+                  isDistinct={isDistinct}
+                  onDistinctChange={handleDistinctChange}
+                  isMySQL={isMySQL}
+                />
+                <WhereClauseSelect
+                  selectedTable={selectedTable}
+                  tableColumns={tableColumns}
+                  whereClause={whereClause}
+                  uniqueValues={uniqueValues}
+                  onLogicalOperatorSelect={handleLogicalOperatorSelect}
+                  onWhereColumnSelect={handleWhereColumnSelect}
+                  onOperatorSelect={handleOperatorSelect}
+                  onValueSelect={handleValueSelect}
+                  metadataLoading={false}
+                  operatorOptions={operatorOptions}
+                  logicalOperatorOptions={logicalOperatorOptions}
+                  joinClauses={[]}
+                  onDeleteCondition={handleDeleteCondition}
+                />
+                <OrderByLimitSelect
+                  selectedTable={selectedTable}
+                  tableColumns={tableColumns}
+                  orderByClause={orderByClause}
+                  limit={limit}
+                  onOrderByColumnSelect={handleOrderByColumnSelect}
+                  onOrderByDirectionSelect={handleOrderByDirectionSelect}
+                  onLimitSelect={handleLimitSelect}
+                  metadataLoading={false}
+                  joinClauses={[]}
+                />
+                <GroupBySelect
+                  selectedTable={selectedTable}
+                  tableColumns={tableColumns}
+                  selectedGroupByColumns={selectedGroupByColumns}
+                  onGroupByColumnSelect={handleGroupByColumnSelect}
+                  metadataLoading={false}
+                  joinClauses={[]}
+                />
+                <HavingSelect
+                  selectedTable={selectedTable}
+                  tableColumns={tableColumns}
+                  havingClause={havingClause}
+                  uniqueValues={uniqueValues}
+                  onAggregateColumnSelect={handleAggregateColumnSelect}
+                  onOperatorSelect={handleHavingOperatorSelect}
+                  onValueSelect={handleHavingValueSelect}
+                  metadataLoading={false}
+                  operatorOptions={operatorOptions}
+                  logicalOperatorOptions={logicalOperatorOptions}
+                  joinClauses={[]}
+                  isMySQL={isMySQL}
+                />
+                <CodeMirrorEditor
+                  selectedColumns={selectedColumns}
+                  uniqueValues={uniqueValues}
+                  query={query}
+                  tableNames={tableNames}
+                  tableColumns={tableColumns}
+                  onQueryChange={handleQueryChange}
+                  onTableSelect={handleTableSelect}
+                  onWhereColumnSelect={handleWhereColumnSelect}
+                  onOperatorSelect={handleOperatorSelect}
+                  onValueSelect={handleValueSelect}
+                  onLogicalOperatorSelect={handleLogicalOperatorSelect}
+                  onOrderBySelect={handleOrderBySelect}
+                  onColumnSelect={handleColumnSelect}
+                  onDistinctSelect={handleDistinctSelect}
+                  onGroupByColumnSelect={handleGroupByColumnSelect}
+                  onAggregateColumnSelect={handleAggregateColumnSelect}
+                  onHavingOperatorSelect={handleHavingOperatorSelect}
+                  onHavingValueSelect={handleHavingValueSelect}
+                  runQuery={runQuery}
+                />
+                <div className="flex justify-end gap-4">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={toggleHistory}
+                    className="px-2.5 py-1 rounded-lg transition-all duration-300 ease-in-out border-2 shadow-sm bg-gradient-to-r from-green-600 to-green-700 text-white border-slate-700 hover:from-emerald-600 hover:to-emerald-700"
+                  >
+                    <LucideHistory className="w-4 h-4 mr-1 text-white" />
+                    {showHistory ? "Hide History" : "Show History"}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => runQuery(query)}
+                    className="px-2.5 py-1 rounded-lg transition-all duration-300 ease-in-out border-2 shadow-sm bg-gradient-to-r from-green-600 to-green-700 text-white border-slate-700 hover:from-emerald-600 hover:to-emerald-700"
+                  >
+                    <LucidePlay className="w-4 h-4 mr-1 text-white" />
+                    Run Query
+                  </Button>
+                </div>
+              </>
+            )}
+          </div>
+
+          <div className="flex flex-1 w-full min-w-0 p-4 overflow-y-auto space-y-4 sm:space-y-6">
+            <ResultsPane
+              error={queryError ?? ""}
+              loading={false}
+              result={queryResult || undefined}
+              viewMode={viewMode}
+              selectedTable={selectedTableName}
+              table={table}
+              tableDescription={tableDescription}
+              chartData={statsChartData}
+              resultChartData={resultChartData}
+              onViewModeChange={handleViewModeChange}
+              onExportToCsv={exportToCsv}
+              onExportToJson={exportToJson}
+              onExportToMarkdown={exportToMarkdown}
+              currentPage={currentPage}
+              pageSize={pageSize}
+              onPageChange={handlePageChange}
+              onPageSizeChange={handlePageSizeChange}
+            />
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
