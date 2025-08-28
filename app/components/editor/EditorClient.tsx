@@ -33,7 +33,8 @@ import {
   setLocalStorageItem,
   removeLocalStorageItem,
 } from "@/app/utils/localStorageUtils";
-
+import { useMutation } from "@apollo/client/react";
+import { RUN_QUERY } from "@/app/graphql/mutations/runQuery";
 
 interface EditorClientProps {
   schema: TableSchema[];
@@ -72,7 +73,11 @@ export default function EditorClient({
   const [labeledQueries, setLabeledQueries] = useState<LabeledQuery[]>([]);
   const [showHistory, setShowHistory] = useState<boolean>(true);
   const [queryResult, setQueryResult] = useState<QueryResult | null>(null);
-  const [queryError, setQueryError] = useState<string | null>(null); 
+  const [queryError, setQueryError] = useState<string | null>(null);
+  const [runQueryMutation] = useMutation<
+    { runQuery: QueryResult },
+    { query: string }
+  >(RUN_QUERY);
 
   useEffect(() => {
     setQueryHistory(getLocalStorageItem("queryHistory", []));
@@ -1597,29 +1602,31 @@ export default function EditorClient({
         setQueryError("Query cannot be empty");
         return;
       }
-      addToHistory(query);
       setQueryError(null);
       setQueryResult(null);
+      addToHistory(query);
+
       try {
-        const response = await fetch("/api/query", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ query }),
+        const { data, error } = await runQueryMutation({
+          variables: { query },
         });
-        const data = await response.json();
         console.log("Query result:", data);
 
-        if (response.ok) {
-          setQueryResult(data);
+        if (error) {
+          setQueryError(error.message || "Failed to execute query");
+        } else if (data?.runQuery.error) {
+          setQueryError(data.runQuery.error || "Failed to execute query");
+        } else if (data?.runQuery) {
+          setQueryResult(data.runQuery);
         } else {
-          setQueryError(data.error || "Failed to execute query");
+          setQueryError("No data returned from query");
         }
       } catch (error) {
         console.error("Error running query:", error);
         setQueryError((error as Error).message || "Unknown error");
       }
     },
-    [addToHistory]
+    [addToHistory, runQueryMutation]
   );
 
   const runQueryFromHistory = useCallback(
