@@ -123,11 +123,12 @@ export default function QueryHistory({
 
   return (
     <div
-      className={`w-64 h-full bg-[#1e293b] border-r border-slate-700 ${
+      className={`md:w-64 w-full md:h-full h-auto md:flex-shrink-0 transition-all duration-300"
+      g-[#1e293b] border-slate-700 ${
         showHistory ? "block" : "hidden"
       } flex-shrink-0`}
     >
-      <div className="flex flex-col p-2 border-b border-slate-700">
+      <div className="flex flex-col p-2 border-slate-700">
         <div className="flex justify-between items-center">
           <h2 className="text-sm font-bold text-green-300">Query History</h2>
           <Button

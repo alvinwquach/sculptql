@@ -21,7 +21,7 @@ export default function TableSelector({
   }));
 
   return (
-    <div className="flex flex-col gap-1">
+    <div className="flex flex-col gap-1 ">
       <div className="text-xs text-white text-opacity-80 font-semibold">
         Select
       </div>

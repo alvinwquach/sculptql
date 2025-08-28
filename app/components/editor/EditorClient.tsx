@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import TableSelect from "./TableSelect";
 import ColumnSelect from "./ColumnSelect";
@@ -8,6 +8,7 @@ import WhereClauseSelect from "./WhereClauseSelect";
 import OrderByLimitSelect from "./OrderByLimitSelect";
 import GroupBySelect from "./GroupBySelect";
 import CodeMirrorEditor from "./CodeMirrorEditor";
+import QueryHistory from "../history/QueryHistory";
 import {
   TableSchema,
   SelectOption,
@@ -15,11 +16,24 @@ import {
   OrderByClause,
   JoinClause,
   HavingClause,
+  QueryHistoryItem,
+  PinnedQuery,
+  BookmarkedQuery,
+  LabeledQuery,
+  QueryResult,
 } from "@/app/types/query";
 import { needsQuotes } from "@/app/utils/sqlCompletion/needsQuotes";
 import { stripQuotes } from "@/app/utils/sqlCompletion/stripQuotes";
 import { SingleValue, MultiValue } from "react-select";
 import HavingSelect from "./HavingSelect";
+import { Button } from "@/components/ui/button";
+import { LucideHistory, LucidePlay } from "lucide-react";
+import {
+  getLocalStorageItem,
+  setLocalStorageItem,
+  removeLocalStorageItem,
+} from "@/app/utils/localStorageUtils";
+
 
 interface EditorClientProps {
   schema: TableSchema[];
@@ -50,6 +64,38 @@ export default function EditorClient({
   const [havingClause, setHavingClause] = useState<HavingClause>({
     condition: { aggregateColumn: null, operator: null, value: null },
   });
+  const [queryHistory, setQueryHistory] = useState<QueryHistoryItem[]>([]);
+  const [pinnedQueries, setPinnedQueries] = useState<PinnedQuery[]>([]);
+  const [bookmarkedQueries, setBookmarkedQueries] = useState<BookmarkedQuery[]>(
+    []
+  );
+  const [labeledQueries, setLabeledQueries] = useState<LabeledQuery[]>([]);
+  const [showHistory, setShowHistory] = useState<boolean>(true);
+  const [queryResult, setQueryResult] = useState<QueryResult | null>(null);
+  const [queryError, setQueryError] = useState<string | null>(null); 
+
+  useEffect(() => {
+    setQueryHistory(getLocalStorageItem("queryHistory", []));
+    setPinnedQueries(getLocalStorageItem("pinnedQueries", []));
+    setBookmarkedQueries(getLocalStorageItem("bookmarkedQueries", []));
+    setLabeledQueries(getLocalStorageItem("labeledQueries", []));
+  }, []);
+
+  useEffect(() => {
+    setLocalStorageItem("queryHistory", queryHistory);
+  }, [queryHistory]);
+
+  useEffect(() => {
+    setLocalStorageItem("pinnedQueries", pinnedQueries);
+  }, [pinnedQueries]);
+
+  useEffect(() => {
+    setLocalStorageItem("bookmarkedQueries", bookmarkedQueries);
+  }, [bookmarkedQueries]);
+
+  useEffect(() => {
+    setLocalStorageItem("labeledQueries", labeledQueries);
+  }, [labeledQueries]);
 
   const updateQueryFromHavingClause = useCallback(
     (updatedHavingClause: HavingClause) => {
@@ -226,12 +272,10 @@ export default function EditorClient({
   );
 
   const tableNames = schema.map((table) => table.table_name);
-
   const tableColumns = schema.reduce((acc, table) => {
     acc[table.table_name] = table.columns.map((col) => col.column_name);
     return acc;
   }, {} as Record<string, string[]>);
-
   const uniqueValues = schema.reduce(
     (acc: Record<string, SelectOption[]>, table) => {
       table.columns.forEach((col) => {
@@ -1522,100 +1566,245 @@ export default function EditorClient({
     [selectedTable, tableNames, tableColumns, isMySQL]
   );
 
+  const addToHistory = useCallback((query: string) => {
+    const timestamp = new Date().toISOString();
+    const newItem: QueryHistoryItem = { query, timestamp };
+    setQueryHistory((prev) => {
+      const updated = [newItem, ...prev].slice(0, 200);
+      return updated;
+    });
+  }, []);
+
+  const clearHistory = useCallback(() => {
+    setQueryHistory([]);
+    setPinnedQueries([]);
+    setBookmarkedQueries([]);
+    setLabeledQueries([]);
+    removeLocalStorageItem("queryHistory");
+    removeLocalStorageItem("pinnedQueries");
+    removeLocalStorageItem("bookmarkedQueries");
+    removeLocalStorageItem("labeledQueries");
+  }, []);
+
+  const loadQueryFromHistory = useCallback((query: string) => {
+    setQuery(query);
+  }, []);
+
+  const runQuery = useCallback(
+    async (query: string) => {
+      console.log("Running query:", query);
+      if (!query.trim()) {
+        setQueryError("Query cannot be empty");
+        return;
+      }
+      addToHistory(query);
+      setQueryError(null);
+      setQueryResult(null);
+      try {
+        const response = await fetch("/api/query", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ query }),
+        });
+        const data = await response.json();
+        console.log("Query result:", data);
+
+        if (response.ok) {
+          setQueryResult(data);
+        } else {
+          setQueryError(data.error || "Failed to execute query");
+        }
+      } catch (error) {
+        console.error("Error running query:", error);
+        setQueryError((error as Error).message || "Unknown error");
+      }
+    },
+    [addToHistory]
+  );
+
+  const runQueryFromHistory = useCallback(
+    (query: string) => {
+      runQuery(query);
+    },
+    [runQuery]
+  );
+
+  const addPinnedQuery = useCallback((query: string) => {
+    const timestamp = new Date().toISOString();
+    setPinnedQueries([{ query, timestamp }]);
+  }, []);
+
+  const removePinnedQuery = useCallback((query: string) => {
+    setPinnedQueries((prev) => prev.filter((q) => q.query !== query));
+  }, []);
+
+  const addBookmarkedQuery = useCallback((query: string) => {
+    const timestamp = new Date().toISOString();
+    setBookmarkedQueries((prev) => {
+      const exists = prev.find((q) => q.query === query);
+      if (!exists) {
+        return [...prev, { query, timestamp }].slice(0, 50);
+      }
+      return prev;
+    });
+  }, []);
+
+  const removeBookmarkedQuery = useCallback((query: string) => {
+    setBookmarkedQueries((prev) => prev.filter((q) => q.query !== query));
+  }, []);
+
+  const addLabeledQuery = useCallback((label: string, query: string) => {
+    const timestamp = new Date().toISOString();
+    setLabeledQueries([{ label, query, timestamp }]);
+  }, []);
+
+  const removeLabeledQuery = useCallback((query: string) => {
+    setLabeledQueries((prev) => prev.filter((q) => q.query !== query));
+  }, []);
+
+  const toggleHistory = useCallback(() => {
+    setShowHistory((prev) => !prev);
+  }, []);
+
   return (
-    <Card className="mx-auto max-w-7xl bg-[#0f172a] border-slate-700/50 shadow-lg">
-      <CardContent>
-        {error ? (
-          <p className="text-red-300">{error}</p>
-        ) : (
-          <div className="space-y-4">
-            <TableSelect
-              tableNames={tableNames}
-              selectedTable={selectedTable}
-              onTableSelect={handleTableSelect}
-              metadataLoading={false}
-            />
-            <ColumnSelect
-              selectedTable={selectedTable}
-              tableColumns={tableColumns}
-              selectedColumns={selectedColumns}
-              onColumnSelect={handleColumnSelect}
-              metadataLoading={false}
-              isDistinct={isDistinct}
-              onDistinctChange={handleDistinctChange}
-              isMySQL={isMySQL}
-            />
-            <WhereClauseSelect
-              selectedTable={selectedTable}
-              tableColumns={tableColumns}
-              whereClause={whereClause}
-              uniqueValues={uniqueValues}
-              onLogicalOperatorSelect={handleLogicalOperatorSelect}
-              onWhereColumnSelect={handleWhereColumnSelect}
-              onOperatorSelect={handleOperatorSelect}
-              onValueSelect={handleValueSelect}
-              metadataLoading={false}
-              operatorOptions={operatorOptions}
-              logicalOperatorOptions={logicalOperatorOptions}
-              joinClauses={[]}
-              onDeleteCondition={handleDeleteCondition}
-            />
-            <OrderByLimitSelect
-              selectedTable={selectedTable}
-              tableColumns={tableColumns}
-              orderByClause={orderByClause}
-              limit={limit}
-              onOrderByColumnSelect={handleOrderByColumnSelect}
-              onOrderByDirectionSelect={handleOrderByDirectionSelect}
-              onLimitSelect={handleLimitSelect}
-              metadataLoading={false}
-              joinClauses={[]}
-            />
-            <GroupBySelect
-              selectedTable={selectedTable}
-              tableColumns={tableColumns}
-              selectedGroupByColumns={selectedGroupByColumns}
-              onGroupByColumnSelect={handleGroupByColumnSelect}
-              metadataLoading={false}
-              joinClauses={[]}
-            />
-            <HavingSelect
-              selectedTable={selectedTable}
-              tableColumns={tableColumns}
-              havingClause={havingClause}
-              uniqueValues={uniqueValues}
-              onAggregateColumnSelect={handleAggregateColumnSelect}
-              onOperatorSelect={handleHavingOperatorSelect}
-              onValueSelect={handleHavingValueSelect}
-              metadataLoading={false}
-              operatorOptions={operatorOptions}
-              logicalOperatorOptions={logicalOperatorOptions}
-              joinClauses={[]}
-              isMySQL={isMySQL}
-            />
-            <CodeMirrorEditor
-              selectedColumns={selectedColumns}
-              uniqueValues={uniqueValues}
-              query={query}
-              tableNames={tableNames}
-              tableColumns={tableColumns}
-              onQueryChange={handleQueryChange}
-              onTableSelect={handleTableSelect}
-              onWhereColumnSelect={handleWhereColumnSelect}
-              onOperatorSelect={handleOperatorSelect}
-              onValueSelect={handleValueSelect}
-              onLogicalOperatorSelect={handleLogicalOperatorSelect}
-              onOrderBySelect={handleOrderBySelect}
-              onColumnSelect={handleColumnSelect}
-              onDistinctSelect={handleDistinctSelect}
-              onGroupByColumnSelect={handleGroupByColumnSelect}
-              onAggregateColumnSelect={handleAggregateColumnSelect}
-              onHavingOperatorSelect={handleHavingOperatorSelect}
-              onHavingValueSelect={handleHavingValueSelect}
-            />
-          </div>
-        )}
-      </CardContent>
-    </Card>
+    <div className="flex flex-col md:flex-row min-h-screen">
+      {showHistory && (
+        <QueryHistory
+          showHistory={showHistory}
+          history={queryHistory}
+          pinnedQueries={pinnedQueries}
+          bookmarkedQueries={bookmarkedQueries}
+          labeledQueries={labeledQueries}
+          clearHistory={clearHistory}
+          loadQueryFromHistory={loadQueryFromHistory}
+          runQueryFromHistory={runQueryFromHistory}
+          addPinnedQuery={addPinnedQuery}
+          removePinnedQuery={removePinnedQuery}
+          addBookmarkedQuery={addBookmarkedQuery}
+          removeBookmarkedQuery={removeBookmarkedQuery}
+          addLabeledQuery={addLabeledQuery}
+          removeLabeledQuery={removeLabeledQuery}
+        />
+      )}
+      <Card className="flex-1 mx-auto bg-[#0f172a] border-slate-700/50 shadow-lg overflow-hidden">
+        <CardContent className="p-4 space-y-4">
+          {error ? (
+            <p className="text-red-300">{error}</p>
+          ) : (
+            <div className="space-y-4">
+              <TableSelect
+                tableNames={tableNames}
+                selectedTable={selectedTable}
+                onTableSelect={handleTableSelect}
+                metadataLoading={false}
+              />
+              <ColumnSelect
+                selectedTable={selectedTable}
+                tableColumns={tableColumns}
+                selectedColumns={selectedColumns}
+                onColumnSelect={handleColumnSelect}
+                metadataLoading={false}
+                isDistinct={isDistinct}
+                onDistinctChange={handleDistinctChange}
+                isMySQL={isMySQL}
+              />
+              <WhereClauseSelect
+                selectedTable={selectedTable}
+                tableColumns={tableColumns}
+                whereClause={whereClause}
+                uniqueValues={uniqueValues}
+                onLogicalOperatorSelect={handleLogicalOperatorSelect}
+                onWhereColumnSelect={handleWhereColumnSelect}
+                onOperatorSelect={handleOperatorSelect}
+                onValueSelect={handleValueSelect}
+                metadataLoading={false}
+                operatorOptions={operatorOptions}
+                logicalOperatorOptions={logicalOperatorOptions}
+                joinClauses={[]}
+                onDeleteCondition={handleDeleteCondition}
+              />
+              <OrderByLimitSelect
+                selectedTable={selectedTable}
+                tableColumns={tableColumns}
+                orderByClause={orderByClause}
+                limit={limit}
+                onOrderByColumnSelect={handleOrderByColumnSelect}
+                onOrderByDirectionSelect={handleOrderByDirectionSelect}
+                onLimitSelect={handleLimitSelect}
+                metadataLoading={false}
+                joinClauses={[]}
+              />
+              <GroupBySelect
+                selectedTable={selectedTable}
+                tableColumns={tableColumns}
+                selectedGroupByColumns={selectedGroupByColumns}
+                onGroupByColumnSelect={handleGroupByColumnSelect}
+                metadataLoading={false}
+                joinClauses={[]}
+              />
+              <HavingSelect
+                selectedTable={selectedTable}
+                tableColumns={tableColumns}
+                havingClause={havingClause}
+                uniqueValues={uniqueValues}
+                onAggregateColumnSelect={handleAggregateColumnSelect}
+                onOperatorSelect={handleHavingOperatorSelect}
+                onValueSelect={handleHavingValueSelect}
+                metadataLoading={false}
+                operatorOptions={operatorOptions}
+                logicalOperatorOptions={logicalOperatorOptions}
+                joinClauses={[]}
+                isMySQL={isMySQL}
+              />
+              <CodeMirrorEditor
+                selectedColumns={selectedColumns}
+                uniqueValues={uniqueValues}
+                query={query}
+                tableNames={tableNames}
+                tableColumns={tableColumns}
+                onQueryChange={handleQueryChange}
+                onTableSelect={handleTableSelect}
+                onWhereColumnSelect={handleWhereColumnSelect}
+                onOperatorSelect={handleOperatorSelect}
+                onValueSelect={handleValueSelect}
+                onLogicalOperatorSelect={handleLogicalOperatorSelect}
+                onOrderBySelect={handleOrderBySelect}
+                onColumnSelect={handleColumnSelect}
+                onDistinctSelect={handleDistinctSelect}
+                onGroupByColumnSelect={handleGroupByColumnSelect}
+                onAggregateColumnSelect={handleAggregateColumnSelect}
+                onHavingOperatorSelect={handleHavingOperatorSelect}
+                onHavingValueSelect={handleHavingValueSelect}
+                runQuery={runQuery}
+              />
+              <div className="flex justify-end gap-4">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={toggleHistory}
+                  className={`px-2.5 py-1 rounded-lg transition-all duration-300 ease-in-out border-2 shadow-sm
+      bg-gradient-to-r from-green-600 to-green-700 text-white border-[#1e293b] shadow-md
+      hover:from-emerald-600 hover:to-emerald-700`}
+                >
+                  <LucideHistory className="w-4 h-4 mr-1 text-white" />
+                  {showHistory ? "Hide History" : "Show History"}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => runQuery(query)}
+                  className="px-2.5 py-1 rounded-lg transition-all duration-300 ease-in-out border-2 shadow-sm
+      bg-gradient-to-r from-green-600 to-green-700 text-white border-[#1e293b] shadow-md
+      hover:from-emerald-600 hover:to-emerald-700"
+                >
+                  <LucidePlay className="w-4 h-4 mr-1 text-white" />
+                  Run Query
+                </Button>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
   );
 }

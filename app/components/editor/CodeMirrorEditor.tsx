@@ -38,6 +38,7 @@ interface CodeMirrorEditorProps {
   tableColumns: TableColumn;
   selectedColumns: SelectOption[];
   uniqueValues: Record<string, SelectOption[]>;
+  runQuery: (query: string) => Promise<void>;
   onQueryChange: (query: string) => void;
   onTableSelect?: (value: SelectOption | null) => void;
   onWhereColumnSelect?: (
@@ -95,6 +96,7 @@ export default function CodeMirrorEditor({
   onAggregateColumnSelect,
   onHavingOperatorSelect,
   onHavingValueSelect,
+  runQuery,
 }: CodeMirrorEditorProps) {
   const editorRef = useRef<EditorView | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -319,6 +321,15 @@ export default function CodeMirrorEditor({
           },
           { key: "Ctrl-Space", run: startCompletion },
           indentWithTab,
+          {
+            key: "Mod-Enter",
+            run: () => {
+              if (!editorRef.current) return true;
+              const currentQuery = editorRef.current.state.doc.toString();
+              runQuery(currentQuery);
+              return true;
+            },
+          },
           ...defaultKeymap,
         ]),
         languageCompartment.current.of(sql()),
