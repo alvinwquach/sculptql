@@ -9,6 +9,6 @@
     "skipLibCheck": true,
     "outDir": "dist"
   },
-  "include": ["index.ts"], 
+  "include": ["index.ts", "server.ts"], 
   "exclude": ["node_modules", "dist"]
 }
