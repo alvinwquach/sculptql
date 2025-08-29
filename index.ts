@@ -44,12 +44,35 @@ program
 program.parse(process.argv);
 
 const options = program.opts<CLIOptions>();
-
 const dialect = options.dialect ?? process.env.DB_DIALECT;
+const host = options.host ?? process.env.DB_HOST;
+const port = options.port ?? process.env.DB_PORT;
+const database = options.database ?? process.env.DB_DATABASE;
+const user = options.user ?? process.env.DB_USER;
+const password = options.password ?? process.env.DB_PASSWORD;
+const db_file = options.db_file ?? process.env.DB_FILE;
+
+const missingFields: string[] = [];
 
 if (!dialect) {
+  missingFields.push("--dialect or DB_DIALECT");
+}
+
+if (dialect === "sqlite") {
+  if (!db_file) {
+    missingFields.push("--db_file or DB_FILE");
+  }
+} else {
+  if (!host) missingFields.push("--host or DB_HOST");
+  if (!port) missingFields.push("--port or DB_PORT");
+  if (!database) missingFields.push("--database or DB_DATABASE");
+  if (!user) missingFields.push("--user or DB_USER");
+  if (!password) missingFields.push("--password or DB_PASSWORD");
+}
+
+if (missingFields.length > 0) {
   console.error(
-    chalk.red("❌ Error: Missing required --dialect or DB_DIALECT")
+    chalk.red("❌ Missing required options:\n  " + missingFields.join("\n  "))
   );
   process.exit(1);
 }
@@ -57,16 +80,12 @@ if (!dialect) {
 async function main() {
   console.log("Connecting with options:", {
     dialect,
-    host: options.host ?? process.env.DB_HOST,
-    port: options.port ?? process.env.DB_PORT,
-    database: options.database ?? process.env.DB_NAME,
-    user: options.user ?? process.env.DB_USER,
-    password: options.password
-      ? "******"
-      : process.env.DB_PASSWORD
-      ? "******"
-      : "",
-    db_file: options.db_file ?? process.env.DB_FILE,
+    host,
+    port,
+    database,
+    user,
+    password: password ? "******" : "",
+    db_file,
   });
 
   let pool:
@@ -75,13 +94,6 @@ async function main() {
     | SqliteDatabase
     | mssql.ConnectionPool
     | OraclePool;
-
-  const host = options.host ?? process.env.DB_HOST;
-  const port = options.port ?? process.env.DB_PORT;
-  const database = options.database ?? process.env.DB_NAME;
-  const user = options.user ?? process.env.DB_USER;
-  const password = options.password ?? process.env.DB_PASSWORD;
-  const db_file = options.db_file ?? process.env.DB_FILE;
 
   if (dialect === "postgres") {
     pool = new PgPool({
@@ -111,12 +123,8 @@ async function main() {
       queueLimit: 0,
     });
   } else if (dialect === "sqlite") {
-    if (!db_file) {
-      console.error(chalk.red("❌ SQLite requires --db_file or DB_FILE"));
-      process.exit(1);
-    }
     pool = await open({
-      filename: db_file,
+      filename: db_file!,
       driver: sqlite3.Database,
     });
   } else if (dialect === "mssql") {
@@ -131,14 +139,6 @@ async function main() {
     };
     pool = await new mssql.ConnectionPool(config).connect();
   } else if (dialect === "oracle") {
-    if (!host || !database || !user || !password) {
-      console.error(
-        chalk.red(
-          "❌ Oracle connection requires host, database, user, and password"
-        )
-      );
-      process.exit(1);
-    }
     pool = await oracledb.createPool({
       user,
       password,
