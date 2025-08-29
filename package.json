@@ -9,10 +9,10 @@
     "dist/**/*"
   ],
   "scripts": {
-    "dev": "next dev --turbopack",
+    "dev": "node server.js",
     "build": "next build",
+    "start": "NODE_ENV=production node server.js",
     "build:cli": "tsc -p tsconfig.cli.json && chmod +x dist/index.js",
-    "start": "next start",
     "lint": "next lint",
     "test": "jest",
     "cypress:open": "cypress open",

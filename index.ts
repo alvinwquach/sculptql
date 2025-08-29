@@ -10,6 +10,9 @@ import oracledb, { Pool as OraclePool } from "oracledb";
 import chalk from "chalk";
 import { config as dotenvConfig } from "dotenv";
 import openUrl from "open";
+import { createServer } from "http";
+import { parse } from "url";
+import next from "next";
 
 dotenvConfig({ path: ".env" });
 
@@ -23,6 +26,7 @@ interface CLIOptions {
   user?: string;
   password?: string;
   db_file?: string;
+  serverPort?: string;
 }
 
 const program = new Command();
@@ -39,7 +43,8 @@ program
   .option("--database <database>", "Database name")
   .option("--user <user>", "Database user")
   .option("--password <password>", "Database password")
-  .option("--db_file <db_file>", "SQLite file path");
+  .option("--db_file <db_file>", "SQLite file path")
+  .option("--serverPort <serverPort>", "Web server port", "3000");
 
 program.parse(process.argv);
 
@@ -51,6 +56,10 @@ const database = options.database ?? process.env.DB_DATABASE;
 const user = options.user ?? process.env.DB_USER;
 const password = options.password ?? process.env.DB_PASSWORD;
 const db_file = options.db_file ?? process.env.DB_FILE;
+const serverPort = parseInt(
+  options.serverPort ?? process.env.PORT ?? "3000",
+  10
+);
 
 const missingFields: string[] = [];
 
@@ -86,6 +95,7 @@ async function main() {
     user,
     password: password ? "******" : "",
     db_file,
+    serverPort,
   });
 
   let pool:
@@ -158,13 +168,31 @@ async function main() {
     )
   );
 
-  const isDev = process.env.NODE_ENV !== "production";
-  const webUrl =
-    (isDev
-      ? "http://localhost:3000"
-      : process.env.NEXT_PUBLIC_BASE_URL ?? "https://sculptql.com") + "/editor";
+  const dev = process.env.NODE_ENV !== "production";
+  const app = next({ dev });
+  const handle = app.getRequestHandler();
 
-  console.log(chalk.cyan(`🔗 Open the web interface: ${webUrl}`));
+  await app.prepare();
+  const server = createServer((req, res) => {
+    const parsedUrl = parse(req.url!, true);
+    handle(req, res, parsedUrl);
+  });
+
+  server.listen(serverPort, () => {
+    console.log(
+      chalk.green(
+        `> Server listening at http://localhost:${serverPort} as ${
+          dev ? "development" : process.env.NODE_ENV
+        }`
+      )
+    );
+  });
+
+  const webUrl =
+    (dev
+      ? `http://localhost:${serverPort}`
+      : process.env.NEXT_PUBLIC_BASE_URL ?? "https://sculptql.com") + "/editor";
+  console.log(chalk.cyan(` Open the web interface: ${webUrl}`));
 
   try {
     await openUrl(webUrl);
@@ -173,8 +201,8 @@ async function main() {
     console.error(chalk.red("❌ Failed to open browser:"), err);
   }
 
-  const closePool = async () => {
-    console.log(chalk.green("\n✅ Closing connection pool..."));
+  const closePoolAndServer = async () => {
+    console.log(chalk.green("\n Closing connection pool and server..."));
     try {
       if (dialect === "postgres") {
         await (pool as PgPool).end();
@@ -187,23 +215,26 @@ async function main() {
       } else if (dialect === "oracle") {
         await (pool as OraclePool).close(10);
       }
-      console.log(chalk.green("✅ Connection pool closed"));
+      console.log(chalk.green(" Connection pool closed"));
     } catch (err: unknown) {
       if (err instanceof Error) {
-        console.error(chalk.red("❌ Error closing pool:"), err.message);
+        console.error(chalk.red(" Error closing pool:"), err.message);
       } else {
-        console.error(chalk.red("❌ Error closing pool:"), err);
+        console.error(chalk.red(" Error closing pool:"), err);
       }
     }
+    server.close(() => {
+      console.log(chalk.green(" Web server closed"));
+    });
   };
 
   process.on("SIGINT", async () => {
-    await closePool();
+    await closePoolAndServer();
     process.exit(0);
   });
 
   process.on("SIGTERM", async () => {
-    await closePool();
+    await closePoolAndServer();
     process.exit(0);
   });
 
