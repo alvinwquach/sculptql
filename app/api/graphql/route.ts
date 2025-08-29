@@ -6,40 +6,69 @@ import {
   QueryResult,
 } from "@/app/types/query";
 import { createSchema, createYoga } from "graphql-yoga";
-import { FieldDef, Pool } from "pg";
+import {
+  FieldDef,
+  Pool as PgPool,
+  PoolClient as PgClient,
+  QueryResult as PgQueryResult,
+} from "pg";
+import mysql, {
+  PoolConnection,
+  RowDataPacket,
+  FieldPacket,
+} from "mysql2/promise";
 
-// Define the Next.js context type
+const dialect = process.env.DB_DIALECT ?? "postgres";
+
 interface NextContext {
   params: Promise<Record<string, string>>;
 }
 
-// Custom Response type to ensure compatibility
 const CustomResponse = Response as typeof Response & {
   json: (data: unknown, init?: ResponseInit) => Response;
 };
 
-// Configure PostgreSQL connection pool
-const pool = new Pool({
-  host: process.env.DB_HOST,
-  port: Number(process.env.DB_PORT),
-  database: process.env.DB_NAME,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  ssl: { rejectUnauthorized: false },
-  max: 5,
-  idleTimeoutMillis: 30000,
-  application_name: "sculptql-api",
-});
+const pgPool =
+  dialect === "postgres"
+    ? new PgPool({
+        host: process.env.DB_HOST,
+        port: Number(process.env.DB_PORT),
+        database: process.env.DB_NAME,
+        user: process.env.DB_USER,
+        password: process.env.DB_PASSWORD,
+        ssl: { rejectUnauthorized: false },
+        max: 5,
+        idleTimeoutMillis: 30000,
+        application_name: "sculptql-api",
+      })
+    : null;
+
+const myPool =
+  dialect === "mysql"
+    ? mysql.createPool({
+        host: process.env.DB_HOST,
+        port: Number(process.env.DB_PORT),
+        database: process.env.DB_NAME,
+        user: process.env.DB_USER,
+        password: process.env.DB_PASSWORD,
+        waitForConnections: true,
+        connectionLimit: 5,
+      })
+    : null;
 
 interface SchemaArgs {
-  tableSearch?: string; // optional filter for table names
-  columnSearch?: string; // optional filter for column names
-  limit?: number; // optional row limit
+  tableSearch?: string;
+  columnSearch?: string;
+  limit?: number;
 }
 
-// Step 1: Define GraphQL type definitions
-const typeDefs = /* GraphQL */ `
-  # Column metadata
+type DatabaseQueryResult =
+  | PgQueryResult<Record<string, unknown>>
+  | [RowDataPacket[], FieldPacket[]];
+
+const typeDefs = `
+  scalar JSON
+
   type Column {
     column_name: String!
     data_type: String!
@@ -47,7 +76,6 @@ const typeDefs = /* GraphQL */ `
     is_primary_key: Boolean!
   }
 
-  # Foreign key metadata
   type ForeignKey {
     column_name: String!
     referenced_table: String!
@@ -55,7 +83,6 @@ const typeDefs = /* GraphQL */ `
     constraint_name: String!
   }
 
-  # Table metadata + sample values
   type Table {
     table_catalog: String!
     table_schema: String!
@@ -68,7 +95,6 @@ const typeDefs = /* GraphQL */ `
     values(limit: Int): [JSON!]!
   }
 
-  # Query execution result
   type QueryResult {
     rows: [JSON!]!
     rowCount: Int
@@ -79,152 +105,232 @@ const typeDefs = /* GraphQL */ `
     error: String
   }
 
-  # JSON scalar for dynamic row data
-  scalar JSON
-
-  # Root query type
   type Query {
     schema(tableSearch: String, columnSearch: String, limit: Int): [Table!]!
   }
 
-  # Root mutation type
   type Mutation {
     runQuery(query: String!): QueryResult!
   }
 `;
 
-// Step 2: Define resolver functions for GraphQL
 const resolvers = {
   Query: {
-    // Resolver: fetch schema metadata (tables, columns, PKs, FKs, sample data)
     schema: async (
       _: unknown,
       { tableSearch = "", columnSearch = "", limit }: SchemaArgs
     ): Promise<Table[]> => {
-      const client = await pool.connect();
-      try {
-        // Step 2a: Query tables from PostgreSQL information_schema
-        let tablesQuery = `
-          SELECT table_catalog, table_schema, table_name, table_type
-          FROM information_schema.tables
-          WHERE table_schema = 'public'
-        `;
-        const queryParams: string[] = [];
-
-        if (tableSearch) {
-          tablesQuery += ` AND table_name ILIKE $1`;
-          queryParams.push(`%${tableSearch}%`);
-        }
-        tablesQuery += ` ORDER BY table_name;`;
-
-        const tablesResult = await client.query<{
-          table_catalog: string;
-          table_schema: string;
-          table_name: string;
-          table_type: string;
-        }>(tablesQuery, queryParams);
-
-        const schema: Table[] = [];
-
-        // Step 2b: Loop through tables and fetch details
-        for (const table of tablesResult.rows) {
-          const { table_name } = table;
-
-          // Fetch columns
-          let columnsQuery = `
-            SELECT column_name, data_type, is_nullable
-            FROM information_schema.columns
-            WHERE table_schema = 'public' AND table_name = $1
-          `;
-          const columnParams: string[] = [table_name];
-
-          if (columnSearch) {
-            columnsQuery += ` AND (column_name ILIKE $2 OR data_type ILIKE $2)`;
-            columnParams.push(`%${columnSearch}%`);
-          }
-
-          columnsQuery += ` ORDER BY ordinal_position;`;
-          const columnsResult = await client.query<{
-            column_name: string;
-            data_type: string;
-            is_nullable: string;
-          }>(columnsQuery, columnParams);
-
-          if (columnSearch && columnsResult.rows.length === 0) continue;
-
-          // Fetch primary keys
-          const primaryKeyQuery = `
-            SELECT kcu.column_name
-            FROM information_schema.table_constraints tc
-            JOIN information_schema.key_column_usage kcu
-              ON tc.constraint_name = kcu.constraint_name
-              AND tc.table_schema = kcu.table_schema
-            WHERE tc.constraint_type = 'PRIMARY KEY'
-              AND tc.table_schema = 'public'
-              AND tc.table_name = $1;
-          `;
-          const primaryKeyResult = await client.query<{ column_name: string }>(
-            primaryKeyQuery,
-            [table_name]
-          );
-          const primaryKeys = primaryKeyResult.rows.map((r) => r.column_name);
-
-          // Fetch foreign keys
-          const foreignKeyQuery = `
-            SELECT kcu.column_name, ccu.table_name AS referenced_table, 
-                   ccu.column_name AS referenced_column, tc.constraint_name
-            FROM information_schema.table_constraints tc
-            JOIN information_schema.key_column_usage kcu
-              ON tc.constraint_name = kcu.constraint_name
-              AND tc.table_schema = kcu.table_schema
-            JOIN information_schema.constraint_column_usage ccu
-              ON tc.constraint_name = ccu.constraint_name
-              AND tc.table_schema = ccu.table_schema
-            WHERE tc.constraint_type = 'FOREIGN KEY'
-              AND tc.table_schema = 'public'
-              AND tc.table_name = $1;
-          `;
-          const foreignKeyResult = await client.query<ForeignKey>(
-            foreignKeyQuery,
-            [table_name]
+      if (dialect === "postgres") {
+        const client: PgClient = await pgPool!.connect();
+        try {
+          const tablesResult = await client.query<{
+            table_catalog: string;
+            table_schema: string;
+            table_name: string;
+            table_type: string;
+          }>(
+            `
+            SELECT table_catalog, table_schema, table_name, table_type
+            FROM information_schema.tables
+            WHERE table_schema = 'public'
+              ${tableSearch ? "AND table_name ILIKE $1" : ""}
+            ORDER BY table_name;
+          `,
+            tableSearch ? [`%${tableSearch}%`] : []
           );
 
-          // Fetch sample values
-          let valuesQuery = `SELECT * FROM public.${table_name}`;
-          const valuesParams: number[] = [];
-          if (typeof limit === "number") {
-            valuesQuery += ` LIMIT $1`;
-            valuesParams.push(limit);
+          const schema: Table[] = [];
+          for (const table of tablesResult.rows) {
+            const { table_name } = table;
+
+            const columnsResult = await client.query<{
+              column_name: string;
+              data_type: string;
+              is_nullable: string;
+            }>(
+              `
+              SELECT column_name, data_type, is_nullable
+              FROM information_schema.columns
+              WHERE table_schema = 'public' AND table_name = $1
+                ${
+                  columnSearch
+                    ? "AND (column_name ILIKE $2 OR data_type ILIKE $2)"
+                    : ""
+                }
+              ORDER BY ordinal_position;
+            `,
+              columnSearch ? [table_name, `%${columnSearch}%`] : [table_name]
+            );
+
+            if (columnSearch && columnsResult.rows.length === 0) continue;
+
+            const primaryKeyResult = await client.query<{
+              column_name: string;
+            }>(
+              `
+              SELECT kcu.column_name
+              FROM information_schema.table_constraints tc
+              JOIN information_schema.key_column_usage kcu
+                ON tc.constraint_name = kcu.constraint_name
+                AND tc.table_schema = kcu.table_schema
+              WHERE tc.constraint_type = 'PRIMARY KEY'
+                AND tc.table_schema = 'public'
+                AND tc.table_name = $1;
+            `,
+              [table_name]
+            );
+
+            const primaryKeys = primaryKeyResult.rows.map((r) => r.column_name);
+
+            const foreignKeyResult = await client.query<ForeignKey>(
+              `
+              SELECT kcu.column_name, ccu.table_name AS referenced_table,
+                     ccu.column_name AS referenced_column, tc.constraint_name
+              FROM information_schema.table_constraints tc
+              JOIN information_schema.key_column_usage kcu
+                ON tc.constraint_name = kcu.constraint_name
+                AND tc.table_schema = kcu.table_schema
+              JOIN information_schema.constraint_column_usage ccu
+                ON tc.constraint_name = ccu.constraint_name
+                AND tc.table_schema = ccu.table_schema
+              WHERE tc.constraint_type = 'FOREIGN KEY'
+                AND tc.table_schema = 'public'
+                AND tc.table_name = $1;
+            `,
+              [table_name]
+            );
+
+            const valuesResult = await client.query<Record<string, unknown>>(
+              `SELECT * FROM public.${table_name} ${limit ? "LIMIT $1" : ""}`,
+              limit ? [limit] : []
+            );
+
+            const columns: Column[] = columnsResult.rows.map((col) => ({
+              ...col,
+              is_primary_key: primaryKeys.includes(col.column_name),
+            }));
+
+            schema.push({
+              ...table,
+              comment: null,
+              columns,
+              primary_keys: primaryKeys,
+              foreign_keys: foreignKeyResult.rows,
+              values: valuesResult.rows.map((row) =>
+                JSON.parse(JSON.stringify(row))
+              ),
+            });
           }
-          const valuesResult = await client.query(valuesQuery, valuesParams);
-          const values = valuesResult.rows;
 
-          // Construct Column objects
-          const columns: Column[] = columnsResult.rows.map((col) => ({
-            ...col,
-            is_primary_key: primaryKeys.includes(col.column_name),
-          }));
-
-          // Construct Table object
-          schema.push({
-            ...table,
-            comment: null,
-            columns,
-            primary_keys: primaryKeys,
-            foreign_keys: foreignKeyResult.rows,
-            values,
-          });
+          return schema;
+        } finally {
+          client.release();
         }
+      } else {
+        const client: PoolConnection = await myPool!.getConnection();
+        try {
+          const [tablesResult] = await client.query<RowDataPacket[]>(
+            `
+            SELECT table_catalog, table_schema, table_name, table_type
+            FROM information_schema.tables
+            WHERE table_schema = DATABASE()
+              ${tableSearch ? "AND table_name LIKE ?" : ""}
+            ORDER BY table_name;
+          `,
+            tableSearch ? [`%${tableSearch}%`] : []
+          );
 
-        return schema;
-      } finally {
-        client.release();
+          const schema: Table[] = [];
+          for (const table of tablesResult) {
+            const { table_name } = table as { table_name: string };
+
+            const [columnsResult] = await client.query<RowDataPacket[]>(
+              `
+              SELECT column_name, data_type, is_nullable
+              FROM information_schema.columns
+              WHERE table_schema = DATABASE() AND table_name = ?
+                ${
+                  columnSearch
+                    ? "AND (column_name LIKE ? OR data_type LIKE ?)"
+                    : ""
+                }
+              ORDER BY ordinal_position;
+            `,
+              columnSearch
+                ? [table_name, `%${columnSearch}%`, `%${columnSearch}%`]
+                : [table_name]
+            );
+
+            if (columnSearch && columnsResult.length === 0) continue;
+
+            const [primaryKeyResult] = await client.query<RowDataPacket[]>(
+              `
+              SELECT column_name
+              FROM information_schema.key_column_usage
+              WHERE table_schema = DATABASE()
+                AND table_name = ?
+                AND constraint_name = 'PRIMARY';
+            `,
+              [table_name]
+            );
+
+            const primaryKeys = primaryKeyResult.map(
+              (r) => (r as { column_name: string }).column_name
+            );
+
+            const [foreignKeyResult] = await client.query<RowDataPacket[]>(
+              `
+              SELECT kcu.column_name, kcu.referenced_table_name AS referenced_table,
+                     kcu.referenced_column_name AS referenced_column, kcu.constraint_name
+              FROM information_schema.key_column_usage kcu
+              WHERE kcu.table_schema = DATABASE()
+                AND kcu.table_name = ?
+                AND kcu.referenced_table_name IS NOT NULL;
+            `,
+              [table_name]
+            );
+
+            const [valuesResult] = await client.query<RowDataPacket[]>(
+              `SELECT * FROM ${table_name} ${limit ? "LIMIT ?" : ""}`,
+              limit ? [limit] : []
+            );
+
+            const columns: Column[] = columnsResult.map((col) => ({
+              ...(col as {
+                column_name: string;
+                data_type: string;
+                is_nullable: string;
+              }),
+              is_primary_key: primaryKeys.includes(
+                (col as { column_name: string }).column_name
+              ),
+            }));
+
+            schema.push({
+              ...(table as {
+                table_catalog: string;
+                table_schema: string;
+                table_name: string;
+                table_type: string;
+              }),
+              comment: null,
+              columns,
+              primary_keys: primaryKeys,
+              foreign_keys: foreignKeyResult as ForeignKey[],
+              values: valuesResult.map((row) =>
+                JSON.parse(JSON.stringify(row))
+              ),
+            });
+          }
+
+          return schema;
+        } finally {
+          client.release();
+        }
       }
     },
   },
-
   Mutation: {
-    // Resolver: run arbitrary SQL query and return result
     runQuery: async (
       _: unknown,
       { query }: { query: string }
@@ -241,40 +347,82 @@ const resolvers = {
         };
       }
 
-      const client = await pool.connect();
+      const client = await(
+        dialect === "postgres" ? pgPool!.connect() : myPool!.getConnection()
+      );
+
       let errorsCount = 0;
 
       try {
-        // Execute query
-        const response = await client.query(query);
+        const response: DatabaseQueryResult = await(
+          dialect === "postgres"
+            ? (client as PgClient).query(query)
+            : (client as PoolConnection).execute(query)
+        );
 
-        // Try to run EXPLAIN ANALYZE for timings
         let planningTime = 0;
         let executionTimeFromExplain = 0;
+
         try {
-          const explainQuery = `EXPLAIN (ANALYZE, FORMAT JSON) ${query}`;
-          const explainResult = await client.query(explainQuery);
-          const plans = explainResult.rows[0][
-            "QUERY PLAN"
-          ] as ExplainAnalyzeJSON[];
-          const plan = plans[0];
-          planningTime = plan.PlanningTime ?? 0;
-          executionTimeFromExplain = plan.ExecutionTime ?? 0;
+          if (dialect === "postgres") {
+            const explainQuery = `EXPLAIN (ANALYZE, FORMAT JSON) ${query}`;
+            const explainResult = await(client as PgClient).query(explainQuery);
+            const plans = explainResult.rows[0][
+              "QUERY PLAN"
+            ] as ExplainAnalyzeJSON[];
+            const plan = plans[0];
+            planningTime = plan.PlanningTime ?? 0;
+            executionTimeFromExplain = plan.ExecutionTime ?? 0;
+          } else {
+            await(client as PoolConnection).execute("SET PROFILING = 1");
+            await(client as PoolConnection).execute(query);
+            const [profileResults] = await(client as PoolConnection).execute(
+              "SHOW PROFILES"
+            ) as RowDataPacket[][];
+
+            if (profileResults.length > 0) {
+              const lastProfile = profileResults[profileResults.length - 1];
+              planningTime = parseFloat(lastProfile.Query_time ?? "0");
+              executionTimeFromExplain = parseFloat(
+                lastProfile.Lock_time ?? "0"
+              );
+            }
+          }
         } catch {
           errorsCount += 1;
         }
 
-        // Calculate payload size and total time
-        const payloadString = JSON.stringify(response.rows);
+        let rows: Record<string, unknown>[] = [];
+        let rowCount: number | undefined = 0;
+        let fields: string[] = [];
+
+        if (dialect === "postgres") {
+          const pgResponse = response as PgQueryResult<Record<string, unknown>>;
+          rows = pgResponse.rows || [];
+          rowCount = pgResponse.rowCount ?? undefined;
+          fields =
+            pgResponse.fields?.map((field: FieldDef) => field.name) || [];
+        } else {
+          const [mySqlRows, mySqlFields] = response as [
+            RowDataPacket[],
+            FieldPacket[]
+          ];
+          rows = mySqlRows.map((row) => ({ ...row }));
+          rowCount = mySqlRows.length;
+          fields = mySqlFields?.map((field) => field.name) || [];
+        }
+
+        const payloadString = JSON.stringify(rows);
         const payloadSize = Buffer.byteLength(payloadString, "utf8") / 1024;
-        const totalTime = planningTime + executionTimeFromExplain;
 
         return {
-          rows: response.rows as Record<string, unknown>[],
-          rowCount: response.rowCount ?? undefined,
-          fields: response.fields.map((field: FieldDef) => field.name),
+          rows,
+          rowCount,
+          fields,
           payloadSize: Number(payloadSize.toFixed(4)),
-          totalTime: Number(totalTime.toFixed(4)),
+          totalTime: Number(
+            (planningTime + executionTimeFromExplain).toFixed(4)
+          ),
           errorsCount,
         };
       } catch (error) {
@@ -295,7 +443,6 @@ const resolvers = {
   },
 };
 
-// Step 3: Create Yoga GraphQL server
 const { handleRequest } = createYoga<NextContext>({
   schema: createSchema({ typeDefs, resolvers }),
   graphqlEndpoint: "/api/graphql",
@@ -304,7 +451,6 @@ const { handleRequest } = createYoga<NextContext>({
   },
 });
 
-// Step 4: Export handlers for Next.js API route
 export {
   handleRequest as GET,
   handleRequest as POST,
