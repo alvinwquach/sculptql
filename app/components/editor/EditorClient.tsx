@@ -32,6 +32,11 @@ import HavingSelect from "./HavingSelect";
 import { Button } from "@/components/ui/button";
 import { LucideHistory, LucidePlay } from "lucide-react";
 import {
+  getQueryData,
+  setQueryData,
+  clearQueryData,
+} from "@/app/utils/fileStorageUtils";
+import {
   getLocalStorageItem,
   setLocalStorageItem,
   removeLocalStorageItem,
@@ -75,9 +80,7 @@ export default function EditorClient({
     []
   );
   const [labeledQueries, setLabeledQueries] = useState<LabeledQuery[]>([]);
-  const [showHistory, setShowHistory] = useState<boolean>(() => {
-    return getLocalStorageItem("showQueryHistory", false);
-  });
+  const [showHistory, setShowHistory] = useState<boolean>(false);
   const [queryResult, setQueryResult] = useState<QueryResult | null>(null);
   const [queryError, setQueryError] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>("table");
@@ -89,30 +92,23 @@ export default function EditorClient({
   >(RUN_QUERY);
 
   useEffect(() => {
-    setQueryHistory(getLocalStorageItem("queryHistory", []));
-    setPinnedQueries(getLocalStorageItem("pinnedQueries", []));
-    setBookmarkedQueries(getLocalStorageItem("bookmarkedQueries", []));
-    setLabeledQueries(getLocalStorageItem("labeledQueries", []));
-  }, []);
-
-  useEffect(() => {
-    setLocalStorageItem("queryHistory", queryHistory);
+    setQueryData({ queryHistory });
   }, [queryHistory]);
 
   useEffect(() => {
-    setLocalStorageItem("pinnedQueries", pinnedQueries);
+    setQueryData({ pinnedQueries });
   }, [pinnedQueries]);
 
   useEffect(() => {
-    setLocalStorageItem("bookmarkedQueries", bookmarkedQueries);
+    setQueryData({ bookmarkedQueries });
   }, [bookmarkedQueries]);
 
   useEffect(() => {
-    setLocalStorageItem("labeledQueries", labeledQueries);
+    setQueryData({ labeledQueries });
   }, [labeledQueries]);
 
   useEffect(() => {
-    setLocalStorageItem("showQueryHistory", showHistory);
+    setQueryData({ showQueryHistory: showHistory });
   }, [showHistory]);
 
   useEffect(() => {
@@ -1849,10 +1845,7 @@ export default function EditorClient({
     setPinnedQueries([]);
     setBookmarkedQueries([]);
     setLabeledQueries([]);
-    removeLocalStorageItem("queryHistory");
-    removeLocalStorageItem("pinnedQueries");
-    removeLocalStorageItem("bookmarkedQueries");
-    removeLocalStorageItem("labeledQueries");
+    clearQueryData();
   }, []);
 
   const loadQueryFromHistory = useCallback((query: string) => {
