@@ -1,8 +1,12 @@
 {
   "queryHistory": [
     {
-      "query": "SELECT * FROM users ",
-      "timestamp": "2025-08-30T00:41:12.068Z"
+      "query": "SELECT * FROM users;",
+      "timestamp": "2025-08-30T01:32:46.151Z"
+    },
+    {
+      "query": "SELECT \"*\" FROM users;",
+      "timestamp": "2025-08-30T01:31:41.905Z"
     }
   ],
   "pinnedQueries": [],
