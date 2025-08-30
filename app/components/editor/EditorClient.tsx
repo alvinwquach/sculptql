@@ -30,7 +30,7 @@ import { stripQuotes } from "@/app/utils/sqlCompletion/stripQuotes";
 import { SingleValue, MultiValue } from "react-select";
 import HavingSelect from "./HavingSelect";
 import { Button } from "@/components/ui/button";
-import { LucideHistory, LucidePlay } from "lucide-react";
+import { Braces, LucideHistory, LucidePlay } from "lucide-react";
 import {
   getQueryData,
   setQueryData,
@@ -90,6 +90,37 @@ export default function EditorClient({
     { runQuery: QueryResult },
     { query: string }
   >(RUN_QUERY);
+
+  useEffect(() => {
+    if (queryResult) {
+      window.QueryResults = queryResult;
+      console.log(
+        "QueryResults available in console as window.QueryResults:",
+        queryResult
+      );
+    }
+  }, [queryResult]);
+
+  const logQueryResultAsJson = useCallback(() => {
+    if (!queryResult || !queryResult.rows || !queryResult.fields) {
+      console.log("No query results available");
+      return;
+    }
+    const jsonContent = JSON.stringify(
+      {
+        fields: queryResult.fields,
+        rows: queryResult.rows,
+      },
+      null,
+      2
+    );
+    console.log("Query Results as JSON:", jsonContent);
+    return jsonContent;
+  }, [queryResult]);
+
+  useEffect(() => {
+    window.logQueryResultAsJson = logQueryResultAsJson;
+  }, [logQueryResultAsJson]);
 
   useEffect(() => {
     setQueryData({ queryHistory });
@@ -1960,25 +1991,42 @@ export default function EditorClient({
               <p className="text-red-300">{error}</p>
             ) : (
               <>
-                <div className="flex justify-end gap-4 flex-wrap mt-5">
-                  <div className="relative group">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={toggleHistory}
-                      className="flex items-center px-3 py-1.5 rounded-full transition duration-200 border border-slate-600 shadow-md bg-gradient-to-br from-green-600 to-green-700 text-white hover:from-emerald-600 hover:to-emerald-700 focus:ring-2 focus:ring-green-400"
-                      aria-label={
-                        showHistory
-                          ? "Hide query history"
-                          : "Show query history"
-                      }
-                    >
-                      <LucideHistory className="w-4 h-4 mr-1 text-white" />
-                      {showHistory ? "Hide History" : "Show History"}
-                    </Button>
-                    <div className="absolute -top-10 left-1/2 -translate-x-1/2 z-50 hidden group-hover:block bg-gray-800 text-white text-xs font-medium rounded-md px-2 py-1 shadow-lg whitespace-nowrap">
-                      {navigator.platform.includes("Mac") ? "⌘+H" : "Ctrl+H"}
-                      <div className="absolute bottom-[-5px] left-1/2 -translate-x-1/2 w-2 h-2 bg-gray-800 rotate-45" />
+                <div className="flex flex-wrap justify-end gap-3 mt-5">
+                  <div className="flex items-center gap-3">
+                    <div className="relative group">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={logQueryResultAsJson}
+                        className="flex items-center px-4 py-2 rounded-full transition duration-200 border border-green-700 shadow-lg bg-gradient-to-br from-green-600 to-green-700 text-white hover:from-emerald-500 hover:to-emerald-600 focus:ring-2 focus:ring-emerald-400"
+                        aria-label="Log query result as JSON"
+                      >
+                        <Braces className="w-4 h-4 mr-2 text-white" /> Log JSON
+                      </Button>
+                      <div className="absolute -top-10 left-1/2 -translate-x-1/2 z-50 hidden group-hover:block bg-gray-800 text-white text-xs font-medium rounded-md px-2 py-1 shadow-lg whitespace-nowrap">
+                        Log query as JSON
+                        <div className="absolute bottom-[-5px] left-1/2 -translate-x-1/2 w-2 h-2 bg-gray-800 rotate-45" />
+                      </div>
+                    </div>
+                    <div className="relative group">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={toggleHistory}
+                        className="flex items-center px-4 py-2 rounded-full transition duration-200 border border-green-700 shadow-lg bg-gradient-to-br from-green-600 to-green-700 text-white hover:from-emerald-500 hover:to-emerald-600 focus:ring-2 focus:ring-emerald-400"
+                        aria-label={
+                          showHistory
+                            ? "Hide query history"
+                            : "Show query history"
+                        }
+                      >
+                        <LucideHistory className="w-4 h-4 mr-2 text-white" />
+                        {showHistory ? "Hide History" : "Show History"}
+                      </Button>
+                      <div className="absolute -top-10 left-1/2 -translate-x-1/2 z-50 hidden group-hover:block bg-gray-800 text-white text-xs font-medium rounded-md px-2 py-1 shadow-lg whitespace-nowrap">
+                        {navigator.platform.includes("Mac") ? "⌘+H" : "Ctrl+H"}
+                        <div className="absolute bottom-[-5px] left-1/2 -translate-x-1/2 w-2 h-2 bg-gray-800 rotate-45" />
+                      </div>
                     </div>
                   </div>
                   <div className="relative group">
@@ -1986,10 +2034,10 @@ export default function EditorClient({
                       variant="outline"
                       size="sm"
                       onClick={() => runQuery(query)}
-                      className="flex items-center px-3 py-1.5 rounded-full transition duration-200 border border-slate-600 shadow-md bg-gradient-to-br from-green-600 to-green-700 text-white hover:from-emerald-600 hover:to-emerald-700 focus:ring-2 focus:ring-green-400"
+                      className="flex items-center px-5 py-2 rounded-full transition duration-200 border border-green-700 shadow-lg bg-gradient-to-br from-green-600 to-green-700 text-white hover:from-emerald-500 hover:to-emerald-600 focus:ring-2 focus:ring-emerald-400"
                       aria-label="Run query"
                     >
-                      <LucidePlay className="w-4 h-4 mr-1 text-white" />
+                      <LucidePlay className="w-4 h-4 mr-2 text-white" />
                       Run Query
                     </Button>
                     <div className="absolute -top-10 left-1/2 -translate-x-1/2 z-50 hidden group-hover:block bg-gray-800 text-white text-xs font-medium rounded-md px-2 py-1 shadow-lg whitespace-nowrap">
