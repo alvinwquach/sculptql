@@ -1,4 +1,9 @@
 export const needsQuotes = (id: string): boolean => {
+  // Explicitly handle the wildcard *
+  if (id === "*") {
+    return false;
+  }
+
   // If it's clearly numeric -> no quotes
   if (/^\d+(\.\d+)?$/.test(id)) {
     return false;
