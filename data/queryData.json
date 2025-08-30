@@ -1,0 +1,28 @@
+{
+  "queryHistory": [
+    {
+      "query": "SELECT * FROM users ",
+      "timestamp": "2025-08-30T00:15:41.324Z"
+    },
+    {
+      "query": "SELECT * FROM users;",
+      "timestamp": "2025-08-30T00:15:41.254Z"
+    },
+    {
+      "query": "SELECT * FROM users ",
+      "timestamp": "2025-08-30T00:15:38.189Z"
+    },
+    {
+      "query": "SELECT * FROM users;",
+      "timestamp": "2025-08-30T00:15:38.121Z"
+    },
+    {
+      "query": "SELECT * FROM users ",
+      "timestamp": "2025-08-30T00:15:35.926Z"
+    }
+  ],
+  "pinnedQueries": [],
+  "bookmarkedQueries": [],
+  "labeledQueries": [],
+  "showQueryHistory": false
+}
