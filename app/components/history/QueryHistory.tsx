@@ -123,11 +123,11 @@ export default function QueryHistory({
 
   return (
     <div
-      className={`w-56 bg-[#0f172a] border-r border-slate-700/50 p-2 overflow-y-auto transition-all duration-300 ${
-        showHistory ? "block md:w-56" : "hidden md:w-0"
+      className={`w-full lg:w-52 bg-[#0f172a] border-r border-slate-700/50 p-2 overflow-y-auto transition-all duration-300 ${
+        showHistory ? "block md:w-full" : "hidden md:w-0"
       } md:h-full md:flex-shrink-0`}
     >
-      <div className="flex flex-col space-y-2">
+      <div className="sticky top-0 z-10 bg-[#0f172a] pb-2">
         <div className="flex justify-between items-center">
           <h2 className="text-sm font-bold text-green-300">Query History</h2>
           <Button
@@ -168,15 +168,15 @@ export default function QueryHistory({
               >
                 <div className="flex items-start">
                   <Pin
-                    className="w-4 h-4 mr-1 text-yellow-400 mt-1"
+                    className="w-4 h-4 mr-1 text-yellow-400 mt-1 flex-shrink-0"
                     fill="currentColor"
                     strokeWidth={0}
                   />
-                  <ScrollArea className="max-h-16 w-full overflow-x-auto">
-                    <p className="text-sm text-green-300 break-words whitespace-pre-wrap max-w-full">
+                  <div className="flex-1">
+                    <p className="text-sm text-green-300 break-words whitespace-pre-wrap">
                       {filteredPinnedQueries[0].query}
                     </p>
-                  </ScrollArea>
+                  </div>
                 </div>
                 <p className="text-xs text-gray-400 mt-1">
                   {new Date(
@@ -225,15 +225,15 @@ export default function QueryHistory({
                 >
                   <div className="flex items-start">
                     <Bookmark
-                      className="w-4 h-4 mr-1 text-blue-400 mt-1"
+                      className="w-4 h-4 mr-1 text-blue-400 mt-1 flex-shrink-0"
                       fill="currentColor"
                       strokeWidth={0}
                     />
-                    <ScrollArea className="max-h-16 w-full overflow-x-auto">
-                      <p className="text-sm text-green-300 break-words whitespace-pre-wrap max-w-full">
+                    <div className="flex-1">
+                      <p className="text-sm text-green-300 break-words whitespace-pre-wrap">
                         {item.query}
                       </p>
-                    </ScrollArea>
+                    </div>
                   </div>
                   <p className="text-xs text-gray-400 mt-1">
                     {new Date(item.timestamp).toLocaleString()}
@@ -282,14 +282,14 @@ export default function QueryHistory({
                   onClick={() => loadQueryFromHistory(item.query)}
                 >
                   <div className="flex items-start">
-                    <Tag className="w-4 h-4 mr-1 text-purple-400 mt-1" />
-                    <ScrollArea className="max-h-16 w-full overflow-x-auto">
-                      <p className="text-sm text-green-300 break-words whitespace-pre-wrap max-w-full">
+                    <Tag className="w-4 h-4 mr-1 text-purple-400 mt-1 flex-shrink-0" />
+                    <div className="flex-1">
+                      <p className="text-sm text-green-300 break-words whitespace-pre-wrap">
                         {item.label}
                       </p>
-                    </ScrollArea>
+                    </div>
                   </div>
-                  <p className="text-xs text-gray-400 mt-1 break-words whitespace-pre-wrap max-w-full">
+                  <p className="text-xs text-gray-400 mt-1 break-words whitespace-pre-wrap">
                     {item.query}
                   </p>
                   <p className="text-xs text-gray-400 mt-1">
@@ -336,14 +336,16 @@ export default function QueryHistory({
                   key={`history-${index}`}
                   className="p-1 border-b border-slate-700 hover:bg-[#2d3748] cursor-pointer flex flex-col"
                 >
-                  <ScrollArea className="max-h-16 w-full overflow-x-auto">
-                    <p
-                      className="text-sm text-green-300 break-words whitespace-pre-wrap max-w-full"
-                      onClick={() => loadQueryFromHistory(item.query)}
-                    >
-                      {item.query}
-                    </p>
-                  </ScrollArea>
+                  <div className="flex items-start">
+                    <div className="flex-1">
+                      <p
+                        className="text-sm text-green-300 break-words whitespace-pre-wrap"
+                        onClick={() => loadQueryFromHistory(item.query)}
+                      >
+                        {item.query}
+                      </p>
+                    </div>
+                  </div>
                   <p className="text-xs text-gray-400 mt-1">
                     {new Date(item.timestamp).toLocaleString()}
                   </p>

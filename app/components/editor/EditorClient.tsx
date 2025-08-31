@@ -1966,7 +1966,7 @@ export default function EditorClient({
     <div className="flex flex-col bg-[#0f172a] text-white h-screen">
       <div className="flex flex-1 w-full min-w-0 overflow-hidden flex-col lg:flex-row">
         {showHistory && (
-          <div className="w-full lg:w-[14rem] h-64 lg:h-auto  border-b lg:border-b-0 lg:border-r border-slate-700 flex-shrink-0">
+          <div className="w-full lg:w-52 flex-shrink-0 h-[500px] lg:h-auto overflow-y-auto bg-[#0f172a] border-r border-slate-700/50">
             <QueryHistory
               showHistory={showHistory}
               history={queryHistory}
@@ -1991,7 +1991,7 @@ export default function EditorClient({
               <p className="text-red-300">{error}</p>
             ) : (
               <>
-                <div className="flex flex-wrap justify-end gap-3 mt-5">
+                <div className="flex flex-wrap justify-end gap-3 mt-10 lg:mt-6">
                   <div className="flex items-center gap-3">
                     <div className="relative group">
                       <Button
@@ -2048,6 +2048,8 @@ export default function EditorClient({
                     </div>
                   </div>
                 </div>
+
+                {/* Selectors */}
                 <TableSelect
                   tableNames={tableNames}
                   selectedTable={selectedTable}
