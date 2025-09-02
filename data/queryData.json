@@ -1,5 +1,10 @@
 {
-  "queryHistory": [],
+  "queryHistory": [
+    {
+      "query": "SELECT * FROM users ",
+      "timestamp": "2025-09-02T20:17:53.130Z"
+    }
+  ],
   "pinnedQueries": [],
   "bookmarkedQueries": [],
   "labeledQueries": [],

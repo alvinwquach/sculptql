@@ -1,5 +1,7 @@
 "use client";
 
+import { ToastContainer, toast } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 import { useState, useCallback, useEffect, useMemo } from "react";
 import TableSelect from "./TableSelect";
 import ColumnSelect from "./ColumnSelect";
@@ -102,20 +104,38 @@ export default function EditorClient({
   }, [queryResult]);
 
   const logQueryResultAsJson = useCallback(() => {
-    if (!queryResult || !queryResult.rows || !queryResult.fields) {
-      console.log("No query results available");
-      return;
+    if (!queryResult) {
+      console.warn("No query results available. Please run a query first.");
+      toast.error("No query results available. Please run a query first.");
+
+      return undefined;
     }
-    const jsonContent = JSON.stringify(
-      {
-        fields: queryResult.fields,
-        rows: queryResult.rows,
-      },
-      null,
-      2
-    );
-    console.log("Query Results as JSON:", jsonContent);
-    return jsonContent;
+    if (!queryResult.rows || !queryResult.fields) {
+      console.warn("Query result is incomplete: missing rows or fields.");
+
+      toast.error("Query result is incomplete.");
+
+      return undefined;
+    }
+    try {
+      const jsonContent = JSON.stringify(
+        {
+          fields: queryResult.fields,
+          rows: queryResult.rows,
+        },
+        null,
+        2
+      );
+      console.log("Query Results as JSON:", jsonContent);
+      toast.success("Query results logged as JSON in the console.");
+
+      return jsonContent;
+    } catch (error) {
+      console.error("Failed to convert query results to JSON:", error);
+      toast.error("Failed to log query results as JSON.");
+
+      return undefined;
+    }
   }, [queryResult]);
 
   useEffect(() => {
@@ -1904,11 +1924,15 @@ export default function EditorClient({
           setQueryError(error.message || "Failed to execute query");
         } else if (data?.runQuery.error) {
           setQueryError(data.runQuery.error || "Failed to execute query");
-        } else if (data?.runQuery) {
+        } else if (
+          data?.runQuery &&
+          data.runQuery.fields &&
+          data.runQuery.rows
+        ) {
           setQueryResult(data.runQuery);
           setViewMode("table");
         } else {
-          setQueryError("No data returned from query");
+          setQueryError("Invalid query result: missing fields or rows");
         }
       } catch (error) {
         console.error("Error running query:", error);
@@ -1965,6 +1989,7 @@ export default function EditorClient({
   return (
     <div className="flex flex-col bg-[#0f172a] text-white h-screen">
       <div className="flex flex-1 w-full min-w-0 overflow-hidden flex-col lg:flex-row">
+        <ToastContainer />
         {showHistory && (
           <div className="w-full lg:w-52 flex-shrink-0 h-[500px] lg:h-auto overflow-y-auto bg-[#0f172a] border-r border-slate-700/50">
             <QueryHistory
