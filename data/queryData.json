@@ -1,32 +1,7 @@
 {
-  "queryHistory": [
-    {
-      "query": "SELECT * FROM users ",
-      "timestamp": "2025-08-31T04:30:45.556Z"
-    },
-    {
-      "query": "SELECT * FROM users;",
-      "timestamp": "2025-08-31T04:30:45.486Z"
-    },
-    {
-      "query": "SELECT * FROM users ",
-      "timestamp": "2025-08-31T04:30:43.065Z"
-    },
-    {
-      "query": "SELECT * FROM users ",
-      "timestamp": "2025-08-31T04:30:41.433Z"
-    },
-    {
-      "query": "SELECT * FROM users;",
-      "timestamp": "2025-08-31T04:30:41.372Z"
-    },
-    {
-      "query": "SELECT * FROM users ",
-      "timestamp": "2025-08-31T04:30:37.667Z"
-    }
-  ],
+  "queryHistory": [],
   "pinnedQueries": [],
   "bookmarkedQueries": [],
   "labeledQueries": [],
-  "showQueryHistory": true
-}}
+  "showQueryHistory": false
+}
