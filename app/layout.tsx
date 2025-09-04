@@ -15,29 +15,35 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "SculptQL – Privacy-First SQL CLI & Web Interface",
+  title: "SculptQL – Privacy-First SQL Tool for MySQL, PostgreSQL, and More",
   description:
-    "SculptQL: Query, visualize, and explore MySQL, PostgreSQL, SQLite, SQL Server, and Oracle databases with autocomplete, query history, exports, and charts—all without storing credentials.",
+    "SculptQL lets you query, visualize, and explore MySQL, PostgreSQL, SQLite, SQL Server, and Oracle databases with autocomplete, query history, exports, and charts—all without storing credentials. A privacy-first SQL interface that empowers developers and analysts.",
   keywords: [
     "SculptQL",
+    "Privacy-First SQL Tool",
     "SQL CLI",
     "SQL Web Interface",
     "Database Query Tool",
+    "SQL Autocomplete",
+    "Database Visualization",
+    "SQL Query History",
+    "Data Export",
     "MySQL",
     "PostgreSQL",
     "SQLite",
     "SQL Server",
     "Oracle",
-    "Autocomplete",
-    "Query History",
-    "Data Visualization",
-    "Export CSV JSON Markdown",
+    "CSV Export",
+    "JSON Export",
+    "Markdown Export",
+    "Data Charts",
+    "Privacy-First Database Tool",
   ],
   authors: [{ name: "Alvin Quach", url: "https://github.com/alvinwquach" }],
   openGraph: {
-    title: "SculptQL – Privacy-First SQL CLI & Web Interface",
+    title: "SculptQL – Privacy-First SQL Tool for MySQL, PostgreSQL, and More",
     description:
-      "Query, visualize, and explore MySQL, PostgreSQL, SQLite, SQL Server, and Oracle databases with autocomplete, query history, exports, and charts.",
+      "SculptQL is a privacy-first tool to query, visualize, and explore MySQL, PostgreSQL, SQLite, SQL Server, and Oracle databases with autocomplete, query history, exports, and charts.",
     url: "https://www.sculptql.com",
     siteName: "SculptQL",
     images: [
@@ -53,7 +59,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "SculptQL – Privacy-First SQL CLI & Web Interface",
+    title: "SculptQL – Privacy-First SQL Tool for MySQL, PostgreSQL, and More",
     description:
       "Query, visualize, and explore MySQL, PostgreSQL, SQLite, SQL Server, and Oracle databases with autocomplete, query history, exports, and charts.",
     images: ["https://www.sculptql.com/og-image.png"],
