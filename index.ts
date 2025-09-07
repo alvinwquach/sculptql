@@ -1,6 +1,5 @@
 #!/usr/bin/env node
 
-import { Command } from "commander";
 import { Pool as PgPool } from "pg";
 import mysql, { Pool as MySqlPool } from "mysql2/promise";
 import sqlite3 from "sqlite3";
@@ -18,76 +17,45 @@ dotenvConfig({ path: ".env" });
 
 type SupportedDialect = "postgres" | "mysql" | "sqlite" | "mssql" | "oracle";
 
-interface CLIOptions {
-  dialect?: SupportedDialect;
-  host?: string;
-  port?: string;
-  database?: string;
-  user?: string;
-  password?: string;
-  db_file?: string;
-  serverPort?: string;
-}
-
-const program = new Command();
-
-program
-  .name("sculptql")
-  .description(
-    "Maintain a persistent connection to your SQL database.\n" +
-      "Supported dialects: postgres | mysql | sqlite | mssql | oracle"
-  )
-  .option("--dialect <dialect>", "Database dialect (required)")
-  .option("--host <host>", "Database host")
-  .option("--port <port>", "Database port")
-  .option("--database <database>", "Database name")
-  .option("--user <user>", "Database user")
-  .option("--password <password>", "Database password")
-  .option("--db_file <db_file>", "SQLite file path")
-  .option("--serverPort <serverPort>", "Web server port", "3000");
-
-program.parse(process.argv);
-
-const options = program.opts<CLIOptions>();
-const dialect = options.dialect ?? process.env.DB_DIALECT;
-const host = options.host ?? process.env.DB_HOST;
-const port = options.port ?? process.env.DB_PORT;
-const database = options.database ?? process.env.DB_DATABASE;
-const user = options.user ?? process.env.DB_USER;
-const password = options.password ?? process.env.DB_PASSWORD;
-const db_file = options.db_file ?? process.env.DB_FILE;
-const serverPort = parseInt(
-  options.serverPort ?? process.env.PORT ?? "3000",
-  10
-);
+const dialect = process.env.DB_DIALECT as SupportedDialect | undefined;
+const host = process.env.DB_HOST;
+const port = process.env.DB_PORT;
+const database = process.env.DB_DATABASE;
+const user = process.env.DB_USER;
+const password = process.env.DB_PASSWORD;
+const db_file = process.env.DB_FILE;
+const serverPort = parseInt(process.env.PORT ?? "3000", 10);
 
 const missingFields: string[] = [];
 
 if (!dialect) {
-  missingFields.push("--dialect or DB_DIALECT");
+  missingFields.push("DB_DIALECT");
 }
 
 if (dialect === "sqlite") {
   if (!db_file) {
-    missingFields.push("--db_file or DB_FILE");
+    missingFields.push("DB_FILE");
   }
 } else {
-  if (!host) missingFields.push("--host or DB_HOST");
-  if (!port) missingFields.push("--port or DB_PORT");
-  if (!database) missingFields.push("--database or DB_DATABASE");
-  if (!user) missingFields.push("--user or DB_USER");
-  if (!password) missingFields.push("--password or DB_PASSWORD");
+  if (!host) missingFields.push("DB_HOST");
+  if (!port) missingFields.push("DB_PORT");
+  if (!database) missingFields.push("DB_DATABASE");
+  if (!user) missingFields.push("DB_USER");
+  if (!password) missingFields.push("DB_PASSWORD");
 }
 
 if (missingFields.length > 0) {
   console.error(
-    chalk.red("❌ Missing required options:\n  " + missingFields.join("\n  "))
+    chalk.red(
+      "❌ Missing required environment variables:\n  " +
+        missingFields.join("\n  ")
+    )
   );
   process.exit(1);
 }
 
 async function main() {
-  console.log("Connecting with options:", {
+  console.log("Connecting with environment variables:", {
     dialect,
     host,
     port,

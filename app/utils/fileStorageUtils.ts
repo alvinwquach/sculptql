@@ -5,7 +5,7 @@ import {
   LabeledQuery,
 } from "@/app/types/query";
 
-interface QueryData {
+export interface QueryData {
   queryHistory?: QueryHistoryItem[];
   pinnedQueries?: PinnedQuery[];
   bookmarkedQueries?: BookmarkedQuery[];
@@ -49,9 +49,7 @@ export async function setQueryData(data: QueryData): Promise<void> {
 
 export async function clearQueryData(): Promise<void> {
   try {
-    const response = await fetch("/api/queries", {
-      method: "DELETE",
-    });
+    const response = await fetch("/api/queries", { method: "DELETE" });
     if (!response.ok) {
       throw new Error("Failed to clear query data");
     }

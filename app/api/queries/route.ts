@@ -10,7 +10,7 @@ import {
 
 const DATA_FILE = path.join(process.cwd(), "data", "queryData.json");
 
-interface QueryData {
+export interface QueryData {
   queryHistory: QueryHistoryItem[];
   pinnedQueries: PinnedQuery[];
   bookmarkedQueries: BookmarkedQuery[];
@@ -18,215 +18,114 @@ interface QueryData {
   showQueryHistory: boolean;
 }
 
-function validateQueryData(data: unknown): data is Partial<QueryData> {
-  if (!data || typeof data !== "object") return false;
-  const d = data as Partial<QueryData>;
-  return (
-    (d.queryHistory === undefined || Array.isArray(d.queryHistory)) &&
-    (d.pinnedQueries === undefined || Array.isArray(d.pinnedQueries)) &&
-    (d.bookmarkedQueries === undefined || Array.isArray(d.bookmarkedQueries)) &&
-    (d.labeledQueries === undefined || Array.isArray(d.labeledQueries)) &&
-    (d.showQueryHistory === undefined ||
-      typeof d.showQueryHistory === "boolean")
-  );
-}
-
-function sanitizeQueryData(data: Partial<QueryData>): Partial<QueryData> {
-  const sanitized: Partial<QueryData> = { ...data };
-
-  if (sanitized.queryHistory) {
-    sanitized.queryHistory = sanitized.queryHistory.map((item) => ({
-      ...item,
-      query:
-        typeof item.query === "string"
-          ? item.query.replace(/[\r\n\t]/g, " ")
-          : item.query,
-    }));
-  }
-
-  if (sanitized.pinnedQueries) {
-    sanitized.pinnedQueries = sanitized.pinnedQueries.map((item) => ({
-      ...item,
-      query:
-        typeof item.query === "string"
-          ? item.query.replace(/[\r\n\t]/g, " ")
-          : item.query,
-    }));
-  }
-
-  if (sanitized.bookmarkedQueries) {
-    sanitized.bookmarkedQueries = sanitized.bookmarkedQueries.map((item) => ({
-      ...item,
-      query:
-        typeof item.query === "string"
-          ? item.query.replace(/[\r\n\t]/g, " ")
-          : item.query,
-    }));
-  }
-
-  if (sanitized.labeledQueries) {
-    sanitized.labeledQueries = sanitized.labeledQueries.map((item) => ({
-      ...item,
-      query:
-        typeof item.query === "string"
-          ? item.query.replace(/[\r\n\t]/g, " ")
-          : item.query,
-      label:
-        typeof item.label === "string"
-          ? item.label.replace(/[\r\n\t]/g, " ")
-          : item.label,
-    }));
-  }
-
-  return sanitized;
-}
+const defaultData: QueryData = {
+  queryHistory: [],
+  pinnedQueries: [],
+  bookmarkedQueries: [],
+  labeledQueries: [],
+  showQueryHistory: false,
+};
 
 async function ensureDataFile() {
+  console.log("[ensureDataFile] Checking data file at:", DATA_FILE);
+  await fs.mkdir(path.dirname(DATA_FILE), { recursive: true });
   try {
-    await fs.mkdir(path.dirname(DATA_FILE), { recursive: true });
-    try {
-      await fs.access(DATA_FILE);
-    } catch {
-      const defaultData: QueryData = {
-        queryHistory: [],
-        pinnedQueries: [],
-        bookmarkedQueries: [],
-        labeledQueries: [],
-        showQueryHistory: false,
-      };
-      await fs.writeFile(
-        DATA_FILE,
-        JSON.stringify(defaultData, null, 2),
-        "utf-8"
-      );
-    }
-  } catch (error) {
-    console.error("Error ensuring data file:", error);
-    throw error;
-  }
-}
-
-export async function GET() {
-  try {
-    await ensureDataFile();
-    const data = await fs.readFile(DATA_FILE, "utf-8");
-    let parsedData: QueryData;
-    try {
-      parsedData = JSON.parse(data) as QueryData;
-    } catch (parseError) {
-      console.error("Error parsing query data:", parseError);
-      return NextResponse.json<QueryData>(
-        {
-          queryHistory: [],
-          pinnedQueries: [],
-          bookmarkedQueries: [],
-          labeledQueries: [],
-          showQueryHistory: false,
-        },
-        { status: 200 }
-      );
-    }
-    return NextResponse.json<QueryData>(parsedData);
-  } catch (error) {
-    console.error("Error reading query data:", error);
-    return NextResponse.json<QueryData>(
-      {
-        queryHistory: [],
-        pinnedQueries: [],
-        bookmarkedQueries: [],
-        labeledQueries: [],
-        showQueryHistory: false,
-      },
-      { status: 200 }
+    await fs.access(DATA_FILE);
+    console.log("[ensureDataFile] Data file exists.");
+  } catch {
+    console.log(
+      "[ensureDataFile] Data file does not exist. Creating with default data..."
+    );
+    await fs.writeFile(
+      DATA_FILE,
+      JSON.stringify(defaultData, null, 2),
+      "utf-8"
     );
   }
 }
 
-export async function POST(req: NextRequest) {
+async function readQueryData(): Promise<QueryData> {
+  console.log("[readQueryData] Reading query data...");
+  await ensureDataFile();
   try {
-    await ensureDataFile();
-    let newData: unknown;
-    try {
-      newData = await req.json();
-      console.log("Received new data:", newData);
-    } catch (error) {
-      console.error("Error parsing request JSON:", error);
-      return NextResponse.json(
-        { error: "Invalid JSON in request body" },
-        { status: 400 }
+    const rawData = await fs.readFile(DATA_FILE, "utf-8");
+
+    if (!rawData.trim()) {
+      console.log(
+        "[readQueryData] Data file is empty. Returning default data."
       );
+      return defaultData;
     }
 
-    if (!validateQueryData(newData)) {
-      console.error("Invalid data structure:", newData);
-      return NextResponse.json(
-        { error: "Invalid query data structure" },
-        { status: 400 }
-      );
-    }
+    const parsedData = JSON.parse(rawData) as QueryData;
+    console.log("[readQueryData] Successfully read data:");
+    console.log(parsedData);
 
-    // Sanitize new data
-    const sanitizedNewData = sanitizeQueryData(newData);
-
-    let currentData: QueryData;
-    try {
-      const fileData = await fs.readFile(DATA_FILE, "utf-8");
-      currentData = JSON.parse(fileData) as QueryData;
-    } catch (error) {
-      console.error("Error reading or parsing current data:", error);
-      currentData = {
-        queryHistory: [],
-        pinnedQueries: [],
-        bookmarkedQueries: [],
-        labeledQueries: [],
-        showQueryHistory: false,
-      };
-    }
-
-    const updatedData: QueryData = { ...currentData, ...sanitizedNewData };
-    try {
-      await fs.writeFile(
-        DATA_FILE,
-        JSON.stringify(updatedData, null, 2),
-        "utf-8"
-      );
-      console.log("Successfully wrote updated data:", updatedData);
-      return NextResponse.json({ success: true });
-    } catch (error) {
-      console.error("Error writing to file:", error);
-      return NextResponse.json(
-        { error: "Failed to save query data" },
-        { status: 500 }
-      );
-    }
+    return parsedData;
   } catch (error) {
-    console.error("Error in POST handler:", error);
+    console.error("[readQueryData] Error reading query data:", error);
+    await fs.writeFile(
+      DATA_FILE,
+      JSON.stringify(defaultData, null, 2),
+      "utf-8"
+    );
+    return defaultData;
+  }
+}
+
+async function writeQueryData(data: QueryData) {
+  console.log("[writeQueryData] Writing data to file...");
+  console.log(data);
+  await fs.writeFile(DATA_FILE, JSON.stringify(data, null, 2), "utf-8");
+  console.log("[writeQueryData] Data written successfully.");
+}
+
+export async function GET() {
+  console.log("[GET] API request received.");
+  const data = await readQueryData();
+  console.log("[GET] Returning data:");
+  console.log(data);
+  return NextResponse.json<QueryData>(data);
+}
+
+export async function POST(req: NextRequest) {
+  console.log("[POST] API request received.");
+  let newData: unknown;
+
+  try {
+    newData = await req.json();
+    console.log("[POST] Received JSON body:");
+    console.log(newData);
+  } catch (error) {
+    console.error("[POST] Invalid JSON in request body:", error);
     return NextResponse.json(
-      { error: "Internal server error" },
+      { error: "Invalid JSON in request body" },
+      { status: 400 }
+    );
+  }
+
+  try {
+    const data = newData as QueryData;
+    await writeQueryData(data);
+    console.log("[POST] Data saved successfully.");
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error("[POST] Error writing query data:", error);
+    return NextResponse.json(
+      { error: "Failed to save query data" },
       { status: 500 }
     );
   }
 }
 
 export async function DELETE() {
+  console.log("[DELETE] API request received. Resetting data...");
   try {
-    await ensureDataFile();
-    const defaultData: QueryData = {
-      queryHistory: [],
-      pinnedQueries: [],
-      bookmarkedQueries: [],
-      labeledQueries: [],
-      showQueryHistory: false,
-    };
-    await fs.writeFile(
-      DATA_FILE,
-      JSON.stringify(defaultData, null, 2),
-      "utf-8"
-    );
-    console.log("Successfully cleared query data");
+    await writeQueryData(defaultData);
+    console.log("[DELETE] Data reset to default successfully.");
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("Error clearing query data:", error);
+    console.error("[DELETE] Error resetting data:", error);
     return NextResponse.json(
       { error: "Failed to clear query data" },
       { status: 500 }
