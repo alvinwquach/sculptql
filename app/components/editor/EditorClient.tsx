@@ -1202,19 +1202,18 @@ export default function EditorClient({
         isDistinct ? "DISTINCT " : ""
       }${columnsString} FROM ${tableName}`;
 
-      // Build WHERE clause only if there are valid conditions
       const validConditions = updatedWhereClause.conditions.filter((cond) => {
         if (!cond.column || !cond.operator) return false;
         if (
           cond.operator.value === "IS NULL" ||
           cond.operator.value === "IS NOT NULL"
         ) {
-          return true; // Valid without value
+          return true;
         }
         if (cond.operator.value === "BETWEEN") {
-          return cond.value && cond.value2; // Both values required
+          return cond.value && cond.value2;
         }
-        return cond.value !== null; // Other operators need a value
+        return cond.value !== null;
       });
 
       if (validConditions.length > 0) {
@@ -1973,7 +1972,7 @@ export default function EditorClient({
       <div className="flex flex-1 w-full min-w-0 overflow-hidden flex-col lg:flex-row">
         <ToastContainer />
         {showHistory && (
-          <div className="w-full lg:w-52 flex-shrink-0 h-[500px] lg:h-auto overflow-y-auto bg-[#0f172a] border-r border-slate-700/50">
+          <div className="w-full lg:w-52 flex-shrink-0 h-[500px] lg:h-auto overflow-y-auto overflow-x-hidden bg-[#0f172a] border-r border-slate-700/50">
             <QueryHistory
               showHistory={showHistory}
               history={queryHistory}
