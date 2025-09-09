@@ -9,7 +9,7 @@ interface TableSelectProps {
   metadataLoading: boolean;
 }
 
-export default function TableSelector({
+export default function TableSelect({
   tableNames,
   selectedTable,
   onTableSelect,

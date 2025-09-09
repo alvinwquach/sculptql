@@ -25,7 +25,6 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-
 import {
   getLocalStorageItem,
   setLocalStorageItem,
@@ -101,7 +100,6 @@ export default function CodeMirrorEditor({
   const editorRef = useRef<EditorView | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const languageCompartment = useRef(new Compartment());
-  const isInitialRender = useRef(true);
   const [fullScreenEditor, setFullScreenEditor] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const isMac =
@@ -117,7 +115,6 @@ export default function CodeMirrorEditor({
       { id: 1, title: "Query 1", query: query || "" },
     ]);
     const savedActiveTab = getLocalStorageItem<number>("activeTab", 1);
-
     const validActiveTab = savedTabs.some((tab) => tab.id === savedActiveTab)
       ? savedActiveTab
       : savedTabs[0].id;
@@ -132,6 +129,24 @@ export default function CodeMirrorEditor({
   useEffect(() => {
     setLocalStorageItem("activeTab", activeTab);
   }, [activeTab]);
+
+  useEffect(() => {
+    setQueryTabs((prevTabs) =>
+      prevTabs.map((tab) => (tab.id === activeTab ? { ...tab, query } : tab))
+    );
+    if (editorRef.current) {
+      const currentEditorContent = editorRef.current.state.doc.toString();
+      if (currentEditorContent !== query) {
+        editorRef.current.dispatch({
+          changes: {
+            from: 0,
+            to: editorRef.current.state.doc.length,
+            insert: query,
+          },
+        });
+      }
+    }
+  }, [query, activeTab]);
 
   useEffect(() => {
     const currentTab = queryTabs.find((tab) => tab.id === activeTab);
@@ -195,7 +210,6 @@ export default function CodeMirrorEditor({
         language: "postgresql",
         keywordCase: "upper",
       });
-
       editor.dispatch({
         changes: {
           from: 0,
@@ -203,10 +217,10 @@ export default function CodeMirrorEditor({
           insert: formatted,
         },
       });
-
       handleQueryChange(formatted);
     } catch (err) {
       console.error("SQL formatting failed:", err);
+      setError("Failed to format SQL");
     }
   };
 
@@ -291,7 +305,7 @@ export default function CodeMirrorEditor({
     );
 
     const state = EditorState.create({
-      doc: queryTabs.find((tab) => tab.id === activeTab)?.query || "",
+      doc: queryTabs.find((tab) => tab.id === activeTab)?.query || query || "",
       extensions: [
         keymap.of([
           {
@@ -315,6 +329,7 @@ export default function CodeMirrorEditor({
                 handleQueryChange(formatted);
               } catch (err) {
                 console.error("SQL formatting failed:", err);
+                setError("Failed to format SQL");
               }
               return true;
             },
@@ -345,12 +360,9 @@ export default function CodeMirrorEditor({
     const view = new EditorView({ state, parent: containerRef.current });
     editorRef.current = view;
 
-    isInitialRender.current = false;
-
     return () => {
       view.destroy();
       editorRef.current = null;
-      isInitialRender.current = true;
     };
   }, [
     tableNames,
@@ -365,9 +377,12 @@ export default function CodeMirrorEditor({
     onOrderBySelect,
     onColumnSelect,
     onDistinctSelect,
+    onGroupByColumnSelect,
+    onAggregateColumnSelect,
+    onHavingOperatorSelect,
+    onHavingValueSelect,
     isMac,
     sqlCompletion,
-    activeTab,
   ]);
 
   return (
@@ -377,56 +392,60 @@ export default function CodeMirrorEditor({
       }`}
     >
       <TooltipProvider delayDuration={150}>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={addNewTab}
-          className="text-green-300 hover:bg-transparent hover:text-green-400"
-        >
-          + New Tab
-        </Button>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setFullScreenEditor(!fullScreenEditor)}
-              className="text-green-300 hover:bg-transparent hover:text-green-400 transition-all duration-300"
-              aria-label={
-                fullScreenEditor
-                  ? "Exit editor fullscreen"
-                  : "Enter editor fullscreen"
-              }
-            >
-              {fullScreenEditor ? (
-                <Minimize2 className="w-5 h-5" />
-              ) : (
-                <Maximize2 className="w-5 h-5" />
-              )}
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>
-            {fullScreenEditor ? "Exit fullscreen" : "Enter fullscreen"}
-          </TooltipContent>
-        </Tooltip>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={handleFormatSQL}
-              className="text-blue-300 hover:bg-transparent hover:text-blue-400 transition-all duration-300"
-              aria-label="Format SQL"
-            >
-              <Wand2 className="w-5 h-5" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>
-            Format SQL ({isMac ? "⌘+⇧+F" : "Ctrl+Shift+F"})
-          </TooltipContent>
-        </Tooltip>
+        <div className="flex items-center justify-between p-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={addNewTab}
+            className="text-green-300 hover:bg-transparent hover:text-green-400"
+          >
+            + New Tab
+          </Button>
+          <div className="flex gap-2">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setFullScreenEditor(!fullScreenEditor)}
+                  className="text-green-300 hover:bg-transparent hover:text-green-400 transition-all duration-300"
+                  aria-label={
+                    fullScreenEditor
+                      ? "Exit editor fullscreen"
+                      : "Enter editor fullscreen"
+                  }
+                >
+                  {fullScreenEditor ? (
+                    <Minimize2 className="w-5 h-5" />
+                  ) : (
+                    <Maximize2 className="w-5 h-5" />
+                  )}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                {fullScreenEditor ? "Exit fullscreen" : "Enter fullscreen"}
+              </TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={handleFormatSQL}
+                  className="text-blue-300 hover:bg-transparent hover:text-blue-400 transition-all duration-300"
+                  aria-label="Format SQL"
+                >
+                  <Wand2 className="w-5 h-5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                Format SQL ({isMac ? "⌘+⇧+F" : "Ctrl+Shift+F"})
+              </TooltipContent>
+            </Tooltip>
+          </div>
+        </div>
       </TooltipProvider>
-      <div className="rounded-lg flex items-center bg-[#1e293b]  border-slate-700">
+      <div className="rounded-lg flex items-center bg-[#1e293b] border-slate-700">
         <QueryTabs
           queryTabs={queryTabs}
           activeTab={activeTab}

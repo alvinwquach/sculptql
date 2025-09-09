@@ -643,72 +643,31 @@ export default function EditorClient({
       setHavingClause({
         condition: { aggregateColumn: null, operator: null, value: null },
       });
+      setSelectedColumns([{ value: "*", label: "All Columns (*)" }]);
+      setWhereClause({
+        conditions: [
+          { column: null, operator: null, value: null, value2: null },
+        ],
+      });
+      setOrderByClause({ column: null, direction: null });
+      setLimit(null);
 
       if (value) {
         const tableName = needsQuotes(value.value)
           ? `"${value.value}"`
           : value.value;
-
-        const currentQuery = query.trim().replace(/;+$/, "");
-        if (!currentQuery.match(/\bFROM\s+/i)) {
-          const columnsString =
-            selectedColumns.length === 0 ||
-            selectedColumns.some((col) => col.value === "*")
-              ? "*"
-              : selectedColumns
-                  .map((col) =>
-                    col.aggregate
-                      ? col.value
-                      : needsQuotes(col.value)
-                      ? `"${col.value}"`
-                      : col.value
-                  )
-                  .join(", ");
-          setQuery(
-            `SELECT${
-              isDistinct ? " DISTINCT" : ""
-            } ${columnsString} FROM ${tableName} `
-          );
-        } else {
-          const newQuery = currentQuery.replace(
-            /\bFROM\s+([a-zA-Z_][a-zA-Z0-9_"]*)?(?=\s*(WHERE|GROUP\s+BY|HAVING|ORDER\s+BY|LIMIT|;|$))/i,
-            `FROM ${tableName} `
-          );
-          setQuery(newQuery);
-        }
-
-        setWhereClause({
-          conditions: [
-            { column: null, operator: null, value: null, value2: null },
-          ],
-        });
-        setOrderByClause({ column: null, direction: null });
-        setLimit(null);
+        const newQuery = `SELECT${
+          isDistinct ? " DISTINCT" : ""
+        } * FROM ${tableName};`;
+        console.log("Setting query in handleTableSelect:", newQuery);
+        setQuery(newQuery);
       } else {
-        const columnsString =
-          selectedColumns.length === 0 ||
-          selectedColumns.some((col) => col.value === "*")
-            ? "*"
-            : selectedColumns
-                .map((col) =>
-                  col.aggregate
-                    ? col.value
-                    : needsQuotes(col.value)
-                    ? `"${col.value}"`
-                    : col.value
-                )
-                .join(", ");
-        setQuery(`SELECT${isDistinct ? " DISTINCT" : ""} ${columnsString} `);
-        setWhereClause({
-          conditions: [
-            { column: null, operator: null, value: null, value2: null },
-          ],
-        });
-        setOrderByClause({ column: null, direction: null });
-        setLimit(null);
+        const newQuery = `SELECT${isDistinct ? " DISTINCT" : ""} * `;
+        console.log("Setting query (no table):", newQuery);
+        setQuery(newQuery);
       }
     },
-    [query, selectedColumns, isDistinct]
+    [isDistinct]
   );
 
   const handleColumnSelect = useCallback(
@@ -1094,27 +1053,42 @@ export default function EditorClient({
     (value: SingleValue<SelectOption>, conditionIndex: number) => {
       setWhereClause((prev) => {
         const newConditions = [...prev.conditions];
-        newConditions[conditionIndex] = {
-          column: value,
-          operator: null,
-          value: null,
-          value2: null,
-        };
+        if (value === null) {
+          newConditions.splice(conditionIndex, 1);
+          if (newConditions.length === 0) {
+            newConditions.push({
+              column: null,
+              operator: null,
+              value: null,
+              value2: null,
+            });
+          }
+        } else {
+          newConditions[conditionIndex] = {
+            column: value,
+            operator: null,
+            value: null,
+            value2: null,
+          };
+        }
         return { conditions: newConditions };
       });
 
       updateQueryFromWhereClause({
         ...whereClause,
-        conditions: [
-          ...whereClause.conditions.slice(0, conditionIndex),
-          {
-            column: value,
-            operator: null,
-            value: null,
-            value2: null,
-          },
-          ...whereClause.conditions.slice(conditionIndex + 1),
-        ],
+        conditions: whereClause.conditions.slice(0, conditionIndex).concat(
+          value === null
+            ? []
+            : [
+                {
+                  column: value,
+                  operator: null,
+                  value: null,
+                  value2: null,
+                },
+              ],
+          whereClause.conditions.slice(conditionIndex + 1)
+        ),
       });
     },
     [whereClause]
@@ -1228,16 +1202,29 @@ export default function EditorClient({
         isDistinct ? "DISTINCT " : ""
       }${columnsString} FROM ${tableName}`;
 
-      const conditionsStrings = updatedWhereClause.conditions
-        .filter((cond) => cond.column)
-        .map((cond, index) => {
+      // Build WHERE clause only if there are valid conditions
+      const validConditions = updatedWhereClause.conditions.filter((cond) => {
+        if (!cond.column || !cond.operator) return false;
+        if (
+          cond.operator.value === "IS NULL" ||
+          cond.operator.value === "IS NOT NULL"
+        ) {
+          return true; // Valid without value
+        }
+        if (cond.operator.value === "BETWEEN") {
+          return cond.value && cond.value2; // Both values required
+        }
+        return cond.value !== null; // Other operators need a value
+      });
+
+      if (validConditions.length > 0) {
+        const conditionsStrings = validConditions.map((cond, index) => {
           const colName = needsQuotes(cond.column!.value)
             ? `"${cond.column!.value}"`
             : cond.column!.value;
           const logicalOp =
             index > 0 ? cond.logicalOperator?.value || "AND" : "";
-          if (!cond.operator) return `${logicalOp} ${colName}`.trim();
-          const op = cond.operator.value.toUpperCase();
+          const op = cond.operator!.value.toUpperCase();
 
           if (op === "IS NULL" || op === "IS NOT NULL") {
             return `${logicalOp} ${colName} ${op}`.trim();
@@ -1253,20 +1240,15 @@ export default function EditorClient({
             return `${logicalOp} ${colName} BETWEEN ${val1} AND ${val2}`.trim();
           }
 
-          if (cond.value) {
-            const val = needsQuotes(cond.value.value)
-              ? `'${stripQuotes(cond.value.value)}'`
-              : cond.value.value;
-            return `${logicalOp} ${colName} ${op} ${val}`.trim();
-          }
-
-          return `${logicalOp} ${colName} ${op}`.trim();
+          const val = needsQuotes(cond.value!.value)
+            ? `'${stripQuotes(cond.value!.value)}'`
+            : cond.value!.value;
+          return `${logicalOp} ${colName} ${op} ${val}`.trim();
         });
-
-      if (conditionsStrings.length > 0) {
-        newQuery += " WHERE " + conditionsStrings.join(" ");
+        newQuery += ` WHERE ${conditionsStrings.join(" ")}`;
       }
 
+      // Add remaining clauses
       if (selectedGroupByColumns.length > 0) {
         const groupByString = selectedGroupByColumns
           .map((col) => (needsQuotes(col.value) ? `"${col.value}"` : col.value))
@@ -2073,8 +2055,6 @@ export default function EditorClient({
                     </div>
                   </div>
                 </div>
-
-                {/* Selectors */}
                 <TableSelect
                   tableNames={tableNames}
                   selectedTable={selectedTable}
