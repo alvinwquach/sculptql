@@ -2,7 +2,7 @@
 
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
-import { Trash2, Pin, Bookmark, Tag, Search } from "lucide-react";
+import { Trash2, Pin, Bookmark, Tag, Search, Play } from "lucide-react";
 import { useState, useCallback, useMemo } from "react";
 import {
   QueryHistoryItem,
@@ -123,7 +123,7 @@ export default function QueryHistory({
 
   return (
     <div
-      className={`w-full lg:w-52 bg-[#0f172a] border-r border-slate-700/50 p-2 overflow-y-auto transition-all duration-300 ${
+      className={`w-full lg:w-52 bg-[#0f172a] border-r border-slate-700/50 p-2 overflow-y-auto overflow-x-hidden transition-all duration-300 ${
         showHistory ? "block md:w-full" : "hidden md:w-0"
       } md:h-full md:flex-shrink-0`}
     >
@@ -140,7 +140,7 @@ export default function QueryHistory({
             <Trash2 className="w-4 h-4" />
           </Button>
         </div>
-        <div className="relative">
+        <div className="relative mt-2">
           <input
             type="text"
             value={searchTerm}
@@ -151,7 +151,7 @@ export default function QueryHistory({
           <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
         </div>
       </div>
-      <ScrollArea className="h-[calc(100%-5rem)] p-2">
+      <ScrollArea className=" p-2">
         <div className="space-y-4">
           <div className="border-b border-slate-700 pb-2">
             <h3 className="text-xs font-bold text-green-300">Pinned Query</h3>
@@ -168,7 +168,7 @@ export default function QueryHistory({
               >
                 <div className="flex items-start">
                   <Pin
-                    className="w-4 h-4 mr-1 text-yellow-400 mt-1 flex-shrink-0"
+                    className="w-4 h-4 mr-1 text-yellow-400 mt-1 flex-shrink-0 hover:text-yellow-500"
                     fill="currentColor"
                     strokeWidth={0}
                   />
@@ -187,24 +187,30 @@ export default function QueryHistory({
                   <Button
                     variant="link"
                     size="sm"
+                    title="Run Query"
                     onClick={(e) => {
                       e.stopPropagation();
                       runQueryFromHistory(filteredPinnedQueries[0].query);
                     }}
-                    className="text-green-400 hover:bg-slate-700/50 p-0 h-auto"
+                    className="rounded-full text-green-400 hover:bg-green-700/50 p-0 h-auto"
                   >
-                    Run
+                    <Play className="w-4 h-4 hover:text-green-500" />
                   </Button>
                   <Button
-                    variant="link"
+                    variant="ghost"
                     size="sm"
                     onClick={(e) => {
                       e.stopPropagation();
                       removePinnedQuery(filteredPinnedQueries[0].query);
                     }}
-                    className="text-yellow-400 hover:bg-slate-700/50 p-0 h-auto"
+                    className="rounded-full text-yellow-400 hover:bg-yellow-500/20 hover:text-yellow-500 focus:outline-none transition-all ease-in-out duration-150"
+                    title="Unpin"
                   >
-                    Unpin
+                    <Pin
+                      className="w-5 h-5 hover:text-yellow-500"
+                      fill="currentColor"
+                      strokeWidth={0}
+                    />
                   </Button>
                 </div>
               </div>
@@ -225,7 +231,7 @@ export default function QueryHistory({
                 >
                   <div className="flex items-start">
                     <Bookmark
-                      className="w-4 h-4 mr-1 text-blue-400 mt-1 flex-shrink-0"
+                      className="w-4 h-4 mr-1 text-blue-400 mt-1 flex-shrink-0 hover:text-blue-500"
                       fill="currentColor"
                       strokeWidth={0}
                     />
@@ -242,13 +248,14 @@ export default function QueryHistory({
                     <Button
                       variant="link"
                       size="sm"
+                      title="Run Query"
                       onClick={(e) => {
                         e.stopPropagation();
                         runQueryFromHistory(item.query);
                       }}
-                      className="text-green-400 hover:bg-slate-700/50 p-0 h-auto"
+                      className="rounded-full text-green-400 hover:bg-green-700/50 p-0 h-auto"
                     >
-                      Run
+                      <Play className="w-4 h-4 hover:text-green-500" />
                     </Button>
                     <Button
                       variant="link"
@@ -282,7 +289,7 @@ export default function QueryHistory({
                   onClick={() => loadQueryFromHistory(item.query)}
                 >
                   <div className="flex items-start">
-                    <Tag className="w-4 h-4 mr-1 text-purple-400 mt-1 flex-shrink-0" />
+                    <Tag className="w-4 h-4 mr-1 text-purple-400 mt-1 flex-shrink-0 hover:text-purple-500" />
                     <div className="flex-1">
                       <p className="text-sm text-green-300 break-words whitespace-pre-wrap">
                         {item.label}
@@ -299,13 +306,14 @@ export default function QueryHistory({
                     <Button
                       variant="link"
                       size="sm"
+                      title="Run Query"
                       onClick={(e) => {
                         e.stopPropagation();
                         runQueryFromHistory(item.query);
                       }}
-                      className="text-green-400 hover:bg-slate-700/50 p-0 h-auto"
+                      className="rounded-full text-green-400 hover:bg-green-700/50 p-0 h-auto"
                     >
-                      Run
+                      <Play className="w-4 h-4 hover:text-green-500" />
                     </Button>
                     <Button
                       variant="link"
@@ -354,18 +362,19 @@ export default function QueryHistory({
                       variant="link"
                       size="sm"
                       onClick={() => runQueryFromHistory(item.query)}
-                      className="text-green-400 hover:bg-slate-700/50 p-0 h-auto"
+                      className="rounded-full text-green-400 hover:bg-green-700/50 p-0 h-auto"
+                      title="Run Query"
                     >
-                      Run
+                      <Play className="w-4 h-4 hover:text-green-500" />
                     </Button>
                     <Button
                       variant="ghost"
                       size="sm"
                       onClick={() => togglePinnedQuery(item.query)}
-                      className={`hover:bg-slate-700/50 hover:text-white p-1 h-auto rounded-full ${
+                      className={`p-1 h-auto hover:bg-slate-700/50 hover:text-white rounded-full ${
                         pinnedQueries.some((pin) => pin.query === item.query)
-                          ? "text-yellow-400"
-                          : "text-gray-400"
+                          ? "text-yellow-400 hover:text-yellow-500 hover:bg-yellow-500/20"
+                          : "text-yellow-400 hover:bg-yellow-500/20 hover:text-yellow-500"
                       }`}
                       title={
                         pinnedQueries.some((pin) => pin.query === item.query)
@@ -374,7 +383,7 @@ export default function QueryHistory({
                       }
                     >
                       <Pin
-                        className="w-5 h-5 sm:w-4 sm:h-4"
+                        className="w-5 h-5 sm:w-4 sm:h-4 hover:text-yellow-500"
                         fill={
                           pinnedQueries.some((pin) => pin.query === item.query)
                             ? "currentColor"
@@ -395,9 +404,9 @@ export default function QueryHistory({
                           ? removeBookmarkedQuery(item.query)
                           : addBookmarkedQuery(item.query)
                       }
-                      className={`p-1 h-auto hover:bg-slate-700/50 hover:text-white rounded-full ${
+                      className={`p-1 h-auto hover:bg-blue-700/50 hover:text-white rounded-full ${
                         bookmarkedQueries.some((bm) => bm.query === item.query)
-                          ? "text-blue-400"
+                          ? "text-blue-400 hover:text-blue-500"
                           : "text-gray-400"
                       }`}
                       title={
@@ -407,7 +416,7 @@ export default function QueryHistory({
                       }
                     >
                       <Bookmark
-                        className="w-5 h-5 sm:w-4 sm:h-4"
+                        className="w-5 h-5 sm:w-4 sm:h-4 hover:text-blue-500"
                         fill={
                           bookmarkedQueries.some(
                             (bookmarked) => bookmarked.query === item.query
@@ -428,10 +437,10 @@ export default function QueryHistory({
                       variant="ghost"
                       size="sm"
                       onClick={() => handleLabelQuery(item.query)}
-                      className="text-purple-400 hover:bg-slate-700/50 hover:text-white p-1 h-auto rounded-full"
+                      className="text-purple-400 hover:bg-purple-700/50 hover:text-white p-1 h-auto rounded-full"
                       title="Label Query"
                     >
-                      <Tag className="w-5 h-5 sm:w-4 sm:h-4" />
+                      <Tag className="w-5 h-5 sm:w-4 sm:h-4 hover:text-purple-500" />
                     </Button>
                   </div>
                   {labelingQuery === item.query && (
