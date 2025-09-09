@@ -1178,9 +1178,12 @@ export default function EditorClient({
 
   const updateQueryFromWhereClause = useCallback(
     (updatedWhereClause: WhereClause) => {
-      if (!selectedTable) return;
+      if (!selectedTable) {
+        console.log("No table selected, skipping query update.");
+        return;
+      }
 
-      const tableName = needsQuotes(selectedTable.value)
+      const tableName = needsQuotes(selectedTable.value, false)
         ? `"${selectedTable.value}"`
         : selectedTable.value;
 
@@ -1192,7 +1195,7 @@ export default function EditorClient({
               .map((col) =>
                 col.aggregate
                   ? col.value
-                  : needsQuotes(col.value)
+                  : needsQuotes(col.value, false)
                   ? `"${col.value}"`
                   : col.value
               )
@@ -1218,7 +1221,11 @@ export default function EditorClient({
 
       if (validConditions.length > 0) {
         const conditionsStrings = validConditions.map((cond, index) => {
-          const colName = needsQuotes(cond.column!.value)
+          const colName = isMySQL
+            ? needsQuotes(cond.column!.value, false)
+              ? `\`${cond.column!.value}\``
+              : cond.column!.value
+            : needsQuotes(cond.column!.value, false)
             ? `"${cond.column!.value}"`
             : cond.column!.value;
           const logicalOp =
@@ -1230,27 +1237,35 @@ export default function EditorClient({
           }
 
           if (op === "BETWEEN" && cond.value && cond.value2) {
-            const val1 = needsQuotes(cond.value.value)
+            const val1 = needsQuotes(cond.value.value, true)
               ? `'${stripQuotes(cond.value.value)}'`
               : cond.value.value;
-            const val2 = needsQuotes(cond.value2.value)
+            const val2 = needsQuotes(cond.value2.value, true)
               ? `'${stripQuotes(cond.value2.value)}'`
               : cond.value2.value;
             return `${logicalOp} ${colName} BETWEEN ${val1} AND ${val2}`.trim();
           }
 
-          const val = needsQuotes(cond.value!.value)
+          const val = needsQuotes(cond.value!.value, true)
             ? `'${stripQuotes(cond.value!.value)}'`
             : cond.value!.value;
           return `${logicalOp} ${colName} ${op} ${val}`.trim();
         });
+        console.log("Constructed WHERE conditions:", conditionsStrings);
         newQuery += ` WHERE ${conditionsStrings.join(" ")}`;
       }
 
-      // Add remaining clauses
       if (selectedGroupByColumns.length > 0) {
         const groupByString = selectedGroupByColumns
-          .map((col) => (needsQuotes(col.value) ? `"${col.value}"` : col.value))
+          .map((col) =>
+            isMySQL
+              ? needsQuotes(col.value, false)
+                ? `\`${col.value}\``
+                : col.value
+              : needsQuotes(col.value, false)
+              ? `"${col.value}"`
+              : col.value
+          )
           .join(", ");
         newQuery += ` GROUP BY ${groupByString}`;
       }
@@ -1262,7 +1277,7 @@ export default function EditorClient({
           const op = havingClause.condition.operator.value.toUpperCase();
           havingString += ` ${op}`;
           if (havingClause.condition.value) {
-            const val = needsQuotes(havingClause.condition.value.value)
+            const val = needsQuotes(havingClause.condition.value.value, true)
               ? `'${stripQuotes(havingClause.condition.value.value)}'`
               : havingClause.condition.value.value;
             havingString += ` ${val}`;
@@ -1272,7 +1287,11 @@ export default function EditorClient({
       }
 
       if (orderByClause.column) {
-        const col = needsQuotes(orderByClause.column.value)
+        const col = isMySQL
+          ? needsQuotes(orderByClause.column.value, false)
+            ? `\`${orderByClause.column.value}\``
+            : orderByClause.column.value
+          : needsQuotes(orderByClause.column.value, false)
           ? `"${orderByClause.column.value}"`
           : orderByClause.column.value;
         const dir = orderByClause.direction?.value || "";
@@ -1292,6 +1311,7 @@ export default function EditorClient({
         newQuery += " ";
       }
 
+      console.log("Updated query:", newQuery);
       setQuery(newQuery);
     },
     [
@@ -1302,6 +1322,7 @@ export default function EditorClient({
       orderByClause,
       limit,
       isDistinct,
+      isMySQL,
     ]
   );
 

@@ -1,8 +1,3 @@
 {
-  "pinnedQueries": [
-    {
-      "query": "SELECT * FROM users;",
-      "timestamp": "2025-09-09T21:02:59.295Z"
-    }
-  ]
+  "showQueryHistory": true
 }
