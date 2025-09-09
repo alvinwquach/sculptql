@@ -1,3 +1,8 @@
 {
-  "bookmarkedQueries": []
+  "pinnedQueries": [
+    {
+      "query": "SELECT * FROM users;",
+      "timestamp": "2025-09-09T20:30:08.859Z"
+    }
+  ]
 }

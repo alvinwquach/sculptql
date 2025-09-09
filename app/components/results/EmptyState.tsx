@@ -27,7 +27,7 @@ export default function EmptyState({ viewMode }: EmptyStateProps) {
   };
 
   return (
-    <div className="flex flex-col items-center justify-center h-full text-gray-300 bg-[#1e293b] p-8 rounded-xl shadow-lg border border-slate-700/50">
+    <div className="flex flex-col items-center justify-center h-full text-gray-300 bg-[#1e293b] p-8 rounded-xl shadow-lg border border-slate-700/50 min-h-screen">
       {getIcon()}
       <p className="text-xs sm:text-lg font-medium">{getMessage()}</p>
     </div>
