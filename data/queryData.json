@@ -1,3 +1,28 @@
 {
-  "showQueryHistory": true
+  "queryHistory": [
+    {
+      "query": "SELECT * FROM users WHERE role = 'ADMIN';",
+      "timestamp": "2025-09-10T20:07:44.719Z"
+    },
+    {
+      "query": "SELECT * FROM users WHERE role = 'ADMIN';",
+      "timestamp": "2025-09-10T20:07:44.643Z"
+    },
+    {
+      "query": "SELECT * FROM users WHERE role = ADMIN; ",
+      "timestamp": "2025-09-10T19:59:48.285Z"
+    },
+    {
+      "query": "SELECT * FROM users WHERE role = ADMIN ",
+      "timestamp": "2025-09-10T19:59:42.390Z"
+    },
+    {
+      "query": "SELECT * FROM users WHERE role = ADMIN ",
+      "timestamp": "2025-09-10T19:59:31.762Z"
+    },
+    {
+      "query": "SELECT * FROM users WHERE role = ADMIN ",
+      "timestamp": "2025-09-10T19:59:31.646Z"
+    }
+  ]
 }
