@@ -1,5 +1,6 @@
 "use client";
 
+import { v4 as uuidv4 } from "uuid";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { useState, useCallback, useEffect, useMemo } from "react";
@@ -1865,10 +1866,19 @@ export default function EditorClient({
 
   const addToHistory = useCallback((query: string) => {
     const timestamp = new Date().toISOString();
-    const newItem: QueryHistoryItem = { query, timestamp };
+    const id = uuidv4();
     setQueryHistory((prev) => {
-      const updated = [newItem, ...prev].slice(0, 200);
-      return updated;
+      const lastQuery = prev[0];
+      const isRecentDuplicate =
+        lastQuery?.query === query &&
+        new Date(timestamp).getTime() -
+          new Date(lastQuery.timestamp).getTime() <
+          1000;
+      if (isRecentDuplicate) {
+        return prev;
+      }
+      const newItem: QueryHistoryItem = { id, query, timestamp };
+      return [newItem, ...prev].slice(0, 200);
     });
   }, []);
 
@@ -1932,7 +1942,8 @@ export default function EditorClient({
 
   const addPinnedQuery = useCallback((query: string) => {
     const timestamp = new Date().toISOString();
-    setPinnedQueries([{ query, timestamp }]);
+    const id = uuidv4();
+    setPinnedQueries([{ id, query, timestamp }]);
   }, []);
 
   const removePinnedQuery = useCallback((query: string) => {
@@ -1941,22 +1952,39 @@ export default function EditorClient({
 
   const addBookmarkedQuery = useCallback((query: string) => {
     const timestamp = new Date().toISOString();
+    const id = uuidv4();
     setBookmarkedQueries((prev) => {
       const exists = prev.find((q) => q.query === query);
       if (!exists) {
-        return [...prev, { query, timestamp }].slice(0, 50);
+        return [...prev, { id, query, timestamp }].slice(0, 50);
       }
       return prev;
     });
   }, []);
-
-  const removeBookmarkedQuery = useCallback((query: string) => {
-    setBookmarkedQueries((prev) => prev.filter((q) => q.query !== query));
+  const removeBookmarkedQuery = useCallback((id: string) => {
+    setBookmarkedQueries((prev) => prev.filter((q) => q.id !== id));
   }, []);
 
   const addLabeledQuery = useCallback((label: string, query: string) => {
     const timestamp = new Date().toISOString();
-    setLabeledQueries([{ label, query, timestamp }]);
+    setLabeledQueries((prev) => {
+      const filteredQueries = prev.filter((q) => q.query !== query);
+      return [...filteredQueries, { id: uuidv4(), label, query, timestamp }];
+    });
+  }, []);
+
+  const editLabeledQuery = useCallback((query: string, newLabel: string) => {
+    setLabeledQueries((prev) => {
+      return prev.map((item) =>
+        item.query === query
+          ? {
+              ...item,
+              label: newLabel.trim(),
+              timestamp: new Date().toISOString(),
+            }
+          : item
+      );
+    });
   }, []);
 
   const removeLabeledQuery = useCallback((query: string) => {
@@ -1987,6 +2015,7 @@ export default function EditorClient({
               addBookmarkedQuery={addBookmarkedQuery}
               removeBookmarkedQuery={removeBookmarkedQuery}
               addLabeledQuery={addLabeledQuery}
+              editLabeledQuery={editLabeledQuery}
               removeLabeledQuery={removeLabeledQuery}
             />
           </div>

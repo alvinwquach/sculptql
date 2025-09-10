@@ -126,21 +126,25 @@ export interface Column {
 export type TableColumn = Record<string, string[]>;
 
 export interface QueryHistoryItem {
+  id: string;
   query: string;
   timestamp: string;
 }
 
 export interface PinnedQuery {
+  id: string;
   query: string;
   timestamp: string;
 }
 
 export interface BookmarkedQuery {
+  id: string;
   query: string;
   timestamp: string;
 }
 
 export interface LabeledQuery {
+  id: string;
   label: string;
   query: string;
   timestamp: string;
