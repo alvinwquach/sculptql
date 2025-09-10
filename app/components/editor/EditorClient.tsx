@@ -1094,36 +1094,6 @@ export default function EditorClient({
     [whereClause]
   );
 
-  const handleOperatorSelect = useCallback(
-    (value: SingleValue<SelectOption>, conditionIndex: number) => {
-      setWhereClause((prev) => {
-        const newConditions = [...prev.conditions];
-        newConditions[conditionIndex] = {
-          ...newConditions[conditionIndex],
-          operator: value,
-          value: null,
-          value2: null,
-        };
-        return { conditions: newConditions };
-      });
-
-      updateQueryFromWhereClause({
-        ...whereClause,
-        conditions: [
-          ...whereClause.conditions.slice(0, conditionIndex),
-          {
-            ...whereClause.conditions[conditionIndex],
-            operator: value,
-            value: null,
-            value2: null,
-          },
-          ...whereClause.conditions.slice(conditionIndex + 1),
-        ],
-      });
-    },
-    [whereClause]
-  );
-
   const handleValueSelect = useCallback(
     (
       value: SingleValue<SelectOption>,
@@ -1183,7 +1153,7 @@ export default function EditorClient({
         return;
       }
 
-      const tableName = needsQuotes(selectedTable.value, false)
+      const tableName = needsQuotes(selectedTable.value)
         ? `"${selectedTable.value}"`
         : selectedTable.value;
 
@@ -1195,7 +1165,7 @@ export default function EditorClient({
               .map((col) =>
                 col.aggregate
                   ? col.value
-                  : needsQuotes(col.value, false)
+                  : needsQuotes(col.value)
                   ? `"${col.value}"`
                   : col.value
               )
@@ -1205,29 +1175,20 @@ export default function EditorClient({
         isDistinct ? "DISTINCT " : ""
       }${columnsString} FROM ${tableName}`;
 
-      const validConditions = updatedWhereClause.conditions.filter((cond) => {
-        if (!cond.column || !cond.operator) return false;
-        if (
-          cond.operator.value === "IS NULL" ||
-          cond.operator.value === "IS NOT NULL"
-        ) {
-          return true;
-        }
-        if (cond.operator.value === "BETWEEN") {
-          return cond.value && cond.value2;
-        }
-        return cond.value !== null;
-      });
-
-      if (validConditions.length > 0) {
-        const conditionsStrings = validConditions.map((cond, index) => {
-          const colName = isMySQL
-            ? needsQuotes(cond.column!.value, false)
-              ? `\`${cond.column!.value}\``
-              : cond.column!.value
-            : needsQuotes(cond.column!.value, false)
+      const conditionsStrings = updatedWhereClause.conditions
+        .filter(
+          (cond) =>
+            cond.column &&
+            cond.operator &&
+            (cond.value ||
+              cond.operator.value === "IS NULL" ||
+              cond.operator.value === "IS NOT NULL")
+        )
+        .map((cond, index) => {
+          const colName = needsQuotes(cond.column!.value)
             ? `"${cond.column!.value}"`
             : cond.column!.value;
+
           const logicalOp =
             index > 0 ? cond.logicalOperator?.value || "AND" : "";
           const op = cond.operator!.value.toUpperCase();
@@ -1246,33 +1207,31 @@ export default function EditorClient({
             return `${logicalOp} ${colName} BETWEEN ${val1} AND ${val2}`.trim();
           }
 
-          const val = needsQuotes(cond.value!.value, true)
-            ? `'${stripQuotes(cond.value!.value)}'`
-            : cond.value!.value;
-          return `${logicalOp} ${colName} ${op} ${val}`.trim();
-        });
-        console.log("Constructed WHERE conditions:", conditionsStrings);
+          if (cond.value) {
+            const val = needsQuotes(cond.value.value, true)
+              ? `'${stripQuotes(cond.value.value)}'`
+              : cond.value.value;
+            return `${logicalOp} ${colName} ${op} ${val}`.trim();
+          }
+
+          return "";
+        })
+        .filter(Boolean);
+
+      if (conditionsStrings.length > 0) {
         newQuery += ` WHERE ${conditionsStrings.join(" ")}`;
       }
 
       if (selectedGroupByColumns.length > 0) {
         const groupByString = selectedGroupByColumns
-          .map((col) =>
-            isMySQL
-              ? needsQuotes(col.value, false)
-                ? `\`${col.value}\``
-                : col.value
-              : needsQuotes(col.value, false)
-              ? `"${col.value}"`
-              : col.value
-          )
+          .map((col) => (needsQuotes(col.value) ? `"${col.value}"` : col.value))
           .join(", ");
         newQuery += ` GROUP BY ${groupByString}`;
       }
 
       if (havingClause.condition.aggregateColumn) {
-        const aggName = havingClause.condition.aggregateColumn.value;
-        let havingString = `HAVING ${aggName}`;
+        const agg = havingClause.condition.aggregateColumn.value;
+        let havingString = `HAVING ${agg}`;
         if (havingClause.condition.operator) {
           const op = havingClause.condition.operator.value.toUpperCase();
           havingString += ` ${op}`;
@@ -1287,15 +1246,13 @@ export default function EditorClient({
       }
 
       if (orderByClause.column) {
-        const col = isMySQL
-          ? needsQuotes(orderByClause.column.value, false)
-            ? `\`${orderByClause.column.value}\``
-            : orderByClause.column.value
-          : needsQuotes(orderByClause.column.value, false)
+        const columnName = needsQuotes(orderByClause.column.value)
           ? `"${orderByClause.column.value}"`
           : orderByClause.column.value;
-        const dir = orderByClause.direction?.value || "";
-        newQuery += ` ORDER BY ${col}${dir ? ` ${dir}` : ""}`;
+        const direction = orderByClause.direction?.value || "";
+        newQuery += ` ORDER BY ${columnName}${
+          direction ? ` ${direction}` : ""
+        }`;
       }
 
       if (limit) {
@@ -1311,8 +1268,8 @@ export default function EditorClient({
         newQuery += " ";
       }
 
-      console.log("Updated query:", newQuery);
       setQuery(newQuery);
+      console.log("Updated query from WHERE clause:", newQuery);
     },
     [
       selectedTable,
@@ -1322,7 +1279,6 @@ export default function EditorClient({
       orderByClause,
       limit,
       isDistinct,
-      isMySQL,
     ]
   );
 
@@ -1464,6 +1420,26 @@ export default function EditorClient({
       whereClause,
       havingClause,
     ]
+  );
+
+  const handleOperatorSelect = useCallback(
+    (value: SingleValue<SelectOption>, conditionIndex: number) => {
+      setWhereClause((prev) => {
+        const newConditions = [...prev.conditions];
+        newConditions[conditionIndex] = {
+          ...newConditions[conditionIndex],
+          operator: value,
+          value: null,
+          value2: null,
+        };
+        const newWhere = { conditions: newConditions };
+
+        updateQueryFromWhereClause(newWhere);
+
+        return newWhere;
+      });
+    },
+    [updateQueryFromWhereClause]
   );
 
   const handleQueryChange = useCallback(
@@ -1759,6 +1735,7 @@ export default function EditorClient({
       const whereMatch = normalizedQuery.match(
         /\bWHERE\s+(.+?)(?=\s*(GROUP\s+BY|HAVING|ORDER\s+BY|LIMIT|;|$))/i
       );
+
       if (whereMatch && tableName) {
         const whereClauseStr = whereMatch[1].trim();
         console.log("Parsing WHERE clause:", whereClauseStr);
@@ -1768,6 +1745,8 @@ export default function EditorClient({
         let currentLogicalOperator: SelectOption | null = null;
         for (let i = 0; i < conditionParts.length; i++) {
           const part = conditionParts[i].trim();
+          if (!part) continue;
+
           if (part.toUpperCase() === "AND" || part.toUpperCase() === "OR") {
             currentLogicalOperator = {
               value: part.toUpperCase(),
@@ -1775,59 +1754,55 @@ export default function EditorClient({
             };
             continue;
           }
-          if (part) {
-            const columnMatch = part.match(
-              /^((?:"[^"]+"|'[^']+'|[a-zA-Z_][a-zA-Z0-9_]*))/i
-            );
-            if (columnMatch) {
-              const column = stripQuotes(columnMatch[1]);
-              if (tableColumns[tableName]?.includes(column)) {
-                const condition: WhereClause["conditions"][0] = {
-                  column: { value: column, label: column },
-                  operator: null,
-                  value: null,
-                  value2: null,
-                  logicalOperator: i === 0 ? null : currentLogicalOperator,
-                };
 
-                const operatorMatch = part.match(
-                  /\b(=[!>=]?|<>|>|>=|<|<=|LIKE|IS\s+NULL|IS\s+NOT\s+NULL|BETWEEN)\b/i
-                );
-                if (operatorMatch) {
-                  const operator = operatorMatch[1].toUpperCase();
-                  condition.operator = { value: operator, label: operator };
-
-                  if (operator !== "IS NULL" && operator !== "IS NOT NULL") {
-                    const valueMatch = part.match(
-                      /\b(?:[=!><]=?|LIKE|BETWEEN)\s*('[^']*'|[0-9]+(?:\.[0-9]+)?|[a-zA-Z_][a-zA-Z0-9_]*)/i
-                    );
-                    if (valueMatch) {
-                      const value = stripQuotes(valueMatch[1]);
-                      condition.value = { value, label: value };
-
-                      if (operator === "BETWEEN") {
-                        const value2Match = part.match(
-                          /\bAND\s*('[^']*'|[0-9]+(?:\.[0-9]+)?|[a-zA-Z_][a-zA-Z0-9_]*)/i
-                        );
-                        if (value2Match) {
-                          const value2 = stripQuotes(value2Match[1]);
-                          condition.value2 = { value: value2, label: value2 };
-                        }
-                      }
-                    }
+          const conditionMatch = part.match(
+            /^((?:"[^"]+"|'[^']+'|[a-zA-Z_][a-zA-Z0-9_]*))\s*(=|[<>]=?|!=|LIKE|IS\s+NULL|IS\s+NOT\s+NULL|BETWEEN)\s*('.*?'|".*?"|\d+(\.\d+)?|[a-zA-Z_][a-zA-Z0-9_]*)?/i
+          );
+          if (conditionMatch) {
+            const column = stripQuotes(conditionMatch[1]);
+            const condition: WhereClause["conditions"][0] = {
+              column: tableColumns[tableName]?.includes(column)
+                ? { value: column, label: column }
+                : null,
+              operator: conditionMatch[2]
+                ? {
+                    value: conditionMatch[2].toUpperCase(),
+                    label: conditionMatch[2].toUpperCase(),
                   }
-                  conditions.push(condition);
-                }
+                : null,
+              value: conditionMatch[3]
+                ? {
+                    value: stripQuotes(conditionMatch[3]),
+                    label: stripQuotes(conditionMatch[3]),
+                  }
+                : null,
+              value2: null,
+              logicalOperator: i === 0 ? null : currentLogicalOperator,
+            };
+
+            if (condition.operator?.value === "BETWEEN") {
+              const betweenMatch = part.match(
+                /BETWEEN\s+('.*?'|".*?"|\d+(\.\d+)?|[a-zA-Z_][a-zA-Z0-9_]*)\s+AND\s+('.*?'|".*?"|\d+(\.\d+)?|[a-zA-Z_][a-zA-Z0-9_]*)/i
+              );
+              if (betweenMatch) {
+                condition.value = {
+                  value: stripQuotes(betweenMatch[1]),
+                  label: stripQuotes(betweenMatch[1]),
+                };
+                condition.value2 = {
+                  value: stripQuotes(betweenMatch[3]),
+                  label: stripQuotes(betweenMatch[3]),
+                };
               }
             }
+
+            conditions.push(condition);
           }
         }
 
         if (conditions.length > 0) {
-          console.log("Parsed WHERE clause conditions:", conditions);
           setWhereClause({ conditions });
         } else {
-          console.log("No valid WHERE clause conditions found, resetting.");
           setWhereClause({
             conditions: [
               { column: null, operator: null, value: null, value2: null },

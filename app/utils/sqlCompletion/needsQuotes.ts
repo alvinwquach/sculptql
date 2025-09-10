@@ -1,37 +1,48 @@
-export const needsQuotes = (id: string, isValue: boolean = false): boolean => {
-  // Explicitly handle the wildcard *
-  if (id === "*") {
-    return false;
-  }
+export const needsQuotes = (
+  id: string,
+  isValue: boolean = false,
+  columnDataType?: string // Optional column data type
+): boolean => {
+  // Handle the wildcard *
+  if (id === "*") return false;
 
-  // If it's a value (e.g., for WHERE clause conditions), always quote strings unless numeric
+  // If this is a value (e.g., WHERE clause)
   if (isValue) {
-    // Numeric values don't need quotes
-    if (/^\d+(\.\d+)?$/.test(id)) {
+    // Numeric values or NULL don't need quotes
+    if (/^\d+(\.\d+)?$/.test(id) || id.toUpperCase() === "NULL") {
       return false;
     }
-    // Non-numeric values (e.g., 'ADMIN') need single quotes
+
+    // Explicit boolean literals don't need quotes
+    if (["TRUE", "FALSE"].includes(id.toUpperCase())) {
+      return false;
+    }
+
+    // Respect column data type hints
+    if (
+      columnDataType &&
+      ["string", "text", "varchar", "char", "enum"].includes(
+        columnDataType.toLowerCase()
+      )
+    ) {
+      return true;
+    }
+
+    // Default for non-numeric strings: quote them
     return true;
   }
 
-  // For identifiers (table/column names):
-  // If it's clearly numeric -> no quotes
-  if (/^\d+(\.\d+)?$/.test(id)) {
-    return false;
-  }
+  // For identifiers (table/column names)
+  // Numeric identifiers don't need quotes
+  if (/^\d+(\.\d+)?$/.test(id)) return false;
 
-  // Function/expression with parentheses -> no quotes
-  if (/\w+\s*\(.*\)/.test(id)) {
-    return false;
-  }
+  // Functions or expressions with parentheses -> no quotes
+  if (/\w+\s*\(.*\)/.test(id)) return false;
 
-  // Explicit aggregate check
-  const isAggregate = /^(COUNT|SUM|AVG|MAX|MIN|ROUND)\s*\(.*\)$/i.test(id);
-  if (isAggregate) {
-    return false;
-  }
+  // Aggregates like COUNT(), SUM(), AVG(), etc. -> no quotes
+  if (/^(COUNT|SUM|AVG|MAX|MIN|ROUND)\s*\(.*\)$/i.test(id)) return false;
 
-  // Reserved keywords list
+  // Reserved SQL keywords
   const reservedKeywords = [
     "SELECT",
     "FROM",
@@ -55,7 +66,9 @@ export const needsQuotes = (id: string, isValue: boolean = false): boolean => {
     "ON",
   ];
 
-  // Identifiers need quotes if they don't match standard identifier pattern or are reserved keywords
+  // Identifiers need quotes if:
+  // 1. They contain invalid characters for standard identifiers
+  // 2. They are reserved SQL keywords
   return (
     !/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(id) ||
     reservedKeywords.includes(id.toUpperCase())
