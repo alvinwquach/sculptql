@@ -1,8 +1,24 @@
 {
   "queryHistory": [
     {
-      "query": "SELECT * FROM users WHERE role = 'ADMIN' ORDER BY email ASC;",
-      "timestamp": "2025-09-10T21:25:07.979Z"
+      "id": "cc61a423-4966-4fbf-b4d7-6a0cc7dca24e",
+      "query": "SELECT * FROM users WHERE role = 'ADMIN';",
+      "timestamp": "2025-09-10T23:06:33.194Z"
+    },
+    {
+      "id": "0b25a856-69a5-4326-9ccf-0319e76f7a03",
+      "query": "SELECT * FROM users WHERE role = 'ADMIN';",
+      "timestamp": "2025-09-10T23:06:21.359Z"
+    },
+    {
+      "id": "148cd223-313e-44a7-951f-41ae668ba94c",
+      "query": "SELECT * FROM users WHERE role = 'ASSISTANT';",
+      "timestamp": "2025-09-10T23:05:58.388Z"
+    },
+    {
+      "id": "482fa81b-5bca-4628-a1fa-176c999435b0",
+      "query": "SELECT * FROM users WHERE role = 'ASSISTANT';",
+      "timestamp": "2025-09-10T23:05:53.116Z"
     }
   ]
 }
