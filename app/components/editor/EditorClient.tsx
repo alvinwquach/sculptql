@@ -1748,7 +1748,7 @@ export default function EditorClient({
             /^((?:"[^"]+"|'[^']+'|[a-zA-Z_][a-zA-Z0-9_]*))\s*(=|[<>]=?|!=|LIKE|IS\s+NULL|IS\s+NOT\s+NULL|BETWEEN)?(?:\s*('.*?'|".*?"|\d+(?:\.\d+)?|[a-zA-Z_][a-zA-Z0-9_]*))?(?:\s+AND\s+('.*?'|".*?"|\d+(?:\.\d+)?|[a-zA-Z_][a-zA-Z0-9_]*))?/i
           );
 
-          let condition: WhereClause["conditions"][0] = {
+          const condition: WhereClause["conditions"][0] = {
             column: null,
             operator: null,
             value: null,
