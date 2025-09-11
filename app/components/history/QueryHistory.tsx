@@ -24,9 +24,9 @@ interface QueryHistoryProps {
   removePinnedQuery: (id: string) => void;
   addBookmarkedQuery: (query: string) => void;
   removeBookmarkedQuery: (id: string) => void;
-  addLabeledQuery: (label: string, query: string) => void;
-  removeLabeledQuery: (query: string) => void;
-  editLabeledQuery: (query: string, newLabel: string) => void;
+  addLabeledQuery: (label: string, historyItemId: string) => void;
+  removeLabeledQuery: (historyItemId: string) => void;
+  editLabeledQuery: (historyItemId: string, newLabel: string) => void;
 }
 
 export default function QueryHistory({
@@ -47,15 +47,15 @@ export default function QueryHistory({
   editLabeledQuery,
 }: QueryHistoryProps) {
   const [labelInput, setLabelInput] = useState<string>("");
-  const [labelingQuery, setLabelingQuery] = useState<string | null>(null);
+  const [labelingQuery, setLabelingQuery] = useState<string | null>(null); 
   const [editingQuery, setEditingQuery] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState<string>("");
 
   const handleLabelQuery = useCallback(
-    (query: string) => {
-      if (labelingQuery === query) {
+    (historyItemId: string) => {
+      if (labelingQuery === historyItemId) {
         if (labelInput.trim()) {
-          addLabeledQuery(labelInput.trim(), query);
+          addLabeledQuery(labelInput.trim(), historyItemId);
           setLabelInput("");
           setLabelingQuery(null);
         } else {
@@ -63,7 +63,7 @@ export default function QueryHistory({
           setLabelInput("");
         }
       } else {
-        setLabelingQuery(query);
+        setLabelingQuery(historyItemId);
         setLabelInput("");
       }
     },
@@ -71,10 +71,10 @@ export default function QueryHistory({
   );
 
   const handleEditLabel = useCallback(
-    (query: string, currentLabel: string) => {
-      if (editingQuery === query) {
+    (historyItemId: string, currentLabel: string) => {
+      if (editingQuery === historyItemId) {
         if (labelInput.trim()) {
-          editLabeledQuery(query, labelInput.trim());
+          editLabeledQuery(historyItemId, labelInput.trim());
           setLabelInput("");
           setEditingQuery(null);
         } else {
@@ -82,7 +82,7 @@ export default function QueryHistory({
           setLabelInput("");
         }
       } else {
-        setEditingQuery(query);
+        setEditingQuery(historyItemId);
         setLabelInput(currentLabel);
       }
     },
@@ -92,14 +92,14 @@ export default function QueryHistory({
   const handleKeyDown = useCallback(
     (
       e: React.KeyboardEvent<HTMLInputElement>,
-      query: string,
+      historyItemId: string,
       isEditing: boolean
     ) => {
       if (e.key === "Enter" && labelInput.trim()) {
         if (isEditing) {
-          editLabeledQuery(query, labelInput.trim());
+          editLabeledQuery(historyItemId, labelInput.trim());
         } else {
-          addLabeledQuery(labelInput.trim(), query);
+          addLabeledQuery(labelInput.trim(), historyItemId);
         }
         setLabelInput("");
         setLabelingQuery(null);
@@ -139,12 +139,17 @@ export default function QueryHistory({
 
   const filteredLabeledQueries = useMemo(
     () =>
-      labeledQueries.filter(
-        (item) =>
-          item.query.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          item.label.toLowerCase().includes(searchTerm.toLowerCase())
-      ),
-    [labeledQueries, searchTerm]
+      labeledQueries.filter((item) => {
+        const historyItem = history.find((h) => h.id === item.historyItemId);
+        return (
+          item.label.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          (historyItem?.query
+            .toLowerCase()
+            .includes(searchTerm.toLowerCase()) ??
+            false)
+        );
+      }),
+    [labeledQueries, history, searchTerm]
   );
 
   const filteredHistory = useMemo(
@@ -321,86 +326,96 @@ export default function QueryHistory({
                 No labeled queries found
               </p>
             ) : (
-              filteredLabeledQueries.map((item) => (
-                <div
-                  key={`labeled-${item.query}`}
-                  className="p-1 border-b border-slate-700 hover:bg-[#2d3748] cursor-pointer flex flex-col"
-                  onClick={() => loadQueryFromHistory(item.query)}
-                >
-                  <div className="flex items-start">
-                    <Tag className="w-4 h-4 mr-1 text-purple-400 mt-1 flex-shrink-0 hover:text-purple-500" />
-                    <div className="flex-1">
-                      {editingQuery === item.query ? (
-                        <input
-                          type="text"
-                          value={labelInput}
-                          onChange={(e) => setLabelInput(e.target.value)}
-                          placeholder="Edit query label"
-                          className="w-full p-1 text-sm bg-[#2d3748] text-white border border-slate-600 rounded"
-                          onKeyDown={(e) => handleKeyDown(e, item.query, true)}
-                          onClick={(e) => e.stopPropagation()}
+              filteredLabeledQueries.map((item) => {
+                const historyItem = history.find(
+                  (h) => h.id === item.historyItemId
+                );
+                if (!historyItem) return null; 
+                return (
+                  <div
+                    key={`labeled-${item.id}`}
+                    className="p-1 border-b border-slate-700 hover:bg-[#2d3748] cursor-pointer flex flex-col"
+                    onClick={() => loadQueryFromHistory(historyItem.query)}
+                  >
+                    <div className="flex items-start">
+                      <Tag className="w-4 h-4 mr-1 text-purple-400 mt-1 flex-shrink-0 hover:text-purple-500" />
+                      <div className="flex-1">
+                        {editingQuery === item.historyItemId ? (
+                          <input
+                            type="text"
+                            value={labelInput}
+                            onChange={(e) => setLabelInput(e.target.value)}
+                            placeholder="Edit query label"
+                            className="w-full p-1 text-sm bg-[#2d3748] text-white border border-slate-600 rounded"
+                            onKeyDown={(e) =>
+                              handleKeyDown(e, item.historyItemId, true)
+                            }
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                        ) : (
+                          <p className="text-sm text-green-300 break-words whitespace-pre-wrap">
+                            {item.label}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    <p className="text-xs text-gray-400 mt-1 break-words whitespace-pre-wrap">
+                      {historyItem.query}
+                    </p>
+                    <p className="text-xs text-gray-400 mt-1">
+                      {new Date(item.timestamp).toLocaleString()}
+                    </p>
+                    <div className="flex space-x-1 mt-1">
+                      <Button
+                        variant="link"
+                        size="sm"
+                        title="Run Query"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          runQueryFromHistory(historyItem.query);
+                        }}
+                        className="rounded-full text-green-400 hover:bg-green-700/50 p-0 h-auto"
+                      >
+                        <Play className="w-4 h-4 hover:text-green-500" />
+                      </Button>
+                      <Button
+                        variant="link"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleEditLabel(item.historyItemId, item.label);
+                        }}
+                        className="rounded-full text-purple-400 hover:bg-purple-700/50 p-0 h-auto"
+                        title={
+                          editingQuery === item.historyItemId
+                            ? "Cancel Edit"
+                            : "Edit Label"
+                        }
+                      >
+                        <Pencil
+                          className={`w-4 h-4 hover:text-purple-500 ${
+                            editingQuery === item.historyItemId
+                              ? "text-purple-500"
+                              : ""
+                          }`}
                         />
-                      ) : (
-                        <p className="text-sm text-green-300 break-words whitespace-pre-wrap">
-                          {item.label}
-                        </p>
-                      )}
+                      </Button>
+                      <Button
+                        variant="link"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          removeLabeledQuery(item.historyItemId);
+                        }}
+                        className="text-purple-400 hover:bg-slate-700/50 p-0 h-auto"
+                        title="Delete Label"
+                      >
+                        <Tag className="w-5 h-5 sm:w-4 sm:h-4 hover:text-purple-500" />
+                      </Button>
                     </div>
                   </div>
-                  <p className="text-xs text-gray-400 mt-1 break-words whitespace-pre-wrap">
-                    {item.query}
-                  </p>
-                  <p className="text-xs text-gray-400 mt-1">
-                    {new Date(item.timestamp).toLocaleString()}
-                  </p>
-                  <div className="flex space-x-1 mt-1">
-                    <Button
-                      variant="link"
-                      size="sm"
-                      title="Run Query"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        runQueryFromHistory(item.query);
-                      }}
-                      className="rounded-full text-green-400 hover:bg-green-700/50 p-0 h-auto"
-                    >
-                      <Play className="w-4 h-4 hover:text-green-500" />
-                    </Button>
-                    <Button
-                      variant="link"
-                      size="sm"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleEditLabel(item.query, item.label);
-                      }}
-                      className="rounded-full text-purple-400 hover:bg-purple-700/50 p-0 h-auto"
-                      title={
-                        editingQuery === item.query
-                          ? "Cancel Edit"
-                          : "Edit Label"
-                      }
-                    >
-                      <Pencil
-                        className={`w-4 h-4 hover:text-purple-500 ${
-                          editingQuery === item.query ? "text-purple-500" : ""
-                        }`}
-                      />
-                    </Button>
-                    <Button
-                      variant="link"
-                      size="sm"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        removeLabeledQuery(item.query);
-                      }}
-                      className="text-purple-400 hover:bg-slate-700/50 p-0 h-auto"
-                      title="Delete Label"
-                    >
-                      <Tag className="w-5 h-5 sm:w-4 sm:h-4 hover:text-purple-500" />
-                    </Button>
-                  </div>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
           <div>
@@ -422,8 +437,9 @@ export default function QueryHistory({
                         className="text-sm text-green-300 break-words whitespace-pre-wrap"
                         onClick={() => loadQueryFromHistory(item.query)}
                       >
-                        {labeledQueries.find((lq) => lq.query === item.query)
-                          ?.label || item.query}
+                        {labeledQueries.find(
+                          (lq) => lq.historyItemId === item.id
+                        )?.label || item.query}
                       </p>
                     </div>
                   </div>
@@ -497,24 +513,26 @@ export default function QueryHistory({
                             : "none"
                         }
                         strokeWidth={
-                          bookmarkedQueries.some((bookmarked) => bookmarked.id === item.id)
+                          bookmarkedQueries.some((bm) => bm.id === item.id)
                             ? 0
                             : 2
                         }
                       />
                     </Button>
-                    {!labeledQueries.some((labeledQuery) => labeledQuery.query === item.query) && (
+                    {!labeledQueries.some(
+                      (labeledQuery) => labeledQuery.historyItemId === item.id
+                    ) && (
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => handleLabelQuery(item.query)}
+                        onClick={() => handleLabelQuery(item.id)}
                         className={`p-1 h-auto hover:bg-purple-700/50 hover:text-white rounded-full ${
-                          labelingQuery === item.query
+                          labelingQuery === item.id
                             ? "text-purple-400 hover:text-purple-500"
                             : "text-gray-400 hover:text-purple-500"
                         }`}
                         title={
-                          labelingQuery === item.query
+                          labelingQuery === item.id
                             ? "Cancel Labeling"
                             : "Label Query"
                         }
@@ -522,16 +540,14 @@ export default function QueryHistory({
                         <Tag
                           className="w-5 h-5 sm:w-4 sm:h-4 hover:text-purple-500"
                           fill={
-                            labelingQuery === item.query
-                              ? "currentColor"
-                              : "none"
+                            labelingQuery === item.id ? "currentColor" : "none"
                           }
-                          strokeWidth={labelingQuery === item.query ? 0 : 2}
+                          strokeWidth={labelingQuery === item.id ? 0 : 2}
                         />
                       </Button>
                     )}
                   </div>
-                  {labelingQuery === item.query && (
+                  {labelingQuery === item.id && (
                     <div className="mt-1">
                       <input
                         type="text"
@@ -539,7 +555,7 @@ export default function QueryHistory({
                         onChange={(e) => setLabelInput(e.target.value)}
                         placeholder="Enter query label"
                         className="w-full p-1 text-sm bg-[#2d3748] text-white border border-slate-600 rounded"
-                        onKeyDown={(e) => handleKeyDown(e, item.query, false)}
+                        onKeyDown={(e) => handleKeyDown(e, item.id, false)}
                       />
                     </div>
                   )}
