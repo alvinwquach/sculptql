@@ -146,7 +146,7 @@ export interface BookmarkedQuery {
 export interface LabeledQuery {
   id: string;
   label: string;
-  query: string;
+  historyItemId: string;
   timestamp: string;
 }
 

@@ -1965,30 +1965,43 @@ export default function EditorClient({
     setBookmarkedQueries((prev) => prev.filter((q) => q.id !== id));
   }, []);
 
-  const addLabeledQuery = useCallback((label: string, query: string) => {
-    const timestamp = new Date().toISOString();
-    setLabeledQueries((prev) => {
-      const filteredQueries = prev.filter((q) => q.query !== query);
-      return [...filteredQueries, { id: uuidv4(), label, query, timestamp }];
-    });
-  }, []);
+  const addLabeledQuery = useCallback(
+    (label: string, historyItemId: string) => {
+      const timestamp = new Date().toISOString();
+      setLabeledQueries((prev) => {
+        const filteredQueries = prev.filter(
+          (q) => q.historyItemId !== historyItemId
+        );
+        return [
+          ...filteredQueries,
+          { id: uuidv4(), label, historyItemId, timestamp },
+        ];
+      });
+    },
+    []
+  );
 
-  const editLabeledQuery = useCallback((query: string, newLabel: string) => {
-    setLabeledQueries((prev) => {
-      return prev.map((item) =>
-        item.query === query
-          ? {
-              ...item,
-              label: newLabel.trim(),
-              timestamp: new Date().toISOString(),
-            }
-          : item
-      );
-    });
-  }, []);
+  const editLabeledQuery = useCallback(
+    (historyItemId: string, newLabel: string) => {
+      setLabeledQueries((prev) => {
+        return prev.map((item) =>
+          item.historyItemId === historyItemId
+            ? {
+                ...item,
+                label: newLabel.trim(),
+                timestamp: new Date().toISOString(),
+              }
+            : item
+        );
+      });
+    },
+    []
+  );
 
-  const removeLabeledQuery = useCallback((query: string) => {
-    setLabeledQueries((prev) => prev.filter((q) => q.query !== query));
+  const removeLabeledQuery = useCallback((historyItemId: string) => {
+    setLabeledQueries((prev) =>
+      prev.filter((q) => q.historyItemId !== historyItemId)
+    );
   }, []);
 
   const toggleHistory = useCallback(() => {
