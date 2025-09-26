@@ -402,7 +402,7 @@ class SqlQueries {
       return { query, params };
     } else if (dialect === "mssql") {
       // SQL Server
-      let query = `SELECT TOP ${limit || 100} * FROM [${tableName}]`;
+      const query = `SELECT TOP ${limit || 100} * FROM [${tableName}]`;
       const params: (string | number)[] = [];
       
       return { query, params };
