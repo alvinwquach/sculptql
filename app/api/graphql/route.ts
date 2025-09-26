@@ -8,6 +8,7 @@ import {
 import { createSchema, createYoga } from "graphql-yoga";
 import { FieldDef, Pool as PgPool } from "pg";
 import mysql, { Pool as MySqlPool, RowDataPacket, FieldPacket } from "mysql2/promise";
+import * as mssql from "mssql";
 
 // Define the Next.js context type
 interface NextContext {
@@ -20,8 +21,10 @@ const CustomResponse = Response as typeof Response & {
 };
 
 // Database types
-type SupportedDialect = "postgres" | "mysql";
-type DatabasePool = PgPool | MySqlPool;
+
+// Database types
+type SupportedDialect = "postgres" | "mysql" | "mssql";
+type DatabasePool = PgPool | MySqlPool | mssql.ConnectionPool;
 
 // Database abstraction interface
 interface DatabaseAdapter {
@@ -35,8 +38,11 @@ interface DatabaseAdapter {
 
 // PostgreSQL adapter
 class PostgresAdapter implements DatabaseAdapter {
+  
+  // Database adapter for PostgreSQL
   constructor(private client: import('pg').PoolClient) {}
 
+     
   async query<T = unknown>(text: string, params?: (string | number)[]) {
     const result = await this.client.query(text, params);
     return {
@@ -69,6 +75,34 @@ class MySqlAdapter implements DatabaseAdapter {
   }
 }
 
+// SQL Server adapter
+class SqlServerAdapter implements DatabaseAdapter {
+  constructor(private pool: mssql.ConnectionPool) {}
+
+  async query<T = unknown>(text: string, params?: (string | number)[]) {
+    const request = this.pool.request();
+    
+    // Add parameters if provided
+    if (params) {
+      params.forEach((param, index) => {
+        request.input(`param${index}`, param);
+      });
+    }
+
+    const result = await request.query(text);
+    return {
+      rows: result.recordset as T[],
+      rowCount: result.rowsAffected[0] || result.recordset.length,
+      fields: result.recordset.columns ? Object.keys(result.recordset.columns).map(name => ({ name })) : []
+    };
+  }
+
+  release() {
+    // SQL Server pool doesn't need individual connection release
+    // The pool manages connections automatically
+  }
+}
+
 // Get database dialect from environment
 const dialect = (process.env.DB_DIALECT as SupportedDialect) || "postgres";
 
@@ -85,6 +119,24 @@ function createDatabasePool(): DatabasePool {
       connectionLimit: 5,
       queueLimit: 0,
     });
+  } else if (dialect === "mssql") {
+    const config: mssql.config = {
+      server: process.env.DB_HOST!,
+      port: Number(process.env.DB_PORT) || 1433,
+      user: process.env.DB_USER,
+      password: process.env.DB_PASSWORD,
+      database: process.env.DB_DATABASE,
+      options: { 
+        encrypt: true, 
+        trustServerCertificate: true 
+      },
+      pool: { 
+        max: 5, 
+        min: 0, 
+        idleTimeoutMillis: 30000 
+      },
+    };
+    return new mssql.ConnectionPool(config);
   } else {
     // Default to PostgreSQL
     return new PgPool({
@@ -108,6 +160,13 @@ async function getDatabaseAdapter(): Promise<DatabaseAdapter> {
   if (dialect === "mysql") {
     const connection = await (pool as MySqlPool).getConnection();
     return new MySqlAdapter(connection);
+  } else if (dialect === "mssql") {
+    const mssqlPool = pool as mssql.ConnectionPool;
+    // Ensure the pool is connected
+    if (!mssqlPool.connected) {
+      await mssqlPool.connect();
+    }
+    return new SqlServerAdapter(mssqlPool);
   } else {
     const client = await (pool as PgPool).connect();
     return new PostgresAdapter(client);
@@ -135,6 +194,25 @@ class SqlQueries {
         params.push(`%${tableSearch}%`);
       }
       query += ` ORDER BY table_name`;
+      
+      return { query, params };
+    } else if (dialect === "mssql") {
+      // SQL Server
+      let query = `
+        SELECT 
+          TABLE_CATALOG as table_catalog,
+          TABLE_SCHEMA as table_schema,
+          TABLE_NAME as table_name,
+          TABLE_TYPE as table_type
+        FROM INFORMATION_SCHEMA.TABLES
+        WHERE TABLE_TYPE = 'BASE TABLE'
+      `;
+      
+      if (tableSearch) {
+        query += ` AND TABLE_NAME LIKE @param0`;
+        params.push(`%${tableSearch}%`);
+      }
+      query += ` ORDER BY TABLE_NAME`;
       
       return { query, params };
     } else {
@@ -173,6 +251,25 @@ class SqlQueries {
       query += ` ORDER BY ordinal_position`;
       
       return { query, params };
+    } else if (dialect === "mssql") {
+      // SQL Server
+      let query = `
+        SELECT 
+          COLUMN_NAME as column_name, 
+          DATA_TYPE as data_type, 
+          IS_NULLABLE as is_nullable
+        FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_NAME = @param0
+      `;
+      
+      if (columnSearch) {
+        query += ` AND (COLUMN_NAME LIKE @param1 OR DATA_TYPE LIKE @param1)`;
+        params.push(`%${columnSearch}%`);
+      }
+      
+      query += ` ORDER BY ORDINAL_POSITION`;
+      
+      return { query, params };
     } else {
       // PostgreSQL
       let query = `
@@ -202,6 +299,18 @@ class SqlQueries {
             AND table_name = ?
             AND constraint_name = 'PRIMARY'
           ORDER BY ordinal_position
+        `,
+        params: [tableName]
+      };
+    } else if (dialect === "mssql") {
+      // SQL Server
+      return {
+        query: `
+          SELECT COLUMN_NAME as column_name
+          FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE
+          WHERE TABLE_NAME = @param0
+            AND CONSTRAINT_NAME LIKE 'PK_%'
+          ORDER BY ORDINAL_POSITION
         `,
         params: [tableName]
       };
@@ -239,6 +348,25 @@ class SqlQueries {
         `,
         params: [tableName]
       };
+    } else if (dialect === "mssql") {
+      // SQL Server
+      return {
+        query: `
+          SELECT 
+            kcu.COLUMN_NAME as column_name,
+            ccu.TABLE_NAME as referenced_table,
+            ccu.COLUMN_NAME as referenced_column,
+            kcu.CONSTRAINT_NAME as constraint_name
+          FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE kcu
+          JOIN INFORMATION_SCHEMA.REFERENTIAL_CONSTRAINTS rc
+            ON kcu.CONSTRAINT_NAME = rc.CONSTRAINT_NAME
+          JOIN INFORMATION_SCHEMA.KEY_COLUMN_USAGE ccu
+            ON rc.UNIQUE_CONSTRAINT_NAME = ccu.CONSTRAINT_NAME
+            AND kcu.ORDINAL_POSITION = ccu.ORDINAL_POSITION
+          WHERE kcu.TABLE_NAME = @param0
+        `,
+        params: [tableName]
+      };
     } else {
       // PostgreSQL
       return {
@@ -272,6 +400,12 @@ class SqlQueries {
       }
       
       return { query, params };
+    } else if (dialect === "mssql") {
+      // SQL Server
+      let query = `SELECT TOP ${limit || 100} * FROM [${tableName}]`;
+      const params: (string | number)[] = [];
+      
+      return { query, params };
     } else {
       // PostgreSQL
       let query = `SELECT * FROM public.${tableName}`;
@@ -289,6 +423,9 @@ class SqlQueries {
   static getExplainQuery(dialect: SupportedDialect, originalQuery: string): string | null {
     if (dialect === "mysql") {
       return `EXPLAIN FORMAT=JSON ${originalQuery}`;
+    } else if (dialect === "mssql") {
+      // SQL Server - SET SHOWPLAN_XML ON doesn't work with parameters, so we'll skip timing for now
+      return null;
     } else {
       // PostgreSQL
       return `EXPLAIN (ANALYZE, FORMAT JSON) ${originalQuery}`;
