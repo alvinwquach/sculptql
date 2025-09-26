@@ -360,5 +360,5 @@ export interface Table {
   columns: Column[];
   primary_keys: string[];
   foreign_keys: ForeignKey[];
-  values?: string[];
+  values: Record<string, unknown>[];
 }
