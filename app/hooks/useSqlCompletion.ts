@@ -82,7 +82,9 @@ export const useSqlCompletion = (
       const parser = new Parser();
       let ast: Select | Select[] | null;
       try {
-        const parsedAst = parser.astify(docText, { database: "postgresql" });
+        // Try to detect database dialect from environment or default to postgresql
+        const dialect = (typeof window !== 'undefined' && (window as { DB_DIALECT?: string }).DB_DIALECT) || "postgresql";
+        const parsedAst = parser.astify(docText, { database: dialect });
         if (Array.isArray(parsedAst)) {
           const selectNodes = parsedAst.filter(isSelectNode);
           ast = selectNodes.length > 0 ? selectNodes : null;
