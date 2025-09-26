@@ -49,7 +49,13 @@ PORT=3000
 </details> 
 
 <details>   
+add-mysql-support
+<summary><strong>MySQL</strong></summary>
+
+```bash
+=======
 <summary><strong>MySQL (Coming Soon)</strong></summary>
+main
 DB_DIALECT=mysql
 DB_HOST=localhost
 DB_PORT=3306
@@ -57,6 +63,25 @@ DB_DATABASE=mydb
 DB_USER=myuser
 DB_PASSWORD=mypassword
 PORT=3000
+```
+
+**MySQL Setup Notes:**
+- Ensure your MySQL server is running and accessible
+- Both local and remote MySQL servers are supported
+- SSL connections are supported but not required for local development
+
+**Quick MySQL Setup:**
+```bash
+# Copy the example configuration
+cp env.mysql.example .env
+
+# Edit with your MySQL credentials
+nano .env
+
+# Start the application
+npm run dev
+```
+
 </details> 
 
 <details> 
