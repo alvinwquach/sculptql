@@ -8,6 +8,7 @@ import {
 import { createSchema, createYoga } from "graphql-yoga";
 import { FieldDef, Pool as PgPool } from "pg";
 import mysql, { Pool as MySqlPool, RowDataPacket, FieldPacket } from "mysql2/promise";
+import { Database as SqliteDatabase } from "sqlite";
 
 // Define the Next.js context type
 interface NextContext {
@@ -20,8 +21,8 @@ const CustomResponse = Response as typeof Response & {
 };
 
 // Database types
-type SupportedDialect = "postgres" | "mysql";
-type DatabasePool = PgPool | MySqlPool;
+type SupportedDialect = "postgres" | "mysql" | "sqlite";
+type DatabasePool = PgPool | MySqlPool | SqliteDatabase;
 
 // Database abstraction interface
 interface DatabaseAdapter {
@@ -69,6 +70,39 @@ class MySqlAdapter implements DatabaseAdapter {
   }
 }
 
+// SQLite adapter
+class SqliteAdapter implements DatabaseAdapter {
+  constructor(private db: SqliteDatabase) {}
+
+  async query<T = unknown>(text: string, params?: (string | number)[]) {
+    const rows = await this.db.all(text, params || []);
+    
+    // For SQLite, we need to extract field names from the first row
+    // or use a separate query to get column information
+    let fields: { name: string }[] = [];
+    
+    if (rows.length > 0) {
+      // Extract field names from the first row
+      fields = Object.keys(rows[0] as Record<string, unknown>).map(name => ({ name }));
+    } else {
+      // If no rows, we can't easily get column info without executing the query
+      // For now, return empty fields - this will be handled by the calling code
+      fields = [];
+    }
+    
+    return {
+      rows: rows as T[],
+      rowCount: rows.length,
+      fields
+    };
+  }
+
+  release() {
+    // SQLite doesn't need connection release like connection pools
+    // The database connection is managed at the pool level
+  }
+}
+
 // Get database dialect from environment
 const dialect = (process.env.DB_DIALECT as SupportedDialect) || "postgres";
 
@@ -85,6 +119,10 @@ function createDatabasePool(): DatabasePool {
       connectionLimit: 5,
       queueLimit: 0,
     });
+  } else if (dialect === "sqlite") {
+    // For SQLite, we'll create the database connection in getDatabaseAdapter
+    // since SQLite doesn't use connection pools the same way
+    return null as any; // This will be handled in getDatabaseAdapter
   } else {
     // Default to PostgreSQL
     return new PgPool({
@@ -108,6 +146,15 @@ async function getDatabaseAdapter(): Promise<DatabaseAdapter> {
   if (dialect === "mysql") {
     const connection = await (pool as MySqlPool).getConnection();
     return new MySqlAdapter(connection);
+  } else if (dialect === "sqlite") {
+    // For SQLite, we need to import and create the database connection
+    const { open } = await import("sqlite");
+    const sqlite3 = await import("sqlite3");
+    const db = await open({
+      filename: process.env.DB_FILE!,
+      driver: sqlite3.Database,
+    });
+    return new SqliteAdapter(db);
   } else {
     const client = await (pool as PgPool).connect();
     return new PostgresAdapter(client);
@@ -135,6 +182,25 @@ class SqlQueries {
         params.push(`%${tableSearch}%`);
       }
       query += ` ORDER BY table_name`;
+      
+      return { query, params };
+    } else if (dialect === "sqlite") {
+      // SQLite uses sqlite_master table for schema information
+      let query = `
+        SELECT 
+          'main' as table_catalog,
+          'main' as table_schema,
+          name as table_name,
+          type as table_type
+        FROM sqlite_master
+        WHERE type IN ('table', 'view')
+      `;
+      
+      if (tableSearch) {
+        query += ` AND name LIKE ?`;
+        params.push(`%${tableSearch}%`);
+      }
+      query += ` ORDER BY name`;
       
       return { query, params };
     } else {
@@ -173,6 +239,24 @@ class SqlQueries {
       query += ` ORDER BY ordinal_position`;
       
       return { query, params };
+    } else if (dialect === "sqlite") {
+      // SQLite uses PRAGMA table_info for column information
+      let query = `
+        SELECT 
+          name as column_name,
+          type as data_type,
+          CASE WHEN "notnull" = 0 THEN 'YES' ELSE 'NO' END as is_nullable
+        FROM pragma_table_info(?)
+      `;
+      
+      if (columnSearch) {
+        query += ` WHERE (name LIKE ? OR type LIKE ?)`;
+        params.push(`%${columnSearch}%`, `%${columnSearch}%`);
+      }
+      
+      query += ` ORDER BY cid`;
+      
+      return { query, params };
     } else {
       // PostgreSQL
       let query = `
@@ -202,6 +286,17 @@ class SqlQueries {
             AND table_name = ?
             AND constraint_name = 'PRIMARY'
           ORDER BY ordinal_position
+        `,
+        params: [tableName]
+      };
+    } else if (dialect === "sqlite") {
+      // SQLite uses PRAGMA table_info to get primary key information
+      return {
+        query: `
+          SELECT name as column_name
+          FROM pragma_table_info(?)
+          WHERE pk = 1
+          ORDER BY cid
         `,
         params: [tableName]
       };
@@ -239,6 +334,19 @@ class SqlQueries {
         `,
         params: [tableName]
       };
+    } else if (dialect === "sqlite") {
+      // SQLite uses PRAGMA foreign_key_list for foreign key information
+      return {
+        query: `
+          SELECT 
+            "from" as column_name,
+            "table" as referenced_table,
+            "to" as referenced_column,
+            'fk_' || "from" as constraint_name
+          FROM pragma_foreign_key_list(?)
+        `,
+        params: [tableName]
+      };
     } else {
       // PostgreSQL
       return {
@@ -272,6 +380,17 @@ class SqlQueries {
       }
       
       return { query, params };
+    } else if (dialect === "sqlite") {
+      // SQLite uses standard SQL syntax
+      let query = `SELECT * FROM "${tableName}"`;
+      const params: (string | number)[] = [];
+      
+      if (typeof limit === "number") {
+        query += ` LIMIT ?`;
+        params.push(limit);
+      }
+      
+      return { query, params };
     } else {
       // PostgreSQL
       let query = `SELECT * FROM public.${tableName}`;
@@ -289,6 +408,9 @@ class SqlQueries {
   static getExplainQuery(dialect: SupportedDialect, originalQuery: string): string | null {
     if (dialect === "mysql") {
       return `EXPLAIN FORMAT=JSON ${originalQuery}`;
+    } else if (dialect === "sqlite") {
+      // SQLite uses EXPLAIN QUERY PLAN for query analysis
+      return `EXPLAIN QUERY PLAN ${originalQuery}`;
     } else {
       // PostgreSQL
       return `EXPLAIN (ANALYZE, FORMAT JSON) ${originalQuery}`;

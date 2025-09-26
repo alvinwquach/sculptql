@@ -21,8 +21,8 @@ The CLI sets up a persistent database connection and launches a web app for inte
 You must specify your database dialect explicitly using the `DB_DIALECT` environment variable.
 
 - **Postgres** 
-- **MySQL** (Coming Soon)
-- **SQLite** (Coming Soon)
+- **MySQL** 
+- **SQLite** 
 - **Microsoft SQL Server (MSSQL)** (Coming Soon)
 - **Oracle** (Coming Soon)
 
@@ -85,10 +85,33 @@ npm run dev
 </details> 
 
 <details> 
-<summary><strong>SQLite (Coming Soon)</strong></summary>
+<summary><strong>SQLite</strong></summary>
+
+```bash
 DB_DIALECT=sqlite
-DB_FILE=./mydb.sqlite
+DB_FILE=./path/to/your/database.db
 PORT=3000
+```
+
+**SQLite Setup Notes:**
+- SQLite uses a single database file instead of a server
+- The DB_FILE path can be relative to the project directory or absolute
+- For in-memory databases, use `:memory:` as the DB_FILE value
+- For temporary databases, use `:temp:` as the DB_FILE value
+- No host, port, user, or password configuration needed
+
+**Quick SQLite Setup:**
+```bash
+# Copy the example configuration
+cp env.sqlite.example .env
+
+# Edit with your SQLite database file path
+nano .env
+
+# Start the application
+npm run dev
+```
+
 </details> 
 
 <details> 
