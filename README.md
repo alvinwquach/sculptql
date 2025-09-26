@@ -21,9 +21,9 @@ The CLI sets up a persistent database connection and launches a web app for inte
 You must specify your database dialect explicitly using the `DB_DIALECT` environment variable.
 
 - **Postgres** 
-- **MySQL** (Coming Soon)
+- **MySQL** 
+- **Microsoft SQL Server (MSSQL)** 
 - **SQLite** (Coming Soon)
-- **Microsoft SQL Server (MSSQL)** (Coming Soon)
 - **Oracle** (Coming Soon)
 
 > ⚠️ There is **no default dialect** — you must specify it explicitly.
@@ -49,13 +49,9 @@ PORT=3000
 </details> 
 
 <details>   
-add-mysql-support
 <summary><strong>MySQL</strong></summary>
 
 ```bash
-=======
-<summary><strong>MySQL (Coming Soon)</strong></summary>
-main
 DB_DIALECT=mysql
 DB_HOST=localhost
 DB_PORT=3306
@@ -85,20 +81,42 @@ npm run dev
 </details> 
 
 <details> 
-<summary><strong>SQLite (Coming Soon)</strong></summary>
-DB_DIALECT=sqlite
-DB_FILE=./mydb.sqlite
-PORT=3000
-</details> 
+<summary><strong>Microsoft SQL Server (MSSQL)</strong></summary>
 
-<details> 
-<summary><strong>MSSQL (Coming Soon)</strong></summary>
+```bash
 DB_DIALECT=mssql
 DB_HOST=localhost
 DB_PORT=1433
 DB_DATABASE=mydb
 DB_USER=myuser
 DB_PASSWORD=mypassword
+PORT=3000
+```
+
+**SQL Server Setup Notes:**
+- Ensure your SQL Server is running and accessible
+- Both local and remote SQL Server instances are supported
+- SSL connections are enabled by default with trustServerCertificate=true for development
+- For production, consider using proper SSL certificates
+
+**Quick SQL Server Setup:**
+```bash
+# Copy the example configuration
+cp env.mssql.example .env
+
+# Edit with your SQL Server credentials
+nano .env
+
+# Start the application
+npm run dev
+```
+
+</details> 
+
+<details> 
+<summary><strong>SQLite (Coming Soon)</strong></summary>
+DB_DIALECT=sqlite
+DB_FILE=./mydb.sqlite
 PORT=3000
 </details> 
 
