@@ -23,7 +23,7 @@ You must specify your database dialect explicitly using the `DB_DIALECT` environ
 - **Postgres** 
 - **MySQL** 
 - **Microsoft SQL Server (MSSQL)** 
-- **SQLite** (Coming Soon)
+- **SQLite** 
 - **Oracle** (Coming Soon)
 
 > ⚠️ There is **no default dialect** — you must specify it explicitly.
@@ -95,17 +95,33 @@ PORT=3000
 
 **SQL Server Setup Notes:**
 - Ensure your SQL Server is running and accessible
-- Both local and remote SQL Server instances are supported
-- SSL connections are enabled by default with trustServerCertificate=true for development
-- For production, consider using proper SSL certificates
 
-**Quick SQL Server Setup:**
+</details> 
+
+<details> 
+<summary><strong>SQLite</strong></summary>
+
+```bash
+DB_DIALECT=sqlite
+DB_FILE=./data/example.db
+PORT=3000
+```
+
+**SQLite Setup Notes:**
+- SQLite uses a file-based database, so no server setup is required
+- You can use either `DB_FILE` or `DB_DATABASE` environment variable
+- The database file will be created automatically if it doesn't exist
+- Perfect for development, testing, and small applications
+
+**Quick SQLite Setup:**
 ```bash
 # Copy the example configuration
-cp env.mssql.example .env
+cp env.sqlite.example .env
 
-# Edit with your SQL Server credentials
-nano .env
+# Create a sample database
+mkdir -p data
+sqlite3 data/example.db "CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT, email TEXT);"
+sqlite3 data/example.db "INSERT INTO users (name, email) VALUES ('John Doe', 'john@example.com');"
 
 # Start the application
 npm run dev
@@ -114,19 +130,19 @@ npm run dev
 </details> 
 
 <details> 
-<summary><strong>SQLite (Coming Soon)</strong></summary>
-DB_DIALECT=sqlite
-DB_FILE=./mydb.sqlite
-PORT=3000
-</details> 
-
-<details> 
 <summary><strong>Oracle (Coming Soon)</strong></summary>
+
+```bash
 DB_DIALECT=oracle
 DB_HOST=localhost
 DB_PORT=1521
-DB_DATABASE=ORCLCDB.localdomain
+DB_DATABASE=mydb
 DB_USER=myuser
 DB_PASSWORD=mypassword
 PORT=3000
+```
+
+**Oracle Setup Notes:**
+- Ensure your Oracle database is running and accessible
+
 </details> 

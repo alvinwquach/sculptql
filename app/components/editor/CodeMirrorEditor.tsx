@@ -206,8 +206,10 @@ export default function CodeMirrorEditor({
     if (!currentText) return;
 
     try {
+      // Try to detect database dialect from environment or default to postgresql
+      const dialect = (typeof window !== 'undefined' && (window as { DB_DIALECT?: string }).DB_DIALECT) || "postgresql";
       const formatted = formatSQL(currentText, {
-        language: "postgresql",
+        language: dialect === "sqlite" ? "sqlite" : dialect === "mysql" ? "mysql" : dialect === "mssql" ? "transactsql" : "postgresql",
         keywordCase: "upper",
       });
       editor.dispatch({
@@ -315,8 +317,10 @@ export default function CodeMirrorEditor({
               const currentText = editorRef.current.state.doc.toString();
               if (!currentText) return true;
               try {
+                // Try to detect database dialect from environment or default to postgresql
+                const dialect = (typeof window !== 'undefined' && (window as { DB_DIALECT?: string }).DB_DIALECT) || "postgresql";
                 const formatted = formatSQL(currentText, {
-                  language: "postgresql",
+                  language: dialect === "sqlite" ? "sqlite" : dialect === "mysql" ? "mysql" : dialect === "mssql" ? "transactsql" : "postgresql",
                   keywordCase: "upper",
                 });
                 editorRef.current.dispatch({
