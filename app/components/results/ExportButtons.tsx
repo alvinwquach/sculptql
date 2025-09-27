@@ -7,6 +7,7 @@ import {
 } from "@/components/ui/tooltip";
 import { Sheet, Braces, FileText } from "lucide-react";
 
+// Props for the ExportButtons component
 interface ExportButtonsProps {
   onExportToCsv: (
     exportAll: boolean,
@@ -45,7 +46,11 @@ export default function ExportButtons({
   currentPage,
   pageSize,
 }: ExportButtonsProps) {
+  // Create the start index by the current page and the page size and the total rows 
+  // by subtracting 1 and multiplying by the page size
   const startIndex = (currentPage - 1) * pageSize;
+  // Create the end index by the start index and the page size and the total rows 
+  // by adding the page size and the total rows and the minimum of the start index and the end index
   const endIndex = Math.min(startIndex + pageSize, totalRows);
 
   return (

@@ -4,7 +4,9 @@ import Select from "react-select";
 import { SingleValue } from "react-select";
 import { SelectOption, TableColumn, JoinClause } from "@/app/types/query";
 import { selectStyles } from "../../utils/selectStyles";
+import { Label } from "@/components/ui/label"
 
+// Props for the AggregateSelector component
 interface AggregateSelectorProps {
   selectedTable: SelectOption | null;
   tableColumns: TableColumn;
@@ -30,6 +32,8 @@ export default function AggregateSelector({
   metadataLoading,
   joinClauses,
 }: AggregateSelectorProps) {
+
+  // Create the aggregate options
   const aggregateOptions: SelectOption[] = [
     { value: "COUNT(*)", label: "COUNT(*)", aggregate: true },
     { value: "SUM", label: "SUM()", aggregate: true },
@@ -39,6 +43,7 @@ export default function AggregateSelector({
     { value: "ROUND", label: "ROUND()", aggregate: true },
   ];
 
+  // Create the column options
   const columnOptions: SelectOption[] = selectedTable
     ? [
         ...(tableColumns[selectedTable.value]?.map((col) => ({
@@ -57,6 +62,7 @@ export default function AggregateSelector({
       ]
     : [];
 
+  // Create the decimal options
   const decimalOptions: SelectOption[] = [
     { value: "0", label: "0" },
     { value: "1", label: "1" },
@@ -68,7 +74,7 @@ export default function AggregateSelector({
   return (
     <div className="flex flex-col gap-2">
       <div className="flex flex-col gap-1">
-        <label className="text-xs text-[#f8f9fa] mb-1">Aggregate</label>
+        <Label className="text-xs text-[#f8f9fa] mb-1">Aggregate</Label>
         <Select
           options={aggregateOptions}
           value={selectedAggregate}
@@ -83,7 +89,7 @@ export default function AggregateSelector({
       {selectedAggregate && selectedAggregate.value !== "COUNT(*)" && (
         <div className="flex flex-row gap-2 w-full">
           <div className="flex flex-col gap-1 w-1/2">
-            <label className="text-xs text-[#f8f9fa] mb-1">Column</label>
+            <Label className="text-xs text-[#f8f9fa] mb-1">Column</Label>
             <Select
               options={columnOptions}
               value={aggregateColumn}
@@ -97,7 +103,7 @@ export default function AggregateSelector({
           </div>
           {selectedAggregate.value === "ROUND" && (
             <div className="flex flex-col gap-1 w-1/2">
-              <label className="text-xs text-[#f8f9fa] mb-1">Decimals</label>
+              <Label className="text-xs text-[#f8f9fa] mb-1">Decimals</Label>
               <Select
                 options={decimalOptions}
                 value={decimalPlaces}

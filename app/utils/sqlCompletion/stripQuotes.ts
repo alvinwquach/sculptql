@@ -1,8 +1,5 @@
 export const stripQuotes = (str: string): string => {
-  // PSEUDOCODE:
-  // 1. Remove leading and trailing single or double quotes
-  // 2. Return the cleaned string
-
+  // Remove leading and trailing single or double quotes
   return str.replace(/^['"]|['"]$/g, "");
 };
 

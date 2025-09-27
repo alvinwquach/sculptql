@@ -8,23 +8,33 @@ export const suggestSelect = (
   word: { from: number } | null,
   ast: Select | Select[] | null
 ): CompletionResult | null => {
-  // Conditions:
-  // - Query is empty or user is typing something like "s", "se", "select", "w", "wi", "with"
-  // - AND there is no SELECT or WITH clause already in the parsed AST or text
+
+  // Set the is typing select or with to the 
+  // is typing select or with
   const isTypingSelectOrWith =
+    // If the doc text is undefined or the 
+    // current word matches the regex
     !docText || /^[sw](el(ect)?|i(th)?)?$/i.test(currentWord);
+  // Set the has no select or with in ast to the 
+  // has no select or with in ast
   const hasNoSelectOrWithInAst =
+    // If the ast is undefined or the ast is an array
     !ast ||
     (Array.isArray(ast)
+      // If the ast is an array, check if every node 
+      // is not a select and not a with
       ? ast.every((node: Select) => node.type !== "select" && !node.with)
       : ast.type !== "select" && !ast.with);
+  // Set the has no select or with in text to the 
+  // has no select or with in text
   const hasNoSelectOrWithInText = !/\b(SELECT|WITH)\b/i.test(docText);
-
+  
   if (
     isTypingSelectOrWith &&
     hasNoSelectOrWithInAst &&
     hasNoSelectOrWithInText
   ) {
+    // Return the options
     return {
       from: word ? word.from : pos,
       options: [

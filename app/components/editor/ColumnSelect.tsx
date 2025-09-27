@@ -1,49 +1,60 @@
 "use client";
 
 import { useMemo } from "react";
+import { useEditorContext } from "@/app/context/EditorContext";
 import Select, { MultiValue } from "react-select";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label"
 import { SelectOption } from "@/app/types/query";
 import { selectStyles } from "@/app/utils/selectStyles";
 
+// Props for the ColumnSelector component
 interface ColumnSelectProps {
-  selectedTable: SelectOption | null;
-  tableColumns: Record<string, string[]>;
-  selectedColumns: SelectOption[];
-  onColumnSelect: (value: MultiValue<SelectOption>) => void;
   metadataLoading: boolean;
-  isDistinct: boolean;
-  onDistinctChange: (value: boolean) => void;
   isMySQL?: boolean;
 }
 
 export default function ColumnSelect({
-  selectedTable,
-  tableColumns,
-  selectedColumns,
-  onColumnSelect,
   metadataLoading,
-  isDistinct,
-  onDistinctChange,
   isMySQL = false,
 }: ColumnSelectProps) {
+  // Get the selected table, table columns, selected columns, is distinct, handle column select, and handle distinct change from the editor context
+  const {
+    selectedTable,
+    tableColumns,
+    selectedColumns,
+    isDistinct,
+    handleColumnSelect,
+    handleDistinctChange,
+  } = useEditorContext();
+
+  // Create the aggregate functions
   const aggregateFunctions = [
     { value: "COUNT(*)", label: "COUNT(*)", isAggregate: true },
   ];
 
+  // Create the column options
   const columnOptions: SelectOption[] = useMemo(() => {
+    // If no table is selected, return an empty array
     if (!selectedTable) return [];
 
+    // Create the columns
     const columns = [
+      // All columns
       { value: "*", label: "All Columns (*)" },
+      // Main table columns
       ...(tableColumns[selectedTable.value]?.map((col) => ({
+        // Create the column options
         value: col,
+        // Create the label
         label: col,
       })) || []),
+      // Join table columns
       ...(tableColumns[selectedTable.value]?.flatMap((col) => {
+        // Create the aggregates
         const aggregates = [
           {
-            value: `SUM_${col}`, // Unique value by prefixing function
+            value: `SUM_${col}`, 
             label: `SUM(${col})`,
             isAggregate: true,
             targetColumn: col,
@@ -140,7 +151,9 @@ export default function ColumnSelect({
           },
         ];
 
+        // If MySQL, add the distinct aggregates
         if (isMySQL) {
+          // Add the distinct aggregates
           aggregates.push(
             {
               value: `SUM_DISTINCT_${col}`,
@@ -169,8 +182,10 @@ export default function ColumnSelect({
           );
         }
 
+        // Return the aggregates
         return aggregates;
       }) || []),
+      // Aggregate functions 
       ...aggregateFunctions,
     ];
 
@@ -182,56 +197,70 @@ export default function ColumnSelect({
     return uniqueColumns;
   }, [selectedTable, tableColumns, isMySQL]);
 
+
+  // Handle the change
   const handleChange = (value: MultiValue<SelectOption>) => {
+    // Get the last selected column
     const lastSelected = value[value.length - 1];
+    // If the last selected column is the all columns
     if (lastSelected?.value === "*") {
-      onColumnSelect([{ value: "*", label: "All Columns (*)" }]);
+      // Handle the column select
+      handleColumnSelect([{ value: "*", label: "All Columns (*)" }]);
     } else {
+      // Filter the value to remove the all columns
       const filteredValue = value.filter((col) => col.value !== "*");
+      // If the filtered value is not empty
       if (filteredValue.length > 0) {
-        onColumnSelect(filteredValue);
+        // Handle the column select
+        handleColumnSelect(filteredValue);
       } else {
-        onColumnSelect(
+        // Handle the column select
+        handleColumnSelect(
+          // If the value contains the all columns
           value.some((col) => col.value === "*")
             ? [{ value: "*", label: "All Columns (*)" }]
-            : value
+            : Array.isArray(value) ? value : []
         );
       }
     }
   };
 
+  // Create the label
   const label =
+    // If the selected columns length is 1 and the first column value is the all columns
     selectedColumns.length === 1 && selectedColumns[0].value === "*"
       ? "Columns"
+      // If the selected columns length is greater than 1
       : selectedColumns.length > 1
+      // Return the columns
       ? "Columns"
       : "Column";
 
   return (
     <div className="flex flex-col gap-1">
       <div className="flex items-center gap-2 mb-2">
-        <label
+        <Label
           htmlFor="column-selector"
           id="column-label"
           className="text-xs text-[#f8f9fa]"
         >
           {label}
-        </label>
+        </Label>
         <div className="flex items-center gap-2 ml-2">
           <Checkbox
             id="distinct-checkbox"
             aria-labelledby="distinct-checkbox-label"
             checked={isDistinct}
-            onCheckedChange={onDistinctChange}
+            onCheckedChange={handleDistinctChange}
             className="border-[#f8f9fa] data-[state=checked]:bg-[#3b82f6] data-[state=checked]:border-[#3b82f6]"
           />
-          <label
+          <Label
             htmlFor="distinct-checkbox"
             id="distinct-checkbox-label"
             className="text-xs text-[#f8f9fa] cursor-pointer"
           >
             Distinct (Unique Values)
-          </label>
+          </Label>
         </div>
       </div>
       <Select

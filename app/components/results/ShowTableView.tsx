@@ -1,6 +1,7 @@
 import { Database } from "lucide-react";
 import { TableSchema } from "@/app/types/query";
 
+// Props for the ShowTableView component
 interface ShowTableViewProps {
   selectedTable: string;
   table: TableSchema[];
@@ -10,6 +11,7 @@ export default function ShowTableView({
   selectedTable,
   table,
 }: ShowTableViewProps) {
+  // Return the selected table and the table length is greater than 0
   return selectedTable && table.length > 0 ? (
     <div className="bg-[#1e293b] p-6 rounded-xl shadow-lg border border-slate-700/50">
       <div className="flex items-center mb-4">

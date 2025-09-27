@@ -1,6 +1,7 @@
 import { gql } from "@apollo/client";
 
 export const GET_SCHEMA = gql`
+  # Get the schema query
   query GetSchema($tableSearch: String, $columnSearch: String, $limit: Int) {
     schema(
       tableSearch: $tableSearch

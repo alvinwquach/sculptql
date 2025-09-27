@@ -1,20 +1,19 @@
 import Select, { SingleValue } from "react-select";
 import { SelectOption } from "@/app/types/query";
 import { selectStyles } from "../../utils/selectStyles";
+import { useEditorContext } from "@/app/context/EditorContext";
 
 interface TableSelectProps {
-  tableNames: string[];
-  selectedTable: SelectOption | null;
-  onTableSelect: (value: SingleValue<SelectOption>) => void;
   metadataLoading: boolean;
 }
 
 export default function TableSelect({
-  tableNames,
-  selectedTable,
-  onTableSelect,
   metadataLoading,
 }: TableSelectProps) {
+  // Get the table names and selected table from the editor context
+  const { tableNames, selectedTable, handleTableSelect } = useEditorContext();
+
+  // Create the table options
   const tableOptions: SelectOption[] = tableNames.map((name) => ({
     value: name,
     label: name,
@@ -33,7 +32,7 @@ export default function TableSelect({
         instanceId="table-selector"
         options={tableOptions}
         value={selectedTable}
-        onChange={onTableSelect}
+        onChange={handleTableSelect}
         placeholder="Select a table"
         isClearable
         isDisabled={metadataLoading}

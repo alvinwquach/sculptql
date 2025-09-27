@@ -1,131 +1,162 @@
 "use client";
 
+import { useState, useCallback, useMemo } from "react";
+import { useEditorContext } from "@/app/context/EditorContext";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Trash2, Pin, Bookmark, Tag, Search, Play, Pencil } from "lucide-react";
-import { useState, useCallback, useMemo } from "react";
-import {
-  QueryHistoryItem,
-  PinnedQuery,
-  BookmarkedQuery,
-  LabeledQuery,
-} from "@/app/types/query";
 
+// Props for the QueryHistory component
 interface QueryHistoryProps {
   showHistory: boolean;
-  history: QueryHistoryItem[];
-  pinnedQueries: PinnedQuery[];
-  bookmarkedQueries: BookmarkedQuery[];
-  labeledQueries: LabeledQuery[];
-  clearHistory: () => void;
-  loadQueryFromHistory: (query: string) => void;
-  runQueryFromHistory: (query: string) => void;
-  addPinnedQuery: (query: string) => void;
-  removePinnedQuery: (id: string) => void;
-  addBookmarkedQuery: (query: string) => void;
-  removeBookmarkedQuery: (id: string) => void;
-  addLabeledQuery: (label: string, historyItemId: string) => void;
-  removeLabeledQuery: (historyItemId: string) => void;
-  editLabeledQuery: (historyItemId: string, newLabel: string) => void;
 }
 
 export default function QueryHistory({
   showHistory,
-  history,
-  pinnedQueries,
-  bookmarkedQueries,
-  labeledQueries,
-  clearHistory,
-  loadQueryFromHistory,
-  runQueryFromHistory,
-  addPinnedQuery,
-  removePinnedQuery,
-  addBookmarkedQuery,
-  removeBookmarkedQuery,
-  addLabeledQuery,
-  removeLabeledQuery,
-  editLabeledQuery,
 }: QueryHistoryProps) {
+  // Get the query history, pinned queries, bookmarked queries, labeled queries, clear history, load query from history, run query, add pinned query, remove pinned query, add bookmarked query, remove bookmarked query, add labeled query, edit labeled query, and remove labeled query from the editor context
+  const {
+    queryHistory,
+    pinnedQueries,
+    bookmarkedQueries,
+    labeledQueries,
+    clearHistory,
+    loadQueryFromHistory,
+    runQuery,
+    addPinnedQuery,
+    removePinnedQuery,
+    addBookmarkedQuery,
+    removeBookmarkedQuery,
+    addLabeledQuery,
+    editLabeledQuery,
+    removeLabeledQuery,
+  } = useEditorContext();
+
+  // Create the label input 
   const [labelInput, setLabelInput] = useState<string>("");
+  // Create the labeling query
   const [labelingQuery, setLabelingQuery] = useState<string | null>(null); 
+
+  // Create the editing query 
   const [editingQuery, setEditingQuery] = useState<string | null>(null);
+  // Create the search term
   const [searchTerm, setSearchTerm] = useState<string>("");
 
+  // Handle the label query
   const handleLabelQuery = useCallback(
+    // If the labeling query is the history item id
     (historyItemId: string) => {
       if (labelingQuery === historyItemId) {
         if (labelInput.trim()) {
+          // Add the labeled query
           addLabeledQuery(labelInput.trim(), historyItemId);
+          // Clear the label input
           setLabelInput("");
+          // Clear the labeling query
           setLabelingQuery(null);
         } else {
+          // Clear the labeling query
           setLabelingQuery(null);
+          // Clear the label input
           setLabelInput("");
         }
       } else {
+        // Set the labeling query to the history item id
         setLabelingQuery(historyItemId);
+        // Clear the label input
         setLabelInput("");
       }
     },
+    // Return the handle label query
     [labelingQuery, labelInput, addLabeledQuery]
   );
 
+  // Handle the edit label
   const handleEditLabel = useCallback(
+    // If the editing query is the history item id
     (historyItemId: string, currentLabel: string) => {
+      // If the editing query is the history item id
       if (editingQuery === historyItemId) {
+        // If the label input is not empty
         if (labelInput.trim()) {
+          // Edit the labeled query
           editLabeledQuery(historyItemId, labelInput.trim());
+          // Clear the label input
           setLabelInput("");
+          // Clear the editing query
           setEditingQuery(null);
         } else {
+          // Clear the editing query
           setEditingQuery(null);
+          // Clear the label input
           setLabelInput("");
         }
       } else {
+        // Set the editing query to the history item id
         setEditingQuery(historyItemId);
+        // Set the label input to the current label
         setLabelInput(currentLabel);
       }
     },
+    // Return the handle edit label
     [editingQuery, labelInput, editLabeledQuery]
   );
 
+  // Handle the key down
   const handleKeyDown = useCallback(
     (
       e: React.KeyboardEvent<HTMLInputElement>,
       historyItemId: string,
       isEditing: boolean
     ) => {
+      // If the key is enter and the label input is not empty
       if (e.key === "Enter" && labelInput.trim()) {
+        // If the editing query is not null
         if (isEditing) {
+          // Edit the labeled query
           editLabeledQuery(historyItemId, labelInput.trim());
         } else {
+          // Add the labeled query
           addLabeledQuery(labelInput.trim(), historyItemId);
         }
+        // Clear the label input
         setLabelInput("");
+        // Clear the labeling query
         setLabelingQuery(null);
+        // Clear the editing query
         setEditingQuery(null);
       }
     },
     [labelInput, addLabeledQuery, editLabeledQuery]
   );
 
+  // Handle the toggle pinned query
   const togglePinnedQuery = useCallback(
     (query: string, id: string) => {
+      // If the pinned queries some of the id is the id
       if (pinnedQueries.some((pin) => pin.id === id)) {
+        // Remove the pinned query
         removePinnedQuery(id);
       } else {
+        // Remove the pinned queries
         pinnedQueries.forEach((pin) => removePinnedQuery(pin.id));
+        // Add the pinned query
         addPinnedQuery(query);
       }
     },
+    // Return the toggle pinned query
     [pinnedQueries, addPinnedQuery, removePinnedQuery]
   );
 
+  // Create the filtered pinned queries
   const filteredPinnedQueries = useMemo(
+    // Return the filtered pinned queries
     () =>
+      // Filter the pinned queries to include the search term
       pinnedQueries.filter((item) =>
         item.query.toLowerCase().includes(searchTerm.toLowerCase())
       ),
+    // Return the filtered pinned queries
     [pinnedQueries, searchTerm]
   );
 
@@ -137,27 +168,37 @@ export default function QueryHistory({
     [bookmarkedQueries, searchTerm]
   );
 
+  // Create the filtered labeled queries
   const filteredLabeledQueries = useMemo(
     () =>
+      // Filter the labeled queries to include the search term
       labeledQueries.filter((item) => {
-        const historyItem = history.find((h) => h.id === item.historyItemId);
+        // Find the history item by the history item id and the query 
+        const historyItem = queryHistory.find((h) => h.id === item.historyItemId);
         return (
+            // If the label includes the search term or the history item query includes the search term
           item.label.toLowerCase().includes(searchTerm.toLowerCase()) ||
+           // If the history item query includes the search term 
           (historyItem?.query
             .toLowerCase()
             .includes(searchTerm.toLowerCase()) ??
             false)
         );
       }),
-    [labeledQueries, history, searchTerm]
+    // Return the filtered labeled queries
+    [labeledQueries, queryHistory, searchTerm]
   );
 
+  // Create the filtered history
   const filteredHistory = useMemo(
     () =>
-      history.filter((item) =>
-        item.query.toLowerCase().includes(searchTerm.toLowerCase())
-      ),
-    [history, searchTerm]
+      // Filter the history to include the search term
+      queryHistory.filter((item) =>
+        // If the query includes the search term
+      item.query.toLowerCase().includes(searchTerm.toLowerCase())
+    ),
+    // Return the filtered history
+    [queryHistory, searchTerm]
   );
 
   return (
@@ -229,7 +270,7 @@ export default function QueryHistory({
                     title="Run Query"
                     onClick={(e) => {
                       e.stopPropagation();
-                      runQueryFromHistory(filteredPinnedQueries[0].query);
+                      runQuery(filteredPinnedQueries[0].query);
                     }}
                     className="rounded-full text-green-400 hover:bg-green-700/50 p-0 h-auto"
                   >
@@ -290,7 +331,7 @@ export default function QueryHistory({
                       title="Run Query"
                       onClick={(e) => {
                         e.stopPropagation();
-                        runQueryFromHistory(item.query);
+                        runQuery(item.query);
                       }}
                       className="rounded-full text-green-400 hover:bg-green-700/50 p-0 h-auto"
                     >
@@ -327,7 +368,7 @@ export default function QueryHistory({
               </p>
             ) : (
               filteredLabeledQueries.map((item) => {
-                const historyItem = history.find(
+                const historyItem = queryHistory.find(
                   (h) => h.id === item.historyItemId
                 );
                 if (!historyItem) return null; 
@@ -372,7 +413,7 @@ export default function QueryHistory({
                         title="Run Query"
                         onClick={(e) => {
                           e.stopPropagation();
-                          runQueryFromHistory(historyItem.query);
+                          runQuery(historyItem.query);
                         }}
                         className="rounded-full text-green-400 hover:bg-green-700/50 p-0 h-auto"
                       >
@@ -450,7 +491,7 @@ export default function QueryHistory({
                     <Button
                       variant="link"
                       size="sm"
-                      onClick={() => runQueryFromHistory(item.query)}
+                      onClick={() => runQuery(item.query)}
                       className="rounded-full text-green-400 hover:bg-green-700/50 p-0 h-auto"
                       title="Run Query"
                     >

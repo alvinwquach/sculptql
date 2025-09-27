@@ -1,6 +1,7 @@
 import { ListTree, Table as TableIcon, Key } from "lucide-react";
 import { TableDescription } from "@/app/types/query";
 
+// Props for the DescribeTableView component
 interface DescribeTableViewProps {
   selectedTable: string;
   tableDescription: TableDescription | null;

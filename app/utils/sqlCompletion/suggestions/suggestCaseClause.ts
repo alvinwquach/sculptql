@@ -3,6 +3,7 @@ import { Select } from "node-sql-parser";
 import { TableColumn } from "@/app/types/query";
 import { getOperatorDetail } from "../../getOperatorDetail";
 
+// Function to suggest the case clause
 export const suggestCaseClause = (
   docText: string,
   currentWord: string,
@@ -13,38 +14,25 @@ export const suggestCaseClause = (
   needsQuotes: (id: string) => boolean,
   ast: Select | Select[] | null
 ): CompletionResult | null => {
-  // PSEUDOCODE:
-  // 1. Define type guards for Select node and table reference
-  // 2. Extract table and columns from AST or regex
-  // 3. Check if in a CTE subquery and count parentheses
-  // 4. If after SELECT (not SELECT *), suggest CASE
-  // 5. If inside CASE statement:
-  //    a. After CASE, suggest WHEN
-  //    b. After WHEN, suggest columns
-  //    c. After column, suggest operators
-  //    d. After operator, suggest values (or LIKE patterns)
-  //    e. After value, suggest THEN
-  //    f. After THEN, suggest values
-  //    g. After value, suggest ELSE or END
-  //    h. After ELSE, suggest values
-  //    i. After ELSE value, suggest END or AS
-  //    j. After AS "", suggest FROM
-  // 6. If in a CTE subquery with unbalanced parentheses, include ) in suggestions
-  // 7. Return null if no suggestions apply
-
   // Type guard for Select node
   const isSelectNode = (node: unknown): node is Select =>
+    // If the node is undefined, return false
     !!node &&
+    // If the node is not an object, return false
     typeof node === "object" &&
+    // If the node does not have a type, return false
     "type" in node &&
     (node as { type: unknown }).type === "select";
 
   // Type guard for FROM clause
-  const isTableReference = (
+    const isTableReference = (
     fromItem: unknown
   ): fromItem is { table: string | null } =>
+    // If the from item is undefined, return false
     !!fromItem &&
+    // If the from item is not an object, return false
     typeof fromItem === "object" &&
+    // If the from item does not have a table, return false
     "table" in fromItem &&
     (typeof (fromItem as { table: unknown }).table === "string" ||
       (fromItem as { table: unknown }).table === null);
@@ -53,58 +41,86 @@ export const suggestCaseClause = (
   const isInCteSubquery = /\bWITH\s+[\w"]*\s+AS\s*\(\s*SELECT\b.*$/i.test(
     docText
   );
+  // Calculate the parenthesis count
   const parenCount = isInCteSubquery
     ? (docText.match(/\(/g) || []).length - (docText.match(/\)/g) || []).length
     : 0;
 
-  // Extract table and columns
+  // Set the selected table to null
   let selectedTable: string | null = null;
+  // Set the columns to an empty array
   let columns: string[] = [];
 
+  // If the ast is a select node
   if (ast) {
+    // Set the select node to the ast
     const selectNode = Array.isArray(ast)
+      // If the ast is an array, find the first select node
       ? ast.find(isSelectNode)
+      // If the ast is a select node, return the ast
       : isSelectNode(ast)
+      // If the ast is not a select node, return null
       ? ast
       : null;
+    // If the select node has a from clause
     if (selectNode && selectNode.from) {
+      // Set the from clause to the from clause
       const fromClause = Array.isArray(selectNode.from)
+        // If the from clause is an array, 
+        // set the from clause to the first item
         ? selectNode.from[0]
+        // If the from clause is not an array,
+        // set the from clause to the from clause
         : selectNode.from;
+      // If the from clause is a table reference
       if (isTableReference(fromClause)) {
+        // Set the selected table to the table
         selectedTable = fromClause.table;
+        // Set the columns to the columns
         columns =
+          // If the selected table and the table columns
+          // have the selected table, 
+          // set the columns to the table columns
           selectedTable && tableColumns[selectedTable]
             ? tableColumns[selectedTable]
             : [];
       }
     }
   } else {
+    // Set the from match to the from match
     const fromMatch = docText.match(
       /\bFROM\s+([a-zA-Z_][a-zA-Z0-9_]*)\s+CASE\b/i
     );
+    // Set the selected table to the from match
     selectedTable = fromMatch ? fromMatch[1] : null;
+    // Set the columns to the columns
     columns =
+      // If the selected table and the table columns
+      // have the selected table, 
+      // set the columns to the table columns
       selectedTable && tableColumns[selectedTable]
         ? tableColumns[selectedTable]
         : [];
-
-    // Infer table by matching SELECT column names to known table schemas
+    // If the selected table is null
     if (!selectedTable) {
+      // Set the select match to the select match
       const selectMatch = docText.match(
         /\bSELECT\s+([^,;\n]+)(?:,|\s+CASE|$)/i
       );
+      // If the select match is not null
       if (selectMatch) {
+        // Set the column names to the column names
         const columnNames = selectMatch[1]
           .split(",")
           .map((col) => stripQuotes(col.trim()))
           .filter((col) => col && col !== "*");
-
+        // Set the possible tables to the possible tables
         const possibleTables = Object.keys(tableColumns).filter((table) =>
           columnNames.every((col) => tableColumns[table].includes(col))
         );
-
+        // Set the selected table to the selected table
         selectedTable = possibleTables.length === 1 ? possibleTables[0] : null;
+        // Set the columns to the columns
         columns =
           selectedTable && tableColumns[selectedTable]
             ? tableColumns[selectedTable]
@@ -112,13 +128,19 @@ export const suggestCaseClause = (
       }
     }
   }
-
+  // Set the case match to the case match
   const caseMatch = docText.match(/\bCASE\s+([\s\S]*?)$/i);
-
-  // Suggest CASE keyword after SELECT (but not after SELECT *)
+  // Set the after select or comma regex 
+  // to the after select or comma regex
   const afterSelectOrCommaRegex =
     /\bSELECT\s+([^;\n]*?)(?:,|\s+CASE)\s*(\w*)$/i;
+  // Set the is select star to the is select star
   const isSelectStar = /\bSELECT\s+\*\s*$/i.test(docText);
+  // If the after select or comma regex test the doc text,
+  // the case match is null, the is select star is null,
+  // and the doc text does not match the from where group by 
+  // having order by limit union regex
+  // and the doc text does not match the from table case regex
   if (
     afterSelectOrCommaRegex.test(docText) &&
     !caseMatch &&
@@ -128,6 +150,7 @@ export const suggestCaseClause = (
     ) &&
     !docText.match(/\bFROM\s+[a-zA-Z_][a-zA-Z0-9_]*\s+CASE\b/i)
   ) {
+    // Set the options to the options
     const options = [
       {
         label: "CASE",
@@ -137,8 +160,10 @@ export const suggestCaseClause = (
         boost: 10,
       },
     ];
-
+    // If the is in cte subquery and the parenthesis count 
+    // is greater than 0
     if (isInCteSubquery && parenCount > 0) {
+      // Push the ) option to the options
       options.push({
         label: ")",
         type: "keyword",
@@ -147,7 +172,7 @@ export const suggestCaseClause = (
         boost: 5,
       });
     }
-
+    // Return the options
     return {
       from: word ? word.from : pos,
       options,
@@ -155,10 +180,11 @@ export const suggestCaseClause = (
       validFor: /^(CASE|\))$/i,
     };
   }
-
+  // If the case match is not null
   if (caseMatch) {
-    // Suggest WHEN after CASE
+    // If the case match test the doc text
     if (/\bCASE\s+(\w*)$/i.test(docText)) {
+      // Return the options
       return {
         from: word ? word.from : pos,
         options: [
@@ -173,12 +199,16 @@ export const suggestCaseClause = (
         validFor: /^WHEN$/i,
       };
     }
-
-    // Suggest columns after WHEN
+    // If the case match test the doc text    
     if (/\bCASE\s+.*?\bWHEN\s+(\w*)$/i.test(docText)) {
+      // Set the filtered columns to the filtered columns
       const filteredColumns =
+        // If the columns length is greater than 0
         columns.length > 0
           ? columns.filter((col) =>
+              // If the current word is not null
+              // and the strip quotes column starts 
+              // with the strip quotes current word
               currentWord
                 ? stripQuotes(col)
                     .toLowerCase()
@@ -186,12 +216,14 @@ export const suggestCaseClause = (
                 : true
             )
           : [];
-
+      // Return the options
       return {
         from: word ? word.from : pos,
         options:
+          // If the filtered columns length is greater than 0
           filteredColumns.length > 0
             ? filteredColumns.map((col) => ({
+                // Push the column to the options
                 label: col,
                 type: "field",
                 apply: needsQuotes(col) ? `"${col}" ` : `${col} `,
@@ -209,14 +241,15 @@ export const suggestCaseClause = (
         validFor: /^["'\w]*$/,
       };
     }
-
-    // Suggest operators after column
+    // If the case match test the doc text
     if (
       /\bCASE\s+.*?\bWHEN\s+((?:"[\w]+"|'[\w]+'|[\w_]+))\s*(\w*)$/i.test(
         docText
       )
     ) {
+      // Set the operators to the operators
       const operators = ["=", "!=", ">", "<", ">=", "<=", "LIKE"];
+      // Return the options
       return {
         from: word ? word.from : pos,
         options: operators.map((op) => ({
@@ -229,17 +262,19 @@ export const suggestCaseClause = (
         validFor: /^(=|>|<|>=|<=|!=|LIKE)$/i,
       };
     }
-
-    // Suggest values after operator
+    // If the case match test the doc text
     if (
       /\bCASE\s+.*?\bWHEN\s+((?:"[\w]+"|'[\w]+'|[\w_]+))\s*(=|>|<|>=|<=|!=|LIKE)\s*(\w*)$/i.test(
         docText
       )
     ) {
+      // Set the operator to the operator
       const operator = /\bWHEN\s+.*?\s*(=|>|<|>=|<=|!=|LIKE)\s*/i.exec(
         docText
       )![1];
+      // If the operator is like
       if (operator.toUpperCase() === "LIKE") {
+        // Return the options
         return {
           from: word ? word.from : pos,
           options: [
@@ -266,6 +301,7 @@ export const suggestCaseClause = (
           validFor: /^['"].*['"]?$/,
         };
       }
+      // Return the options
       return {
         from: word ? word.from : pos,
         options: [
@@ -281,13 +317,13 @@ export const suggestCaseClause = (
         validFor: /^['"\d]*$/,
       };
     }
-
-    // Suggest THEN
+    // If the case match test the doc text
     if (
       /\bCASE\s+.*?\bWHEN\s+.*?\s*(=|>|<|>=|<=|!=|LIKE)\s*('[^']*'|[0-9]+)\s*(\w*)$/i.test(
         docText
       )
     ) {
+      // Return the options
       return {
         from: word ? word.from : pos,
         options: [
@@ -302,9 +338,9 @@ export const suggestCaseClause = (
         validFor: /^THEN$/i,
       };
     }
-
-    // Suggest values after THEN
+    // If the case match test the doc text
     if (/\bCASE\s+.*?\bTHEN\s+(\w*)$/i.test(docText)) {
+      // Return the options
       return {
         from: word ? word.from : pos,
         options: [
@@ -320,9 +356,9 @@ export const suggestCaseClause = (
         validFor: /^['"\d]*$/,
       };
     }
-
-    // Suggest ELSE or END
+    // If the case match test the doc text
     if (/\bCASE\s+.*?\bTHEN\s*('[^']*'|[0-9]+)\s*(\w*)$/i.test(docText)) {
+      // Set the options to the options
       const options = [
         {
           label: "ELSE",
@@ -337,8 +373,10 @@ export const suggestCaseClause = (
           detail: "Complete CASE",
         },
       ];
-
+      // If the is in cte subquery and the 
+      // parenthesis count is greater than 0
       if (isInCteSubquery && parenCount > 0) {
+        // Push the ) option to the options
         options.push({
           label: ")",
           type: "keyword",
@@ -346,7 +384,7 @@ export const suggestCaseClause = (
           detail: "Close CTE subquery",
         });
       }
-
+      // Return the options
       return {
         from: word ? word.from : pos,
         options,
@@ -354,9 +392,9 @@ export const suggestCaseClause = (
         validFor: /^(ELSE|END|\))$/i,
       };
     }
-
-    // Suggest values after ELSE
+    // If the case match test the doc text
     if (/\bCASE\s+.*?\bELSE\s+(\w*)$/i.test(docText)) {
+      // Return the options
       return {
         from: word ? word.from : pos,
         options: [
@@ -372,9 +410,9 @@ export const suggestCaseClause = (
         validFor: /^['"\d]*$/,
       };
     }
-
-    // Suggest END or AS
+    // If the case match test the doc text
     if (/\bCASE\s+.*?\bELSE\s*('[^']*'|[0-9]+)\s*(\w*)$/i.test(docText)) {
+      // Set the options to the options
       const options = [
         {
           label: "END",
@@ -390,6 +428,8 @@ export const suggestCaseClause = (
         },
       ];
 
+      // If the is in cte subquery and the 
+      // parenthesis count is greater than 0
       if (isInCteSubquery && parenCount > 0) {
         options.push({
           label: ")",
@@ -398,7 +438,7 @@ export const suggestCaseClause = (
           detail: "Close CTE subquery",
         });
       }
-
+      // Return the options
       return {
         from: word ? word.from : pos,
         options,
@@ -407,8 +447,9 @@ export const suggestCaseClause = (
       };
     }
 
-    // Suggest FROM after AS ""
+    // If the case match test the doc text
     if (/\bCASE\s+.*?\bAS\s+""\s*$/i.test(docText)) {
+      // Set the options to the options
       const options = [
         {
           label: "FROM",
@@ -418,7 +459,8 @@ export const suggestCaseClause = (
           boost: 10,
         },
       ];
-
+      // If the is in cte subquery and the 
+      // parenthesis count is greater than 0
       if (isInCteSubquery && parenCount > 0) {
         options.push({
           label: ")",
@@ -428,7 +470,7 @@ export const suggestCaseClause = (
           boost: 5,
         });
       }
-
+      // Return the options
       return {
         from: word ? word.from : pos,
         options,

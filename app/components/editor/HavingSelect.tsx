@@ -1,182 +1,152 @@
-"use client";
+"use client"
 
+import { useEditorContext } from "@/app/context/EditorContext";
 import { JoinClause, SelectOption, HavingClause } from "@/app/types/query";
 import { SingleValue } from "react-select";
 import CreatableSelect from "react-select/creatable";
 import { stripQuotes } from "@/app/utils/sqlCompletion/stripQuotes";
 import { selectStyles } from "@/app/utils/selectStyles";
+import { Label } from "@/components/ui/label"
 
+// Props for the HavingSelect component
 interface HavingSelectProps {
-  selectedTable: SelectOption | null;
-  tableColumns: Record<string, string[]>;
-  havingClause: HavingClause;
-  uniqueValues: Record<string, SelectOption[]>;
-  onAggregateColumnSelect: (value: SingleValue<SelectOption>) => void;
-  onOperatorSelect: (value: SingleValue<SelectOption>) => void;
-  onValueSelect: (value: SingleValue<SelectOption>) => void;
   metadataLoading: boolean;
-  operatorOptions: SelectOption[];
-  logicalOperatorOptions: SelectOption[];
   joinClauses: JoinClause[];
   isMySQL?: boolean;
 }
 
 export default function HavingSelect({
-  selectedTable,
-  tableColumns,
-  havingClause,
-  uniqueValues,
-  onAggregateColumnSelect,
-  onOperatorSelect,
-  onValueSelect,
   metadataLoading,
-  operatorOptions,
-  logicalOperatorOptions,
   joinClauses,
   isMySQL = false,
 }: HavingSelectProps) {
+  // Get the selected table, table columns, having clause, unique values, operator options, logical operator options, handle aggregate column select, handle having operator select, and handle having value select from the editor context
+  const {
+    selectedTable,
+    tableColumns,
+    havingClause,
+    uniqueValues,
+    operatorOptions,
+    logicalOperatorOptions,
+    handleAggregateColumnSelect,
+    handleHavingOperatorSelect,
+    handleHavingValueSelect,
+  } = useEditorContext();
+
+
+  // Handle the aggregate column select
+  const handleAggregateColumnSelectWrapper = (value: SingleValue<SelectOption>, conditionIndex: number) => {
+    // If the value is not null
+    if (value) {
+      handleAggregateColumnSelect(value, conditionIndex);
+    }
+  };
+
+  // Handle the having operator select
+  const handleHavingOperatorSelectWrapper = (value: SingleValue<SelectOption>, conditionIndex: number) => {
+    // If the value is not null
+    if (value) {
+      handleHavingOperatorSelect(value, conditionIndex);
+    }
+  };
+
+  // Handle the having value select
+  const handleHavingValueSelectWrapper = (value: SingleValue<SelectOption>, conditionIndex: number) => {
+    // If the value is not null
+    if (value) {
+      handleHavingValueSelect(value, conditionIndex);
+    }
+  };
+
+  // Create the aggregate options
   const aggregateOptions: SelectOption[] = selectedTable
-    ? [
-        { value: "COUNT(*)", label: "COUNT(*)", aggregate: true },
-        ...(tableColumns[selectedTable.value]?.flatMap((col) => {
-          const aggregates: SelectOption[] = [
-            {
-              value: `COUNT(${col})`,
-              label: `COUNT(${col})`,
-              aggregate: true,
-              column: col,
-            },
-            {
-              value: `SUM(${col})`,
-              label: `SUM(${col})`,
-              aggregate: true,
-              column: col,
-            },
-            {
-              value: `AVG(${col})`,
-              label: `AVG(${col})`,
-              aggregate: true,
-              column: col,
-            },
-            {
-              value: `MAX(${col})`,
-              label: `MAX(${col})`,
-              aggregate: true,
-              column: col,
-            },
-            {
-              value: `MIN(${col})`,
-              label: `MIN(${col})`,
-              aggregate: true,
-              column: col,
-            },
-            {
-              value: `ROUND(AVG(${col}), 0)`,
-              label: `ROUND(AVG(${col}), 0)`,
-              aggregate: true,
-              column: col,
-            },
-            {
-              value: `ROUND(AVG(${col}), 1)`,
-              label: `ROUND(AVG(${col}), 1)`,
-              aggregate: true,
-              column: col,
-            },
-            {
-              value: `ROUND(AVG(${col}), 2)`,
-              label: `ROUND(AVG(${col}), 2)`,
-              aggregate: true,
-              column: col,
-            },
-            {
-              value: `ROUND(AVG(${col}), 3)`,
-              label: `ROUND(AVG(${col}), 3)`,
-              aggregate: true,
-              column: col,
-            },
-            {
-              value: `ROUND(AVG(${col}), 4)`,
-              label: `ROUND(AVG(${col}), 4)`,
-              aggregate: true,
-              column: col,
-            },
-            {
-              value: `ROUND(${col}, 0)`,
-              label: `ROUND(${col}, 0)`,
-              aggregate: false,
-              column: col,
-            },
-            {
-              value: `ROUND(${col}, 1)`,
-              label: `ROUND(${col}, 1)`,
-              aggregate: false,
-              column: col,
-            },
-            {
-              value: `ROUND(${col}, 2)`,
-              label: `ROUND(${col}, 2)`,
-              aggregate: false,
-              column: col,
-            },
-            {
-              value: `ROUND(${col}, 3)`,
-              label: `ROUND(${col}, 3)`,
-              aggregate: false,
-              column: col,
-            },
-            {
-              value: `ROUND(${col}, 4)`,
-              label: `ROUND(${col}, 4)`,
-              aggregate: false,
-              column: col,
-            },
-          ];
+    // If the selected table is not null
+    ? tableColumns[selectedTable.value]?.flatMap((col) => {
+        // Create the aggregates
+        const aggregates = [
+          // Sum aggregate
+          {
+            value: `SUM_${col}`,
+            label: `SUM(${col})`,
+            isAggregate: true,
+            targetColumn: col,
+          },
+          {
+            value: `AVG_${col}`,
+            label: `AVG(${col})`,
+            isAggregate: true,
+            targetColumn: col,
+          },
+          {
+            value: `MAX_${col}`,
+            label: `MAX(${col})`,
+            isAggregate: true,
+            targetColumn: col,
+          },
+          {
+            value: `MIN_${col}`,
+            label: `MIN(${col})`,
+            isAggregate: true,
+            targetColumn: col,
+          },
+          {
+            value: `COUNT_${col}`,
+            label: `COUNT(${col})`,
+            isAggregate: true,
+            targetColumn: col,
+          },
+          {
+            value: `COUNT_DISTINCT_${col}`,
+            label: `COUNT(DISTINCT ${col})`,
+            isAggregate: true,
+            targetColumn: col,
+          },
+        ];
 
-          if (isMySQL) {
-            aggregates.push(
-              {
-                value: `COUNT(DISTINCT ${col})`,
-                label: `COUNT(DISTINCT ${col})`,
-                aggregate: true,
-                column: col,
-              },
-              {
-                value: `SUM(DISTINCT ${col})`,
-                label: `SUM(DISTINCT ${col})`,
-                aggregate: true,
-                column: col,
-              },
-              {
-                value: `AVG(DISTINCT ${col})`,
-                label: `AVG(DISTINCT ${col})`,
-                aggregate: true,
-                column: col,
-              },
-              {
-                value: `MAX(DISTINCT ${col})`,
-                label: `MAX(DISTINCT ${col})`,
-                aggregate: true,
-                column: col,
-              },
-              {
-                value: `MIN(DISTINCT ${col})`,
-                label: `MIN(DISTINCT ${col})`,
-                aggregate: true,
-                column: col,
-              }
-            );
-          }
+        // If MySQL, add the distinct aggregates
+        if (isMySQL) {
+          // Add the distinct aggregates
+          aggregates.push(
+            {
+              value: `SUM_DISTINCT_${col}`,
+              label: `SUM(DISTINCT ${col})`,
+              isAggregate: true,
+              targetColumn: col,
+            },
+            {
+              value: `AVG_DISTINCT_${col}`,
+              label: `AVG(DISTINCT ${col})`,
+              isAggregate: true,
+              targetColumn: col,
+            },
+            {
+              value: `MAX_DISTINCT_${col}`,
+              label: `MAX(DISTINCT ${col})`,
+              isAggregate: true,
+              targetColumn: col,
+            },
+            {
+              value: `MIN_DISTINCT_${col}`,
+              label: `MIN(DISTINCT ${col})`,
+              isAggregate: true,
+              targetColumn: col,
+            }
+          );
+        }
 
-          return aggregates;
-        }) || []),
-      ]
+        // Return the aggregates
+        return aggregates;
+      }) || []
     : [];
 
+  // Create the value options
   const valueOptions =
-    selectedTable && havingClause.condition.aggregateColumn?.column
+    // If the selected table is not null and the aggregate column is not null
+    selectedTable && havingClause.condition.aggregateColumn
       ? uniqueValues[
+          // Create the unique values
           `${stripQuotes(selectedTable.value)}.${stripQuotes(
-            havingClause.condition.aggregateColumn.column
+            havingClause.condition.aggregateColumn.value
           )}`
         ] || []
       : [];
@@ -187,23 +157,22 @@ export default function HavingSelect({
         <div className="text-xs text-white text-opacity-80 font-semibold">
           Having
         </div>
-
         <div className="flex gap-2 items-center">
           <div className="flex flex-col gap-1 w-full">
-            <label
-              htmlFor="having-aggregate"
+            <Label
+              htmlFor="having-aggregate-column"
               className="text-xs text-[#f8f9fa]"
             >
-              Aggregate
-            </label>
+              Aggregate Column
+            </Label>
             <CreatableSelect
-              inputId="having-aggregate"
-              instanceId="having-aggregate"
-              aria-label="Select aggregate for having condition"
+              inputId="having-aggregate-column"
+              instanceId="having-aggregate-column"
+              aria-label="Select aggregate column for HAVING clause"
               options={aggregateOptions}
               value={havingClause.condition.aggregateColumn}
-              onChange={(value) => onAggregateColumnSelect(value)}
-              placeholder="Aggregate"
+              onChange={(value) => handleAggregateColumnSelectWrapper(value, 0)}
+              placeholder="Aggregate Column"
               isClearable
               isDisabled={!selectedTable || metadataLoading}
               styles={selectStyles}
@@ -211,16 +180,19 @@ export default function HavingSelect({
             />
           </div>
           <div className="flex flex-col gap-1 w-full">
-            <label htmlFor="having-operator" className="text-xs text-[#f8f9fa]">
+            <Label
+              htmlFor="having-operator"
+              className="text-xs text-[#f8f9fa]"
+            >
               Operator
-            </label>
+            </Label>
             <CreatableSelect
               inputId="having-operator"
               instanceId="having-operator"
-              aria-label="Select operator for having condition"
+              aria-label="Select operator for HAVING clause"
               options={operatorOptions}
               value={havingClause.condition.operator}
-              onChange={(value) => onOperatorSelect(value)}
+              onChange={(value) => handleHavingOperatorSelectWrapper(value, 0)}
               placeholder="Operator"
               isClearable
               isDisabled={
@@ -231,22 +203,28 @@ export default function HavingSelect({
             />
           </div>
           <div className="flex flex-col gap-1 w-full">
-            <label htmlFor="having-value" className="text-xs text-[#f8f9fa]">
+            <Label
+              htmlFor="having-value"
+              className="text-xs text-[#f8f9fa]"
+            >
               Value
-            </label>
+            </Label>
             <CreatableSelect
               inputId="having-value"
               instanceId="having-value"
-              aria-label="Select value for having condition"
+              aria-label="Select value for HAVING clause"
               options={valueOptions}
               value={havingClause.condition.value}
-              onChange={(value) => onValueSelect(value)}
+              onChange={(value) => handleHavingValueSelectWrapper(value, 0)}
               placeholder="Value"
               isClearable
               isDisabled={
                 !selectedTable ||
                 !havingClause.condition.aggregateColumn ||
                 !havingClause.condition.operator ||
+                ["IS NULL", "IS NOT NULL"].includes(
+                  havingClause.condition.operator?.value || ""
+                ) ||
                 metadataLoading
               }
               styles={selectStyles}

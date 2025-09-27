@@ -37,42 +37,40 @@ export const suggestWithClause = (
   ) => void,
   onLogicalOperatorSelect?: (value: SingleValue<SelectOption>) => void
 ): CompletionResult | null => {
-  // PSEUDOCODE:
-  // 1. Define type guards for Select node and TableExpr
-  // 2. Check if cursor is after WITH (suggest CTE alias and AS)
-  // 3. If after AS (, suggest SELECT for subquery
-  // 4. If inside CTE subquery (WITH ... AS ( SELECT ...)):
-  //    a. Extract subquery text and count parentheses
-  //    b. Check if subquery is valid for closure (e.g., after SELECT ... FROM table, JOIN, CROSS JOIN, WHERE, GROUP BY, HAVING, ORDER BY, or UNION)
-  //    c. Delegate to suggestColumnsAfterSelect, suggestTablesAfterFrom, suggestGroupByClause, suggestJoinClause, suggestWhereClause, or suggestUnionClause
-  //    d. If subquery is valid and parentheses are unbalanced, merge ) with delegated suggestions
-  //    e. If no delegated suggestions, suggest ) and other valid clauses (JOIN, WHERE, etc.) when subquery is valid
-  // 5. If after CTE is closed (WITH ... AS (...)), suggest SELECT for main query or delegate to column/table suggestions
-  // 6. Extract CTE columns for main query suggestions if applicable
-  // 7. Return null if no suggestions apply
-
-  // Type guard for Select node
+  
+  // Set the is select node to the is select node
   const isSelectNode = (node: unknown): node is Select =>
+    // If the node is undefined, return false
     !!node &&
+    // If the node is not an object, return false
     typeof node === "object" &&
+    // If the node does not have a type, return false
     "type" in node &&
     (node as { type: unknown }).type === "select";
 
-  // Type guard for TableExpr with table property
+  // Set the is table expr with table to the is table expr with table
   const isTableExprWithTable = (
     expr: unknown
   ): expr is TableExpr & { table: string } =>
+    // If the expr is undefined, return false
     !!expr &&
+    // If the expr is not an object, return false
     typeof expr === "object" &&
+    // If the expr does not have a type, return false
     "type" in expr &&
+    // If the expr does not have a type of table, return false
     (expr as { type: unknown }).type === "table" &&
+    // If the expr does not have a table, return false
     "table" in expr &&
     typeof (expr as { table: unknown }).table === "string";
 
-  // === Case 1: Suggest CTE structure (alias and AS) after WITH ===
+  // Set the is in with clause to the is in with clause
   const isInWithClause = /\bWITH\s+[\w"]*\s*$/i.test(docText.slice(0, pos));
+  // If the is in with clause is true
   if (isInWithClause) {
+    // Set the is typing alias to the is typing alias
     const isTypingAlias = /^[a-zA-Z_][a-zA-Z0-9_]*$/i.test(currentWord);
+    // Return the options
     return {
       from: word ? word.from : pos,
       options: [
@@ -88,11 +86,13 @@ export const suggestWithClause = (
     };
   }
 
-  // === Case 2: After AS (, suggest SELECT for the subquery ===
+  // Set the is after as paren to the is after as paren
   const isAfterAsParen = /\bWITH\s+[\w"]*\s+AS\s*\(\s*$/i.test(
     docText.slice(0, pos)
   );
+  // If the is after as paren is true
   if (isAfterAsParen) {
+    // Return the options
     return {
       from: word ? word.from : pos,
       options: [
@@ -108,27 +108,31 @@ export const suggestWithClause = (
     };
   }
 
-  // === Case 3: Inside CTE subquery (WITH ... AS ( SELECT ...)) ===
+  // Set the is in cte subquery to the is in cte subquery
   const isInCteSubquery = /\bWITH\s+[\w"]*\s+AS\s*\(\s*SELECT\b.*$/i.test(
     docText.slice(0, pos)
   );
+  // If the is in cte subquery is true
   if (isInCteSubquery) {
-    // Extract the subquery text
+    // Set the subquery text to the subquery text
     const subqueryText =
       docText.match(/\bWITH\s+[\w"]*\s+AS\s*\(\s*(SELECT\b.*)$/i)?.[1] || "";
-    // Count parentheses within the entire query
+   
+    // Set the open parens to the open parens
     const openParens = (docText.match(/\(/g) || []).length;
+    // Set the close parens to the close parens
     const closeParens = (docText.match(/\)/g) || []).length;
 
-    // Check if subquery is in a valid state to suggest closing parenthesis
-    // Ensure SELECT has at least a FROM clause to be considered valid
+    // Set the is valid subquery for closure 
+    // to the is valid subquery for closure
     const isValidSubqueryForClosure =
       /\bSELECT\s+(.+?)\s+FROM\s+([a-zA-Z_][a-zA-Z0-9_"]*)\s*(?:$|\b(INNER|LEFT|RIGHT|CROSS)\s+JOIN\s+[\w.]+\s*(?:ON\s+[\w.]+\.[\w.]+\s*=\s*[\w.]+\.[\w.]+)?\s*$|\bWHERE\s+.*$|\bGROUP\s+BY\s+.*$|\bHAVING\s+.*$|\bORDER\s+BY\s+.*$|\bUNION\s*(ALL\s*)?$)/i.test(
         subqueryText
       );
 
+    // If the open parens is greater than the close parens
     if (openParens > closeParens) {
-      // Inside the subquery, reuse existing suggestion functions
+      // Set the delegated suggestions to the delegated suggestions
       const delegatedSuggestions =
         suggestColumnsAfterSelect(
           subqueryText,
@@ -190,12 +194,15 @@ export const suggestWithClause = (
         ) ||
         suggestUnionClause(subqueryText, currentWord, pos, word, ast);
 
-      // Merge ) with delegated suggestions if subquery is valid
+      // If the delegated suggestions is true and 
+      // the is valid subquery for closure is true
       if (delegatedSuggestions && isValidSubqueryForClosure) {
+        // Set the new valid for to the new valid for
         const newValidFor =
           delegatedSuggestions.validFor instanceof RegExp
             ? new RegExp(`${delegatedSuggestions.validFor.source}|\\)$`, "i")
             : /^[a-zA-Z0-9_"]+$|^\)$/i;
+        // Return the options
         return {
           ...delegatedSuggestions,
           options: [
@@ -211,9 +218,9 @@ export const suggestWithClause = (
           validFor: newValidFor,
         };
       }
-
-      // If no delegated suggestions and subquery is valid, suggest ) and other valid clauses
+      // If the is valid subquery for closure is true
       if (isValidSubqueryForClosure) {
+        // Return the options
         return {
           from: word ? word.from : pos,
           options: [
@@ -260,45 +267,71 @@ export const suggestWithClause = (
         };
       }
 
-      // If no valid subquery closure state, return delegated suggestions without )
+      // Return the delegated suggestions
       return delegatedSuggestions || null;
     }
   }
 
-  // === Case 4: After CTE is closed, suggest main query components ===
+  // Set the is after cte closed to the is after cte closed
   const isAfterCteClosed =
     /\bWITH\s+[\w"]*\s+AS\s*\(\s*SELECT\b.*?\)\s*$/i.test(
       docText.slice(0, pos)
     );
+  // If the is after cte closed is true
   if (isAfterCteClosed) {
-    // Extract CTE alias
+    // Set the cte alias match to the cte alias match
     const cteAliasMatch = docText.match(/\bWITH\s+([\w"]+)\s+AS\s*\(/i);
+    // Set the cte alias to the cte alias
     const cteAlias = cteAliasMatch
       ? stripQuotes(cteAliasMatch[1])
       : "previous_query";
-
-    // Get columns from the CTE's SELECT statement
+    // Set the cte columns to the cte columns
     let cteColumns: string[] = [];
+    // If the ast is true
     if (ast) {
+      // Set the select node to the select node
       const selectNode = Array.isArray(ast)
+        // If the ast is an array, 
+        // set the select node to the first item
         ? ast.find(isSelectNode)
+        // If the ast is not an array, 
+        // set the select node to the select node 
         : isSelectNode(ast)
+        // If the ast is not a select node, 
         ? ast
+        // set the select node to null
         : null;
+      // If the select node has a with clause
       if (selectNode && selectNode.with) {
+        // Set the with clauses to the with clauses
         const withClauses = Array.isArray(selectNode.with)
-          ? selectNode.with
+        // If the with clauses is an array, 
+        // set the with clauses to the with clauses
+        ? selectNode.with
+        // If the with clauses is not an array, 
+        // set the with clauses to the with clauses
           : [selectNode.with];
+        // Set the cte to the cte
         const cte = withClauses.find(
           (w) => w.name && stripQuotes(w.name.value) === cteAlias
         );
+        // If the cte is true and the cte statement is true
         if (cte && cte.stmt) {
+          // Set the cte statement to the cte statement
+          // If the cte statement is an array, 
+          // set the cte statement to the first item
           const cteStmt = Array.isArray(cte.stmt)
-            ? cte.stmt.find(isSelectNode)
-            : isSelectNode(cte.stmt)
-            ? cte.stmt
+          ? cte.stmt.find(isSelectNode)
+          : isSelectNode(cte.stmt)
+          // If the cte statement is not an array, 
+          // set the cte statement to the cte statement
+          ? cte.stmt
+          // If the cte statement is not a select node, 
+          // set the cte statement to null
             : null;
+          // If the cte statement has columns
           if (cteStmt && cteStmt.columns) {
+            // Set the cte columns to the cte columns
             cteColumns = cteStmt.columns
               .map((col) => {
                 if (col.as) {
@@ -306,12 +339,20 @@ export const suggestWithClause = (
                 } else if (col.expr?.type === "column_ref") {
                   return stripQuotes(col.expr.column);
                 } else if (col.expr?.type === "star") {
-                  // Handle SELECT * by including all columns from the FROM clause
+                  // If the cte statement has a from
                   if (cteStmt.from) {
+                    // Set the from array to the from array
                     let fromArray: From[] = [];
+                    // If the cte statement has a from 
+                    // and the from is an array
                     if (Array.isArray(cteStmt.from)) {
+                      // Set the from array to the from array
                       fromArray = cteStmt.from;
                     } else if (isTableExprWithTable(cteStmt.from)) {
+                      // Set the from array to the from array
+                      fromArray = [cteStmt.from];
+                    } else if (isTableExprWithTable(cteStmt.from)) {
+                      // Set the from array to the from array
                       fromArray = [
                         {
                           table: cteStmt.from.table,
@@ -319,30 +360,37 @@ export const suggestWithClause = (
                         } as From,
                       ];
                     }
+                    // If the from array length is greater than 0 
+                    // and the from array has a table expr with table
                     if (
                       fromArray.length > 0 &&
                       isTableExprWithTable(fromArray[0])
                     ) {
+                      // Set the table name to the table name
                       const tableName = stripQuotes(fromArray[0].table);
+                      // Return the table columns
                       return tableColumns[tableName] || [];
                     }
                   }
                 }
+                // Return null
                 return null;
               })
+              // Flatten the columns
               .flat()
+              // Filter the columns
               .filter((col): col is string => !!col);
           }
         }
       }
     }
 
-    // Use the substring after the CTE for main query suggestions
+    // Set the main query text to the main query text
     const mainQueryText =
       docText.match(
         /\bWITH\s+[\w"]*\s+AS\s*\(\s*SELECT\b.*?\)\s*(.*)$/i
       )?.[1] || "";
-    // Ensure CTE alias and all table names are available
+    // Set the valid tables to the valid tables
     const validTables = [cteAlias, ...tableNames];
     return (
       suggestColumnsAfterSelect(
@@ -405,5 +453,6 @@ export const suggestWithClause = (
     );
   }
 
+  // Return null
   return null;
 };

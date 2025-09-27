@@ -39,7 +39,11 @@ export default function TableView({
   onExportToJson,
   onExportToMarkdown,
 }: TableViewProps) {
+  // Create the total rows by the result rows length
+  // by getting the length of the result rows
   const totalRows = result.rows.length;
+  // Create the paginated rows by the result rows and the current page and the page size
+  // by getting the paginated rows from the result rows
   const paginatedRows = getPaginatedRows(result.rows, currentPage, pageSize);
 
   return (

@@ -1,3 +1,4 @@
+import { Button } from "@/components/ui/button";
 import {
   Table,
   Braces,
@@ -10,11 +11,13 @@ import {
 } from "lucide-react";
 import { ViewMode } from "../../types/query";
 
+// Props for the ViewToggle component
 interface ViewToggleProps {
   viewMode: ViewMode;
   onViewModeChange: (mode: ViewMode) => void;
 }
 
+// Create the view modes
 const viewModes: {
   mode: ViewMode;
   label: string;
@@ -38,7 +41,7 @@ export default function ViewToggle({
     <ul className="flex flex-wrap text-sm font-medium text-center text-gray-400 rounded-lg shadow-sm border border-slate-700 overflow-hidden mb-4 bg-[#1e293b]">
       {viewModes.map(({ mode, label, icon: Icon }) => (
         <li key={mode} className="w-1/2 sm:w-1/5">
-          <button
+          <Button
             onClick={() => onViewModeChange(mode)}
             type="button"
             className={`w-full h-12 px-2 flex items-center justify-center space-x-2 transition-colors duration-200 ${
@@ -49,7 +52,7 @@ export default function ViewToggle({
           >
             <Icon className="w-4 h-4 shrink-0" />
             <span className="truncate">{label}</span>
-          </button>
+          </Button>
         </li>
       ))}
     </ul>
