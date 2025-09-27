@@ -15,11 +15,12 @@ import ResultsPaneRefactored from "./ResultsPane";
 import { Braces, LucideHistory, LucidePlay } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { MultiValue, SingleValue } from "react-select";
-import { Column, SelectOption } from "../../types/query";
+import { SelectOption, TableSchema } from "../../types/query";
+
 
 // Props for the EditorClient component
 interface EditorClientProps {
-  schema: Column[];  
+  schema: TableSchema[];  
   error: string | null;
   isMySQL?: boolean;
 }
