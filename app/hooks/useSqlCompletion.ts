@@ -64,39 +64,58 @@ export const useSqlCompletion = (
     isValue2: boolean
   ) => void
 ) => {
+  // Get all columns from the table names and table columns
   const allColumns = getAllColumns(tableNames, tableColumns);
 
+  // Check if the node is a select node
   const isSelectNode = (node: unknown): node is Select =>
-    !!node &&
-    typeof node === "object" &&
+    // - The node is an object
+  !!node &&
+  typeof node === "object" &&
+  // - The node has a type property
     "type" in node &&
+    // - The type property is "select"
     (node as { type: unknown }).type === "select";
 
+  // Create the sql completion
   const sqlCompletion = useCallback(
     (context: CompletionContext): CompletionResult | null => {
+      // Get the word from the context
       const word = context.matchBefore(/["'\w.*]+/);
+      // Get the current word from the word
       const currentWord = word?.text || "";
+      // Get the position from the context
       const pos = context.pos;
+      // Get the document text from the context
       const docText = context.state.sliceDoc(0, context.pos);
-
+      // Create the parser
       const parser = new Parser();
+      // Create the ast
       let ast: Select | Select[] | null;
       try {
         // Try to detect database dialect from environment or default to postgresql
         const dialect = (typeof window !== 'undefined' && (window as { DB_DIALECT?: string }).DB_DIALECT) || "postgresql";
+        // Parse the ast
         const parsedAst = parser.astify(docText, { database: dialect });
+        // Check if the parsed ast is an array
         if (Array.isArray(parsedAst)) {
+          // Get the select nodes from the parsed ast
           const selectNodes = parsedAst.filter(isSelectNode);
+          // Set the ast to the select nodes
           ast = selectNodes.length > 0 ? selectNodes : null;
         } else {
+          // Set the ast to the parsed ast
           ast = isSelectNode(parsedAst) ? parsedAst : null;
         }
       } catch {
+        // Set the ast to null
         ast = null;
       }
 
       return (
+        // Suggest the select clause
         suggestSelect(docText, currentWord, pos, word, ast) ||
+        // Suggest the with clause
         suggestWithClause(
           docText,
           currentWord,
@@ -113,6 +132,7 @@ export const useSqlCompletion = (
           onValueSelect,
           onLogicalOperatorSelect
         ) ||
+        // Suggest the columns after select
         suggestColumnsAfterSelect(
           docText,
           currentWord,
@@ -125,6 +145,7 @@ export const useSqlCompletion = (
           onColumnSelect,
           onDistinctSelect
         ) ||
+        // Suggest the case clause
         suggestCaseClause(
           docText,
           currentWord,
@@ -135,7 +156,9 @@ export const useSqlCompletion = (
           needsQuotes,
           ast
         ) ||
+        // Suggest the as or from keyword
         suggestAsOrFromKeyword(docText, pos, word, ast) ||
+        // Suggest the tables after from
         suggestTablesAfterFrom(
           docText,
           currentWord,
@@ -149,6 +172,7 @@ export const useSqlCompletion = (
           ast,
           onTableSelect
         ) ||
+        // Suggest the join clause
         suggestJoinClause(
           docText,
           currentWord,
@@ -160,6 +184,7 @@ export const useSqlCompletion = (
           needsQuotes,
           ast
         ) ||
+        // Suggest the where clause
         suggestWhereClause(
           docText,
           currentWord,
@@ -175,6 +200,7 @@ export const useSqlCompletion = (
           onValueSelect,
           onLogicalOperatorSelect
         ) ||
+        // Suggest the order by clause
         suggestOrderByClause(
           docText,
           currentWord,
@@ -186,6 +212,7 @@ export const useSqlCompletion = (
           ast,
           onOrderBySelect
         ) ||
+        // Suggest the group by clause
         suggestGroupByClause(
           docText,
           currentWord,
@@ -197,6 +224,7 @@ export const useSqlCompletion = (
           ast,
           onGroupByColumnSelect
         ) ||
+        // Suggest the having clause
         suggestHavingClause(
           docText,
           currentWord,

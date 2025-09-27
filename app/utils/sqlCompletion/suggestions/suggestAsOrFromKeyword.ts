@@ -1,30 +1,27 @@
 import { CompletionResult } from "@codemirror/autocomplete";
 import { Select } from "node-sql-parser";
 
+// Function to suggest the as or from keyword
 export const suggestAsOrFromKeyword = (
   docText: string,
   pos: number,
   word: { from: number; to: number; text: string } | null,
   ast: unknown | null
 ): CompletionResult | null => {
-  // PSEUDOCODE:
-  // 1. Check if input is a valid SELECT node
-  // 2. If query ends with "SELECT *" or "SELECT DISTINCT *", suggest "FROM"
-  // 3. If after a complete CASE statement without alias, suggest "AS" or "FROM"
-  // 4. If after AS "", a partial alias, or complete alias in SELECT, suggest "FROM"
-  // 5. If inside a SELECT clause with columns but no FROM, suggest "AS" (if no alias) and "FROM"
-  // 6. Return null if no suggestions apply
-
   // Type guard for Select node
   const isSelectNode = (node: unknown): node is Select =>
+    // If the node is undefined, return false
     !!node &&
+    // If the node is not an object, return false
     typeof node === "object" &&
+    // If the node does not have a type, return false
     "type" in node &&
     (node as { type: unknown }).type === "select";
 
-  // Suggest "FROM" if the query ends with "SELECT *" or "SELECT DISTINCT *"
+  // Check if the query ends with "SELECT *" or "SELECT DISTINCT *" 
   const selectStarRegex = /\bSELECT\s+(DISTINCT\s+)?\*\s*$/i;
   if (selectStarRegex.test(docText)) {
+    // Return the options
     return {
       from: word ? word.from : pos,
       options: [
@@ -39,9 +36,11 @@ export const suggestAsOrFromKeyword = (
     };
   }
 
-  // Suggest "AS" or "FROM" after a complete CASE statement without an alias
+  // Check if the query ends with "CASE" and "END"
   const afterCaseEndRegex = /\bCASE\s+.*?\bEND\s*$/i;
+  // If the query ends with "CASE" and "END"
   if (afterCaseEndRegex.test(docText)) {
+    // Return the options
     return {
       from: word ? word.from : pos,
       options: [
@@ -62,10 +61,11 @@ export const suggestAsOrFromKeyword = (
     };
   }
 
-  // Suggest "FROM" after AS "", a partial alias, or a complete alias in a SELECT clause
+  // Check if the query ends with "AS" or "alias"
   const afterAsOrAliasRegex =
     /\bSELECT\s+(DISTINCT\s+)?(?:[^;]+,)?(?:[^;]*?\bCASE\s+.*?\bEND|[^,;\s]+)\s+AS\s+(""|"[^"]*"?)\s*$/i;
   if (afterAsOrAliasRegex.test(docText)) {
+    // Return the options
     return {
       from: pos,
       options: [
@@ -80,7 +80,7 @@ export const suggestAsOrFromKeyword = (
     };
   }
 
-  // If we’re inside a SELECT clause that has columns but no FROM clause yet
+  // Check if the ast is a select node, has columns, and has no from
   if (
     ast &&
     isSelectNode(ast) &&
@@ -88,11 +88,13 @@ export const suggestAsOrFromKeyword = (
     ast.columns.length > 0 &&
     !ast.from
   ) {
+    // Set the select ast to the ast
     const selectAst = ast as Select;
+    // Set the last column to the last column of the select ast
     const lastColumn = selectAst.columns[selectAst.columns.length - 1];
-
-    // If last column is a "*", suggest "FROM" only
+    // Check if the last column is a star
     if (lastColumn.expr?.type === "star") {
+      // Return the options
       return {
         from: word ? word.from : pos,
         options: [
@@ -107,7 +109,7 @@ export const suggestAsOrFromKeyword = (
       };
     }
 
-    // Otherwise, build a suggestion list for "AS" and "FROM"
+    // Create the options array
     const options: {
       label: string;
       type: string;
@@ -117,36 +119,41 @@ export const suggestAsOrFromKeyword = (
       info?: () => HTMLElement;
     }[] = [];
 
-    // Suggest "AS" only if the last column doesn’t already have an alias
+    // Check if the last column does not have an alias
     if (!lastColumn.as) {
+      // Push the as option to the options array
       options.push({
         label: "AS",
         type: "keyword",
         apply: 'AS ""',
         detail: "Alias column",
         boost: 1,
+        // Create the info function
         info: () => {
+          // Create the node
           const node = document.createElement("div");
+          // Set the text content to
+          // "Enter alias name inside double quotes"
           node.textContent = "Enter alias name inside double quotes";
+          // Return the node
           return node;
         },
       });
     }
-
-    // Always suggest "FROM" as the next clause
+    // Push the from option to the options array
     options.push({
       label: "FROM",
       type: "keyword",
       apply: "FROM ",
       detail: "Specify table",
     });
-
+    // Return the options
     return {
       from: word ? word.from : pos,
       options,
       validFor: /^(AS|FROM)$/i,
     };
   }
-
+  // Return null
   return null;
 };

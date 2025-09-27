@@ -45,10 +45,12 @@ export default function JoinSelector({
   onRemoveJoinClause,
   metadataLoading,
 }: JoinSelectProps) {
+  // Set the table options to the table options
   const tableOptions: SelectOption[] = tableNames
     .filter((table) => table !== selectedTable?.value)
     .map((table) => ({ value: table, label: table }));
 
+  // Set the join type options to the join type options
   const joinTypeOptions: SelectOption[] = [
     { value: "INNER JOIN", label: "INNER JOIN" },
     { value: "LEFT JOIN", label: "LEFT JOIN" },
@@ -56,11 +58,13 @@ export default function JoinSelector({
     { value: "CROSS JOIN", label: "CROSS JOIN" },
   ];
 
+  // Set the column options to the column options
   const getColumnOptions = (table: string | null): SelectOption[] =>
     table && tableColumns[table]
       ? tableColumns[table].map((col) => ({ value: col, label: col }))
       : [];
 
+  // Set the handle add join to the handle add join
   const handleAddJoin = useCallback(() => {
     onAddJoinClause();
   }, [onAddJoinClause]);

@@ -3,12 +3,14 @@ import { Select, ColumnRefExpr } from "node-sql-parser";
 import { SelectOption, TableColumn } from "@/app/types/query";
 import { EditorView } from "codemirror";
 
+// Set the column ref expr fixed to the column ref expr fixed
 interface ColumnRefExprFixed extends Omit<ColumnRefExpr, "type"> {
   type: "column_ref";
   column: string;
   table?: string;
 }
 
+// Set the aggr func expr to the aggr func expr
 interface AggrFuncExpr {
   type: "aggr_func";
   name: string;
@@ -21,6 +23,7 @@ interface AggrFuncExpr {
     | { expr: ColumnRefExprFixed; decimals: number };
 }
 
+// Set the case when to the case when
 interface CaseWhen {
   cond?: {
     type: string;
@@ -46,160 +49,223 @@ export const suggestTablesAfterFrom = (
   ast: Select | Select[] | null,
   onTableSelect?: (value: SelectOption | null) => void
 ): CompletionResult | null => {
-  // Type guard for Select node
+
+  // Set the is select node to the is select node
   const isSelectNode = (node: unknown): node is Select =>
+    // If the node is undefined, return false
     !!node &&
+    // If the node is not an object, return false
     typeof node === "object" &&
+    // If the node does not have a type, return false
     "type" in node &&
     (node as { type: unknown }).type === "select";
 
-  // Type guard for column reference expression
+  // Set the is column ref expr to the is column ref expr
   const isColumnRefExpr = (expr: unknown): expr is ColumnRefExprFixed =>
+    // If the expr is undefined, return false
     !!expr &&
+    // If the expr is not an object, return false
     typeof expr === "object" &&
+    // If the expr does not have a type, return false
     "type" in expr &&
+    // If the expr does not have a column, return false
     (expr as { type: unknown }).type === "column_ref" &&
     "column" in (expr as Record<string, unknown>);
 
-  // Type guard for aggregate function expression
+
+  // Set the is aggr func expr to the is aggr func expr
   const isAggrFuncExpr = (expr: unknown): expr is AggrFuncExpr =>
+    // If the expr is undefined, return false
     !!expr &&
+    // If the expr is not an object, return false
     typeof expr === "object" &&
+    // If the expr does not have a type, return false
     "type" in expr &&
     (expr as { type: unknown }).type === "aggr_func" &&
     "name" in expr &&
+    // If the expr does not have a name, return false
     ["COUNT", "SUM", "MAX", "MIN", "AVG", "ROUND"].includes(
       (expr as { name: string }).name.toUpperCase()
     );
 
-  // Type guard for DISTINCT expression within aggregate
+
+  // Set the is distinct expr to the is distinct expr
   const isDistinctExpr = (
+    // If the expr is undefined, return false
     expr: unknown
   ): expr is { type: "distinct"; expr: ColumnRefExprFixed } =>
+    // If the expr is undefined, return false
     !!expr &&
+    // If the expr is not an object, return false
     typeof expr === "object" &&
+    // If the expr does not have a type, return false
     "type" in expr &&
     (expr as { type: unknown }).type === "distinct" &&
+    // If the expr does not have a expr, return false
     "expr" in expr &&
     isColumnRefExpr((expr as { expr: unknown }).expr);
 
-  // Extract selected columns from AST or SELECT clause text
+
+  // Set the get selected columns to the get selected columns
   const getSelectedColumns = (
     selectText: string,
     ast: Select | null
   ): string[] => {
+    // If the ast is true and the ast has columns
     if (ast && ast.columns) {
+      // Return the ast columns
       return ast.columns
         .map((col) => {
+          // If the col has a expr and the col expr is a column ref expr
           if (col.expr && isColumnRefExpr(col.expr)) {
             return stripQuotes(col.expr.column);
           } else if (col.expr && col.expr.type === "case") {
+            // Return the case when list
             return (
               (col.expr.when_list as CaseWhen[])
                 ?.map((when) =>
+                  // If the when has a cond and the when cond 
+                  // is a binary expr
+                  // and the when cond left is a column ref expr
                   when.cond?.type === "binary_expr" &&
                   isColumnRefExpr(when.cond.left)
                     ? stripQuotes(when.cond.left.column)
                     : null
                 )
+                // Filter the case when list by the col
                 .filter((col): col is string => !!col) || []
             );
           } else if (col.expr && isAggrFuncExpr(col.expr)) {
+            // Set the args to the args
             const args = col.expr.args;
+            // If the args expr is a column ref expr
             if (isColumnRefExpr(args.expr)) {
+              // Return the strip quotes column
               return stripQuotes(args.expr.column);
             } else if (isDistinctExpr(args.expr)) {
+              // Return the strip quotes column
               return stripQuotes(args.expr.expr.column);
             }
           }
+          // Return null
           return null;
         })
+        // Flat the select text
         .flat()
+        // Filter the select text by the col
         .filter((col): col is string => !!col);
     }
-    // Fallback: parse raw SELECT text
+
+    // Return the select text
     return selectText
+      // Split the select text by the comma
       .split(",")
       .map((col) => {
-        // Match regular columns or aggregates like COUNT(DISTINCT column)
+        // Set the aggr match to the aggr match
         const aggrMatch = col.match(
           /(?:COUNT|SUM|MAX|MIN|AVG|ROUND)\(\s*(?:DISTINCT\s+)?(?:("[^"]+"|'[^']+'|[a-zA-Z_][a-zA-Z0-9_]*))\s*(?:,\s*\d+)?\)/i
         );
+        // If the aggr match is true
         if (aggrMatch) {
+          // Return the strip quotes column
           return stripQuotes(aggrMatch[1]);
         }
+        // Return the strip quotes column
         return stripQuotes(col.trim());
       })
       .filter((col) => col && col !== "*" && !col.match(/\bCASE\b/i));
   };
 
-  // Regex patterns for context detection
+  // Set the after from regex to the after from regex
   const afterFromRegex =
     /\bSELECT\s+(DISTINCT\s+)?(.+?)(?:\s+AS\s+"[^"]*")?\s+FROM\s*$/i;
+  // Set the after table regex to the after table regex
   const afterTableRegex =
     /\bSELECT\s+(DISTINCT\s+)?(.+?)\s+FROM\s+([a-zA-Z_][a-zA-Z0-9_"]*)\s*$/i;
+  // Set the after case end or alias regex to the after case end or alias regex
   const afterCaseEndOrAliasRegex =
     /\bCASE\s+.*?\bEND(\s+AS\s+"[^"]*")?\s+FROM\s*$/i;
-  // Updated regex to handle aggregates with DISTINCT
+  // Set the select from regex to the select from regex
   const selectFromRegex =
     /\bSELECT\s*(DISTINCT\s*)?([\w\s()*,"']*?)\s+FROM\s*$/i;
-  // Check if inside a CTE subquery
+  // Set the is in cte subquery to the is in cte subquery
   const isInCteSubquery = /\bWITH\s+[\w"]*\s+AS\s*\(\s*SELECT\b.*$/i.test(
     docText
   );
-  // Count parentheses to ensure ) is only suggested with unbalanced parens
+  // Set the paren count to the paren count
   const parenCount = isInCteSubquery
     ? (docText.match(/\(/g) || []).length - (docText.match(/\)/g) || []).length
     : 0;
 
-  // Handle suggestions after SELECT ... FROM
+
+  // If the select from regex is true
   if (selectFromRegex.test(docText)) {
+    // Set the match to the match
     const match = docText.match(selectFromRegex);
+    // Set the selected columns to the selected columns
     let selectedColumns: string[] = [];
+    // Set the select node to the select node
     const selectNode = Array.isArray(ast)
       ? ast.find(isSelectNode) ?? null
       : ast;
-
+    // If the match is true
     if (match) {
       selectedColumns = getSelectedColumns(match[2], selectNode);
     }
-
-    // Get valid tables based on selected columns, ensuring CTE alias is included in main query
+    // Set the is after cte closed to the is after cte closed
     const isAfterCteClosed =
       /\bWITH\s+[\w"]*\s+AS\s*\(\s*SELECT\b.*?\)\s*SELECT\s*(DISTINCT\s*)?(.*?)\s+FROM\s*$/i.test(
         docText
       );
+    // Set the valid tables to the valid tables 
     let validTables: string[] = [];
+    // If the is after cte closed is true
     if (isAfterCteClosed) {
+      // Set the cte alias match to the cte alias match
       const cteAliasMatch = docText.match(/\bWITH\s+([\w"]+)\s+AS\s*\(/i);
+      // Set the cte alias to the cte alias
       const cteAlias = cteAliasMatch
+        // If the cte alias match is true
+        // Strip the quotes from the cte alias
         ? stripQuotes(cteAliasMatch[1])
         : "previous_query";
+      // Set the valid tables to the valid tables
       validTables = [cteAlias, ...getValidTables(null, tableColumns)];
+      // If the selected columns length is greater than 0
     } else {
+      // Set the valid tables to the valid tables
       validTables = selectedColumns.length
+        // If the selected columns length is greater than 0
         ? getValidTables(selectedColumns[0], tableColumns)
+        // Set the valid tables to the valid tables
         : getValidTables(null, tableColumns);
     }
 
-    // Filter tables based on current word
+    // Set the filtered tables to the filtered tables
     const filteredTables = validTables.filter((table) =>
-      currentWord
-        ? stripQuotes(table)
-            .toLowerCase()
+      // If the current word is true
+    currentWord
+    // Strip the quotes from the table
+      ? stripQuotes(table)
+      // Lowercase the table
+      .toLowerCase()
+      // Start with the strip quotes current word
             .startsWith(stripQuotes(currentWord).toLowerCase())
         : true
     );
 
-    // Always suggest actual tables if available
+    // If the filtered tables length is greater than 0
     if (filteredTables.length > 0) {
+      // Return the options
       return {
         from: word ? word.from : pos,
         options: filteredTables.map((table) => ({
           label: table,
           type: "table",
           apply: (view: EditorView) => {
+            // Set the table name to the table name
             const tableName = needsQuotes(table) ? `"${table}"` : table;
+            // Dispatch the changes
             view.dispatch({
               changes: {
                 from: word ? word.from : pos,
@@ -207,7 +273,10 @@ export const suggestTablesAfterFrom = (
                 insert: `${tableName} `,
               },
             });
+            // If the on table select is not null
+            // On table select the table
             if (onTableSelect) {
+              // On table select the table
               onTableSelect({ value: table, label: table });
             }
           },
@@ -219,14 +288,21 @@ export const suggestTablesAfterFrom = (
     }
   }
 
-  // Handle suggestions after a valid table in FROM clause
+  // If the after table regex is true
   if (afterTableRegex.test(docText)) {
+    // Set the table name to the table name
     const tableName = docText.match(afterTableRegex)![3];
+    // Set the filtered tables to the filtered tables
     const filteredTables = getValidTables(null, tableColumns).filter(
+      // If the table is true
+      // Strip the quotes from the table
+      // Lowercase the table
+      // Start with the strip quotes current word
       (table) => table.toLowerCase() === stripQuotes(tableName).toLowerCase()
     );
-
+    // If the filtered tables length is greater than 0
     if (filteredTables.length > 0) {
+      // Set the options to the options
       const options = [
         {
           label: ")",
@@ -277,7 +353,7 @@ export const suggestTablesAfterFrom = (
           detail: "Sort results by column",
         },
       ];
-
+      // Return the options
       return {
         from: word ? word.from : pos,
         options:
@@ -291,28 +367,34 @@ export const suggestTablesAfterFrom = (
     }
   }
 
-  // Handle suggestions after CASE END (with or without AS)
+  // If the after case end or alias regex is true
   if (afterCaseEndOrAliasRegex.test(docText)) {
+    // Set the select node to the select node
     const selectNode = Array.isArray(ast)
+      // If the ast is an array, find the first select node
       ? ast.find(isSelectNode) ?? null
       : ast;
+    // Set the selected columns to the selected columns
     const selectedColumns = getSelectedColumns("", selectNode);
-
-    // Get valid tables based on selected columns
+    // Set the valid tables to the valid tables
     const validTables = selectedColumns.length
       ? getValidTables(selectedColumns[0], tableColumns)
       : getValidTables(null, tableColumns);
-
+    // Set the filtered tables to the filtered tables
     // Filter tables based on current word
     const filteredTables = validTables.filter((table) =>
-      currentWord
-        ? stripQuotes(table)
-            .toLowerCase()
+      // If the current word is true
+    currentWord
+    // Strip the quotes from the table
+      ? stripQuotes(table)
+      // Lowercase the table
+      .toLowerCase()
+      // Start with the strip quotes current word
             .startsWith(stripQuotes(currentWord).toLowerCase())
         : true
     );
 
-    // Suggest actual tables if available
+    // If the filtered tables length is greater than 0
     if (filteredTables.length > 0) {
       return {
         from: word ? word.from : pos,
@@ -320,7 +402,9 @@ export const suggestTablesAfterFrom = (
           label: table,
           type: "table",
           apply: (view: EditorView) => {
+            // Set the table name to the table name
             const tableName = needsQuotes(table) ? `"${table}"` : table;
+            // Dispatch the changes
             view.dispatch({
               changes: {
                 from: word ? word.from : pos,
@@ -328,7 +412,10 @@ export const suggestTablesAfterFrom = (
                 insert: `${tableName} `,
               },
             });
+            // If the on table select is not null
+            // On table select the table
             if (onTableSelect) {
+              // On table select the table
               onTableSelect({ value: table, label: table });
             }
           },
@@ -339,6 +426,6 @@ export const suggestTablesAfterFrom = (
       };
     }
   }
-
+  // Return null
   return null;
 };

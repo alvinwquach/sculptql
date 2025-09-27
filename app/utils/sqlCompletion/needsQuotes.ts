@@ -1,48 +1,44 @@
 export const needsQuotes = (
   id: string,
   isValue: boolean = false,
-  columnDataType?: string // Optional column data type
+  columnDataType?: string
 ): boolean => {
-  // Handle the wildcard *
+  // If the id is a wildcard, return false
   if (id === "*") return false;
 
-  // If this is a value (e.g., WHERE clause)
+  // If the id is a value
   if (isValue) {
-    // Numeric values or NULL don't need quotes
+    // If the id is a number or null, return false
     if (/^\d+(\.\d+)?$/.test(id) || id.toUpperCase() === "NULL") {
       return false;
     }
-
-    // Explicit boolean literals don't need quotes
+    // If the id is true or false, return false
     if (["TRUE", "FALSE"].includes(id.toUpperCase())) {
       return false;
     }
-
-    // Respect column data type hints
+    // If the column data type is 
+    // a string, text, varchar, char, or enum, return true 
     if (
       columnDataType &&
       ["string", "text", "varchar", "char", "enum"].includes(
         columnDataType.toLowerCase()
       )
     ) {
+      // Return true
       return true;
     }
-
-    // Default for non-numeric strings: quote them
+    // Return true
     return true;
   }
 
-  // For identifiers (table/column names)
-  // Numeric identifiers don't need quotes
+  // If the id is a number, return false
   if (/^\d+(\.\d+)?$/.test(id)) return false;
-
-  // Functions or expressions with parentheses -> no quotes
+  // If the id is a function with parentheses, return false
   if (/\w+\s*\(.*\)/.test(id)) return false;
-
-  // Aggregates like COUNT(), SUM(), AVG(), etc. -> no quotes
+  // If the id is a aggregate function, return false
   if (/^(COUNT|SUM|AVG|MAX|MIN|ROUND)\s*\(.*\)$/i.test(id)) return false;
 
-  // Reserved SQL keywords
+  // Create the reserved keywords
   const reservedKeywords = [
     "SELECT",
     "FROM",
@@ -66,9 +62,8 @@ export const needsQuotes = (
     "ON",
   ];
 
-  // Identifiers need quotes if:
-  // 1. They contain invalid characters for standard identifiers
-  // 2. They are reserved SQL keywords
+  // Return true if the id is not a valid identifier 
+  // or is a reserved keyword
   return (
     !/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(id) ||
     reservedKeywords.includes(id.toUpperCase())

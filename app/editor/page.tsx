@@ -1,7 +1,7 @@
 import { GET_SCHEMA } from "@/app/graphql/queries/getSchema";
 import { getClient } from "@/app/lib/client";
 import { TableSchema } from "@/app/types/query";
-import EditorClient from "../components/editor/EditorClient";
+import EditorWithProvider from "../components/editor/EditorWithProvider";
 
 async function fetchSchema(): Promise<TableSchema[]> {
   try {
@@ -28,7 +28,7 @@ export default async function EditorPage() {
 
   return (
     <div className="min-h-screen bg-[#0f172a] py-6 px-4 sm:px-6 lg:px-8">
-      <EditorClient schema={schema} error={error} />
+      <EditorWithProvider schema={schema} error={error} />
     </div>
   );
 }

@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Search, ChevronDown, ChevronUp } from "lucide-react";
 import { TableSchema } from "@/app/types/query";
 
+// Props for the TableView component
 interface TableViewProps {
   schema: TableSchema[];
   tableSearch: string;
@@ -33,23 +34,34 @@ export default function TableView({
   updateUrl,
   viewMode,
 }: TableViewProps) {
+  // Set the open tables state
   const [openTables, setOpenTables] = useState<string[]>([]);
 
+  // Function to toggle the table
   const toggleTable = (tableName: string) => {
+    // Set the open tables state
     setOpenTables((prev) =>
+      // Append the open tables and the table name
       prev.includes(tableName)
+        // Filter the open tables by the table name
         ? prev.filter((t) => t !== tableName)
         : [...prev, tableName]
     );
   };
 
+  // Function to handle the table search
   const handleTableSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
+    // Create the new table search by the event target value
     const newTableSearch = e.target.value;
+    // Update the url by the table search and the column search and the view mode
     updateUrl({ tableSearch: newTableSearch, columnSearch, viewMode });
   };
 
+  // Function to handle the column search
   const handleColumnSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
+    // Create the new column search by the event target value
     const newColumnSearch = e.target.value;
+    // Update the url by the table search and the column search and the view mode
     updateUrl({ tableSearch, columnSearch: newColumnSearch, viewMode });
   };
 

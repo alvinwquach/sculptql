@@ -1,3 +1,5 @@
+"use client";
+
 import { useState, useMemo, useCallback } from "react";
 import Select, { SingleValue } from "react-select";
 import {
@@ -8,7 +10,11 @@ import {
 } from "@/app/types/query";
 import { Trash2, Plus } from "lucide-react";
 import { selectStyles } from "../../utils/selectStyles";
+import { Label } from "@/components/ui/label"
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
+// Props for the CaseSelector component
 interface CaseSelectorProps {
   selectedTable: SelectOption | null;
   tableColumns: TableColumn;
@@ -38,6 +44,7 @@ interface CaseSelectorProps {
   onRemoveCaseCondition: (conditionIndex: number) => void;
   metadataLoading: boolean;
 }
+
 export default function CaseSelector({
   selectedTable,
   tableColumns,
@@ -55,42 +62,66 @@ export default function CaseSelector({
   onRemoveCaseCondition,
   metadataLoading,
 }: CaseSelectorProps) {
+  // State for the alias input
   const [aliasInput, setAliasInput] = useState<string>(caseClause.alias || "");
 
+  // Create the column options
   const columnOptions = useMemo<SelectOption[]>(() => {
+    // If no table is selected, return an empty array
     if (!selectedTable?.value) return [];
+    // Create the main table columns
     const mainTableColumns =
       tableColumns[selectedTable.value]?.map((col) => ({
+        // Create the column options
         value: `${selectedTable.value}.${col}`,
+        // Create the label
         label: `${selectedTable.value}.${col}`,
       })) || [];
+    // Create the join table columns
     const joinTableColumns = joinClauses
+      // Filter the join clauses to only include join clauses with a table
       .filter((join) => join.table?.value)
+      // Create the join table columns
       .flatMap(
         (join) =>
           tableColumns[join.table!.value]?.map((col) => ({
+            // Create the column options
             value: `${join.table!.value}.${col}`,
+            // Create the label
             label: `${join.table!.value}.${col}`,
           })) || []
       );
+    // Return the column options
     return [...mainTableColumns, ...joinTableColumns];
+    
   }, [selectedTable, tableColumns, joinClauses]);
 
+
+  // Create the result options
   const resultOptions = useMemo<SelectOption[]>(() => {
+    // Create the all values
     const allValues = Object.values(uniqueValues).flat();
+    // Create the unique results
     const uniqueResults = Array.from(
       new Set(allValues.map((opt) => opt.value))
     ).map((value) => ({
+      // Create the result options
       value,
       label: value,
     }));
+    // Return the unique results
     return uniqueResults;
   }, [uniqueValues]);
 
+  // Handle the alias change
   const handleAliasChange = useCallback(
+    // Handle the alias change
     (e: React.ChangeEvent<HTMLInputElement>) => {
+      // Get the value from the input
       const value = e.target.value;
+      // Set the alias input
       setAliasInput(value);
+      // On case alias change
       onCaseAliasChange(value.trim() === "" ? null : value);
     },
     [onCaseAliasChange]
@@ -99,8 +130,8 @@ export default function CaseSelector({
   return (
     <div className="flex flex-col gap-2 p-2 bg-slate-800 rounded-md">
       <div className="flex items-center justify-between">
-        <label className="text-sm font-medium text-white">CASE Clause</label>
-        <button
+        <Label className="text-sm font-medium text-white">CASE Clause</Label>
+        <Button
           onClick={onAddCaseCondition}
           className="flex items-center gap-1 px-2 py-1 text-sm text-white bg-blue-600 rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
           disabled={metadataLoading || !selectedTable}
@@ -108,7 +139,7 @@ export default function CaseSelector({
         >
           <Plus className="w-4 h-4" />
           Add Condition
-        </button>
+        </Button>
       </div>
       {caseClause.conditions.length === 0 && (
         <p className="text-xs text-slate-400">
@@ -124,14 +155,14 @@ export default function CaseSelector({
             <span className="text-xs font-medium text-white">
               WHEN Condition {index + 1}
             </span>
-            <button
+            <Button
               onClick={() => onRemoveCaseCondition(index)}
               className="text-red-400 hover:text-red-300"
               title="Remove condition"
               disabled={metadataLoading}
             >
               <Trash2 className="w-4 h-4" />
-            </button>
+            </Button>
           </div>
           <div className="flex flex-col gap-2 sm:flex-row">
             <Select
@@ -194,7 +225,7 @@ export default function CaseSelector({
           styles={selectStyles}
           className="flex-1"
         />
-        <input
+        <Input
           type="text"
           value={aliasInput}
           onChange={handleAliasChange}

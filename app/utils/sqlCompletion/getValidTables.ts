@@ -1,32 +1,24 @@
 import { TableColumn } from "@/app/types/query";
 
-/**
- * getValidTables
- *
- * Purpose:
- *  - Given a list of table names and their columns,
- *    return only the tables that contain the selected column.
- *
- * Steps:
- *  1. If no column is selected, return all table names.
- *  2. Otherwise, check each table:
- *     - Look at its list of columns.
- *     - If any column matches the selected column (case-insensitive),
- *       keep that table.
- *  3. Return the filtered table names, sorted alphabetically.
- */
- export const getValidTables = (
+// Get valid tables from the table names and table columns
+export const getValidTables = (
    tableNames: string[],
    tableColumns: TableColumn,
    selectedColumn: string | null
  ): string[] => {
+   // If no column is selected, return all table names
    if (!selectedColumn) return tableNames;
 
+   // Return the filtered table names
    return tableNames
+     // Filter the table names by the table columns
      .filter((tableName) =>
+       // Check if the table columns has the table name
        tableColumns[tableName]?.some(
+         // Check if the column name is the same as the selected column
          (col) => col.toLowerCase() === selectedColumn.toLowerCase()
        )
      )
+     // Sort the table names
      .sort();
  };

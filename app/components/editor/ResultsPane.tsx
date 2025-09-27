@@ -1,13 +1,6 @@
 "use client";
 
-import { Loader2 } from "lucide-react";
-import {
-  QueryResult,
-  ViewMode,
-  ChartDataItem,
-  TableSchema,
-  TableDescription,
-} from "@/app/types/query";
+import { useEditorContext } from "@/app/context/EditorContext";
 import ChartsPanel from "../panel/ChartsPanel";
 import StatsPanel from "../panel/StatsPanel";
 import DescribeTableView from "../results/DescribeTableView";
@@ -16,58 +9,37 @@ import JsonView from "../results/JsonView";
 import ShowTableView from "../results/ShowTableView";
 import TableView from "../results/TableView";
 import ViewToggle from "../view/ViewToggle";
+import { Loader2 } from "lucide-react";
 
+// Props for the ResultsPane component
 interface ResultsPaneProps {
   error: string | undefined;
   loading: boolean;
-  result: QueryResult | undefined;
-  viewMode: ViewMode;
-  selectedTable: string;
-  table: TableSchema[];
-  tableDescription: TableDescription | null;
-  chartData: ChartDataItem[];
-  resultChartData: ChartDataItem[];
-  onViewModeChange: (mode: ViewMode) => void;
-  onExportToCsv: (
-    exportAll: boolean,
-    startIndex: number,
-    endIndex: number
-  ) => void;
-  onExportToJson: (
-    exportAll: boolean,
-    startIndex: number,
-    endIndex: number
-  ) => void;
-  onExportToMarkdown: (
-    exportAll: boolean,
-    startIndex: number,
-    endIndex: number
-  ) => void;
-  currentPage: number;
-  pageSize: number;
-  onPageChange: (page: number) => void;
-  onPageSizeChange: (size: number) => void;
 }
 
 export default function ResultsPane({
   error,
   loading,
-  result,
-  viewMode,
-  selectedTable,
-  table,
-  tableDescription,
-  chartData,
-  resultChartData,
-  onViewModeChange,
-  onExportToCsv,
-  onExportToJson,
-  onExportToMarkdown,
-  currentPage,
-  pageSize,
-  onPageChange,
-  onPageSizeChange,
 }: ResultsPaneProps) {
+  // Get the query result, view mode, selected table, table, table description, stats chart data, result chart data, handle view mode change, export to csv, export to json, export to markdown, current page, page size, handle page change, and handle page size change from the editor context
+  const {
+    queryResult,
+    viewMode,
+    selectedTable,
+    table,
+    tableDescription,
+    statsChartData,
+    resultChartData,
+    handleViewModeChange,
+    exportToCsv,
+    exportToJson,
+    exportToMarkdown,
+    currentPage,
+    pageSize,
+    handlePageChange,
+    handlePageSizeChange,
+  } = useEditorContext();
+
   return (
     <div className={`flex-1 p-6 overflow-auto bg-[#0f172a]`}>
       {error && (
@@ -83,7 +55,7 @@ export default function ResultsPane({
       )}
       {!loading && (
         <>
-          {(result ||
+          {(queryResult ||
             viewMode === "show" ||
             viewMode === "describe" ||
             viewMode === "bar" ||
@@ -91,46 +63,46 @@ export default function ResultsPane({
             viewMode === "line") && (
             <ViewToggle
               viewMode={viewMode}
-              onViewModeChange={onViewModeChange}
+              onViewModeChange={handleViewModeChange}
             />
           )}
           {viewMode === "show" && (
-            <ShowTableView selectedTable={selectedTable} table={table} />
+            <ShowTableView selectedTable={selectedTable?.value || ""} table={table} />
           )}
           {viewMode === "describe" && (
             <DescribeTableView
-              selectedTable={selectedTable}
+              selectedTable={selectedTable?.value || ""}
               tableDescription={tableDescription}
             />
           )}
-          {result && viewMode === "table" && (
+          {queryResult && viewMode === "table" && (
             <TableView
-              result={result}
+              result={queryResult}
               currentPage={currentPage}
               pageSize={pageSize}
-              onPageChange={onPageChange}
-              onPageSizeChange={onPageSizeChange}
-              onExportToCsv={onExportToCsv}
-              onExportToJson={onExportToJson}
-              onExportToMarkdown={onExportToMarkdown}
+              onPageChange={handlePageChange}
+              onPageSizeChange={handlePageSizeChange}
+              onExportToCsv={exportToCsv}
+              onExportToJson={exportToJson}
+              onExportToMarkdown={exportToMarkdown}
             />
           )}
-          {result && viewMode === "json" && (
+          {queryResult && viewMode === "json" && (
             <JsonView
-              result={result}
+              result={queryResult}
               currentPage={currentPage}
               pageSize={pageSize}
-              onPageChange={onPageChange}
-              onPageSizeChange={onPageSizeChange}
-              onExportToCsv={onExportToCsv}
-              onExportToJson={onExportToJson}
-              onExportToMarkdown={onExportToMarkdown}
+              onPageChange={handlePageChange}
+              onPageSizeChange={handlePageSizeChange}
+              onExportToCsv={exportToCsv}
+              onExportToJson={exportToJson}
+              onExportToMarkdown={exportToMarkdown}
             />
           )}
-          {result && viewMode === "stats" && (
-            <StatsPanel result={result} chartData={chartData} />
+          {queryResult && viewMode === "stats" && (
+            <StatsPanel result={queryResult} chartData={statsChartData} />
           )}
-          {result &&
+          {queryResult &&
             (viewMode === "bar" ||
               viewMode === "pie" ||
               viewMode === "line") && (
@@ -139,15 +111,15 @@ export default function ResultsPane({
                 chartData={resultChartData}
                 currentPage={currentPage}
                 pageSize={pageSize}
-                onPageChange={onPageChange}
-                onPageSizeChange={onPageSizeChange}
+                onPageChange={handlePageChange}
+                onPageSizeChange={handlePageSizeChange}
               />
             )}
-          {!result &&
+          {!queryResult &&
             !["show", "describe", "bar", "pie", "line"].includes(viewMode) && (
               <EmptyState viewMode={viewMode} />
             )}
-          {["bar", "pie", "line"].includes(viewMode) && !result && (
+          {["bar", "pie", "line"].includes(viewMode) && !queryResult && (
             <EmptyState viewMode={viewMode} />
           )}
         </>

@@ -41,6 +41,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 
+// Props for the ChartsPanel component
 interface ChartsPanelProps {
   viewMode: ViewMode;
   chartData: ChartDataItem[];
@@ -50,6 +51,7 @@ interface ChartsPanelProps {
   onPageSizeChange: (size: number) => void;
 }
 
+// Create the colors
 const COLORS = [
   "#34d399",
   "#60a5fa",
@@ -67,53 +69,79 @@ export default function ChartsPanel({
   onPageChange,
   onPageSizeChange,
 }: ChartsPanelProps) {
+  // Create the is exporting state
   const [isExporting, setIsExporting] = useState(false);
+  // Create the container height state
   const [containerHeight, setContainerHeight] = useState(400);
+  // Create the chart reference
   const chartRef = useRef<HTMLDivElement>(null);
-
+  // Create the total items by the chart data length
   const totalItems = chartData.length;
+  // Create the total pages by the total items and the page size
   const totalPages = Math.ceil(totalItems / pageSize);
+  // Create the start index by the current page and the page size
   const startIndex = (currentPage - 1) * pageSize;
+  // Create the end index by the start index and the page size and the total items
   const endIndex = Math.min(startIndex + pageSize, totalItems);
+  // Create the paginated chart data by the chart data, start index, and end index
   const paginatedChartData = chartData.slice(startIndex, endIndex);
 
+  // Function to get the page numbers
   const getPageNumbers = () => {
+    // Create the max pages to show
     const maxPagesToShow = 5;
+    // Create the half by the max pages to show
     const half = Math.floor(maxPagesToShow / 2);
+    // Create the start page by the current page and the half
     let startPage = Math.max(1, currentPage - half);
+    // Create the end page by the total pages and the start page and the max pages to show
     const endPage = Math.min(totalPages, startPage + maxPagesToShow - 1);
-
+    // If the end page and the start page and the max pages to show is less than the max pages to show
     if (endPage - startPage + 1 < maxPagesToShow) {
       startPage = Math.max(1, endPage - maxPagesToShow + 1);
     }
 
+    // Initialize pages to an empty array and create the pages by the start page and the end page 
     const pages = [];
+    // Loop through the start page and the end page
     for (let i = startPage; i <= endPage; i++) {
+      // Push the page to the pages array
       pages.push(i);
     }
+    // Return the pages
     return pages;
   };
 
+  // Function to use the effect
   useEffect(() => {
+    // If the view mode is pie and the paginated chart data length is greater than 0
     if (viewMode === "pie" && paginatedChartData.length > 0) {
+      // Create the min height per item by 30
       const minHeightPerItem = 30;
+      // Create the new height by the min height per item and the paginated chart data length
       const newHeight = Math.max(
         400,
         200 + paginatedChartData.length * minHeightPerItem
       );
+      // Set the container height to the new height
       setContainerHeight(newHeight);
     } else {
+      // Set the container height to 300
       setContainerHeight(300);
     }
   }, [viewMode, paginatedChartData]);
 
+  // Function to create the custom tooltip
   const CustomTooltip = ({
     active,
     payload,
     label,
   }: TooltipProps<number, string>) => {
+    // If the active state and the payload and the payload length is greater than 0
     if (active && payload && payload.length) {
+      // Create the value by the payload at index 0 and the value as number
       const value = payload[0].value as number;
+      // Return the custom tooltip
       return (
         <div className="bg-slate-900 border border-slate-700 rounded-lg p-3 text-sm shadow-md">
           <p className="font-semibold text-green-400 mb-2">{label}</p>
@@ -121,13 +149,19 @@ export default function ChartsPanel({
         </div>
       );
     }
+    // Return null
     return null;
   };
 
+  // Function to create the pie tooltip
   const PieTooltip = ({ active, payload }: TooltipProps<number, string>) => {
+    // If the active state and the payload and the payload length is greater than 0
     if (active && payload && payload.length) {
+      // Create the name by the payload at index 0 and the name as string
       const name = payload[0].name ?? "Unknown";
+      // Create the value by the payload at index 0 and the value as number
       const value = payload[0].value as number;
+      // Return the pie tooltip
       return (
         <div className="bg-slate-900 border border-slate-700 rounded-lg p-3 text-sm shadow-md">
           <p className="font-semibold text-green-400 mb-2">{name}</p>
@@ -138,71 +172,111 @@ export default function ChartsPanel({
     return null;
   };
 
+  // Function to export to PNG
   const exportToPNG = async () => {
+    // If the chart reference is not null
     if (!chartRef.current) return;
+    // Set the exporting state to true
     setIsExporting(true);
+    // Try to export to PNG
     try {
+      // Create the data URL by the chart reference and the container height and the background color
       const dataUrl = await domtoimage.toPng(chartRef.current, {
         width: 800,
         height: containerHeight + 50,
         bgcolor: "#1e293b",
       });
+      // Create the link by the document create element
       const link = document.createElement("a");
+      // Set the href to the data URL
       link.href = dataUrl;
+      // Set the download to the chart mode and the new date to ISO string
       link.download = `chart_${viewMode}_${new Date().toISOString()}.png`;
+      // Append the link to the body
       document.body.appendChild(link);
+      // Click the link
       link.click();
+      // Remove the link from the body
       document.body.removeChild(link);
     } catch (error) {
       console.error("Error exporting to PNG:", error);
     } finally {
+      // Set the exporting state to false
       setIsExporting(false);
     }
   };
 
+  // Function to export to JPEG
   const exportToJPEG = async () => {
+    // If the chart reference is not null
     if (!chartRef.current) return;
+    // Set the exporting state to true
     setIsExporting(true);
     try {
+      // Create the data URL by the chart reference and the container height and the background color and the quality
       const dataUrl = await domtoimage.toJpeg(chartRef.current, {
         width: 800,
         height: containerHeight + 50,
         bgcolor: "#1e293b",
         quality: 0.9,
       });
+      // Create the link by the document create element
       const link = document.createElement("a");
+      // Set the href to the data URL
       link.href = dataUrl;
+      // Set the download to the chart mode and the new date to ISO string
       link.download = `chart_${viewMode}_${new Date().toISOString()}.jpg`;
+      // Append the link to the body
       document.body.appendChild(link);
+      // Click the link
       link.click();
+      // Remove the link from the body
       document.body.removeChild(link);
     } catch (error) {
       console.error("Error exporting to JPEG:", error);
     } finally {
+      // Set the exporting state to false
       setIsExporting(false);
     }
   };
 
+  // Function to export to SVG
   const exportToSVG = () => {
+    // If the chart reference is not null
     if (!chartRef.current) return;
+    // Create the svg element by the chart reference and the query selector
     const svgElement = chartRef.current.querySelector("svg");
+    // If the svg element is not null
     if (!svgElement) return;
+    // Set the exporting state to true
     setIsExporting(true);
     try {
+      // Create the serializer by the XML serializer
       const serializer = new XMLSerializer();
+      // Create the svg string by the serializer and the svg element
       const svgString = serializer.serializeToString(svgElement);
+      // Create the blob by the svg string and the type
       const blob = new Blob([svgString], { type: "image/svg+xml" });
+      // Create the url by the blob
       const url = URL.createObjectURL(blob);
+      // Create the link by the document create element
       const link = document.createElement("a");
+      // Set the href to the url
       link.href = url;
+      // Set the download to the chart mode and the new date to ISO string
       link.download = `chart_${viewMode}_${new Date().toISOString()}.svg`;
+      // Append the link to the body
       document.body.appendChild(link);
+      // Click the link
       link.click();
+      // Remove the link from the body
       document.body.removeChild(link);
+      // Revoke the object URL
       URL.revokeObjectURL(url);
     } catch (error) {
       console.error("Error exporting to SVG:", error);
     } finally {
+      // Set the exporting state to false
       setIsExporting(false);
     }
   };

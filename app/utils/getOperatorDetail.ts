@@ -1,8 +1,5 @@
 export const getOperatorDetail = (operator: string): string => {
-  // PSEUDOCODE:
-  // 1. Map operators to their descriptions
-  // 2. Return description for the given operator
-
+  // Map the operator to the operator details
   const operatorDetails: { [key: string]: string } = {
     "=": "Equal to",
     "!=": "Not equal to",
@@ -15,5 +12,6 @@ export const getOperatorDetail = (operator: string): string => {
     "IS NOT NULL": "Check for non-null",
     BETWEEN: "Range check",
   };
+  // Return the operator details
   return operatorDetails[operator.toUpperCase()] || "Operator";
 };

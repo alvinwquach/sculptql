@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import PaginationControls from "./PaginationControls";
 import ExportButtons from "./ExportButtons";
 
+// Props for the JsonView component
 interface JsonViewProps {
   result: QueryResult;
   currentPage: number;
@@ -49,26 +50,41 @@ export default function JsonView({
   onExportToJson,
   onExportToMarkdown,
 }: JsonViewProps) {
+  // Create the filter by the field and the value
   const [filter, setFilter] = useState<JsonFilter>({
     field: undefined,
     value: undefined,
   });
 
+  // Create the filtered rows by the result rows and the filter 
+  // by filtering the rows by the field and the value
   const filteredRows = filterJsonData(result.rows, filter);
+  // Create the paginated rows by the filtered rows and the current page and the page size
+  // by getting the paginated rows from the filtered rows
   const paginatedRows = getPaginatedRows(filteredRows, currentPage, pageSize);
 
+
+  // Function to handle the field change
   const handleFieldChange = (value: string) => {
+    // Set the filter by the previous filter and the field
     setFilter((prev) => ({ ...prev, field: value || undefined }));
+    // On page change by the page 1
     onPageChange(1);
   };
 
+  // Function to handle the value change
   const handleValueChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    // Set the filter by the previous filter and the value
     setFilter((prev) => ({ ...prev, value: e.target.value || undefined }));
+    // On page change by the page 1
     onPageChange(1);
   };
 
+  // Function to clear the filter
   const clearFilter = () => {
+    // Set the filter by the field and the value
     setFilter({ field: undefined, value: undefined });
+    // On page change by the page 1
     onPageChange(1);
   };
 

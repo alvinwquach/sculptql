@@ -8,6 +8,7 @@ import {
 } from "@/components/ui/select";
 import { getPageNumbers } from "@/app/utils/resultsUtils";
 
+// Props for the PaginationControls component
 interface PaginationControlsProps {
   totalRows: number;
   currentPage: number;
@@ -23,8 +24,14 @@ export default function PaginationControls({
   onPageChange,
   onPageSizeChange,
 }: PaginationControlsProps) {
+  // Create the total pages by the total rows and the page size
+  // by rounding up the total rows and the page size
   const totalPages = Math.ceil(totalRows / pageSize);
+  // Create the start index by the current page and the page size
+  // by subtracting 1 and multiplying by the page size and adding 1
   const startIndex = (currentPage - 1) * pageSize + 1;
+  // Create the end index by the current page and the page size and the total rows
+  // by multiplying the current page and the page size and the minimum of the current page and the total rows
   const endIndex = Math.min(currentPage * pageSize, totalRows);
 
   return (

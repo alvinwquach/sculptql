@@ -1,6 +1,7 @@
 import { LucideIcon } from "lucide-react";
 import { Select } from "node-sql-parser";
 
+// Interface for the having clause
 export interface HavingClause {
   condition: {
     aggregateColumn: SelectOption | null;
@@ -9,6 +10,7 @@ export interface HavingClause {
   };
 }
 
+// Interface for the query result
 export interface QueryResult {
   error?: string;
   rows: Record<string, unknown>[];
@@ -40,6 +42,7 @@ export interface QueryResult {
   };
 }
 
+// Interface for the explain plan node
 export interface ExplainPlanNode {
   "Node Type": string;
   "Relation Name"?: string;
@@ -53,12 +56,14 @@ export interface ExplainPlanNode {
   "Shared Read Blocks"?: number;
 }
 
+// Interface for the explain analyze json
 export interface ExplainAnalyzeJSON {
   Plan: ExplainPlanNode;
   PlanningTime?: number;
   ExecutionTime?: number;
 }
 
+// Interface for the chart data item
 export interface ChartDataItem {
   name: string;
   value: number;
@@ -66,6 +71,7 @@ export interface ChartDataItem {
   color?: string;
 }
 
+// Interface for the view mode
 export type ViewMode =
   | "table"
   | "json"
@@ -76,12 +82,14 @@ export type ViewMode =
   | "pie"
   | "line";
 
+// Interface for the stat
 export interface Stat {
   label: string;
   value: string | number;
   icon?: LucideIcon;
 }
 
+// Interface for the column schema
 export interface ColumnSchema {
   column_name: string;
   data_type: string;
@@ -93,6 +101,7 @@ export interface ColumnSchema {
   uniqueValues?: string[];
 }
 
+// Interface for the foreign key schema
 export interface ForeignKeySchema {
   column_name: string;
   referenced_table: string;
@@ -100,6 +109,7 @@ export interface ForeignKeySchema {
   constraint_name: string;
 }
 
+// Interface for the table schema
 export interface TableSchema {
   table_name: string;
   table_catalog: string;
@@ -109,6 +119,7 @@ export interface TableSchema {
   values?: Record<string, string | number | null>[];
 }
 
+// Interface for the table description
 export interface TableDescription {
   table_name: string;
   columns: ColumnSchema[];
@@ -116,6 +127,7 @@ export interface TableDescription {
   foreign_keys: ForeignKeySchema[];
 }
 
+// Interface for the column
 export interface Column {
   column_name: string;
   data_type: string;
@@ -123,26 +135,31 @@ export interface Column {
   is_primary_key: boolean;
 }
 
+// Interface for the table column
 export type TableColumn = Record<string, string[]>;
 
+// Interface for the query history item
 export interface QueryHistoryItem {
   id: string;
   query: string;
   timestamp: string;
 }
 
+// Interface for the pinned query
 export interface PinnedQuery {
   id: string;
   query: string;
   timestamp: string;
 }
 
+// Interface for the bookmarked query
 export interface BookmarkedQuery {
   id: string;
   query: string;
   timestamp: string;
 }
 
+// Interface for the labeled query
 export interface LabeledQuery {
   id: string;
   label: string;
@@ -150,12 +167,14 @@ export interface LabeledQuery {
   timestamp: string;
 }
 
+// Interface for the tab
 export interface Tab {
   id: number;
   title: string;
   query: string;
 }
 
+// Interface for the sql column
 export interface SqlColumn {
   expr: {
     column?: string;
@@ -163,11 +182,13 @@ export interface SqlColumn {
   };
 }
 
+// Interface for the sql from item
 export interface SqlFromItem {
   table: string;
   alias?: string;
 }
 
+// Interface for the select ast
 export interface SelectAst {
   type: "select";
   columns: SqlColumn[];
@@ -178,19 +199,23 @@ export interface SelectAst {
   limit?: unknown;
 }
 
+// Interface for the ast node
 export interface ASTNode {
   type: string;
   from?: Array<{ table?: string }>;
   columns?: Array<{ expr?: { column?: string; value?: string } }>;
 }
 
+// Interface for the sql ast
 export type SqlAst = SelectAst | SelectAst[] | ASTNode | ASTNode[] | null;
 
+// Interface for the table reference
 export interface TableReference {
   table: string | null;
   [key: string]: unknown;
 }
 
+// Interface for the select option
 export interface SelectOption {
   value: string;
   label: string;
@@ -198,6 +223,7 @@ export interface SelectOption {
   column?: string;
 }
 
+// Interface for the where condition
 export interface WhereCondition {
   logicalOperator?: SelectOption | null;
   column?: SelectOption | null;
@@ -206,15 +232,18 @@ export interface WhereCondition {
   value2?: SelectOption | null;
 }
 
+// Interface for the where clause
 export interface WhereClause {
   conditions: WhereCondition[];
 }
 
+// Interface for the order by clause
 export interface OrderByClause {
   column?: SelectOption | null;
   direction?: SelectOption | null;
 }
 
+// Interface for the join clause
 export interface JoinClause {
   table: SelectOption | null;
   onColumn1: SelectOption | null;
@@ -222,21 +251,25 @@ export interface JoinClause {
   joinType?: SelectOption | null;
 }
 
+// Interface for the unique values
 export interface UniqueValues {
   condition1: SelectOption[];
   condition2: SelectOption[];
 }
 
+// Interface for the option type
 export type OptionType = {
   value: string;
   label: string;
 };
 
+// Interface for the json filter
 export interface JsonFilter {
   field?: string;
   value?: string;
 }
 
+// Interface for the having condition
 export interface HavingCondition {
   aggregate: SelectOption | null;
   column: SelectOption | null;
@@ -245,6 +278,7 @@ export interface HavingCondition {
   logicalOperator: SelectOption | null;
 }
 
+// Interface for the query state
 export interface QueryState {
   selectedTable: SelectOption | null;
   selectedColumns: SelectOption[];
@@ -263,11 +297,13 @@ export interface QueryState {
   unionClauses: UnionClause[];
 }
 
+// Interface for the union clause
 export interface UnionClause {
   table: SelectOption | null;
   unionType?: { value: string; label: string };
 }
 
+// Interface for the case condition
 export interface CaseCondition {
   column: SelectOption | null;
   operator: SelectOption | null;
@@ -275,11 +311,13 @@ export interface CaseCondition {
   result: SelectOption | null;
 }
 
+// Interface for the when clause
 export interface WhenClause {
   conditions: CaseCondition[];
   result: SelectOption | null;
 }
 
+// Interface for the case condition
 export interface CaseCondition {
   column: SelectOption | null;
   operator: SelectOption | null;
@@ -287,18 +325,21 @@ export interface CaseCondition {
   result: SelectOption | null;
 }
 
+// Interface for the case clause
 export interface CaseClause {
   conditions: CaseCondition[];
   elseValue: SelectOption | null;
   alias: string | null;
 }
 
+// Interface for the cte node
 export interface CteNode {
   name: { value: string } | null;
   stmt: Select | Select[] | null;
   [key: string]: unknown;
 }
 
+// Interface for the cte clause
 export interface CteClause {
   alias: string | null;
   selectedColumns: SelectOption[];
@@ -306,8 +347,10 @@ export interface CteClause {
   whereClause: WhereClause;
 }
 
+// Interface for the column type
 export type ColumnType = string | SelectOption;
 
+// Interface for the table schema
 export interface TableSchema {
   table_catalog: string;
   table_schema: string;
@@ -324,6 +367,7 @@ export interface TableSchema {
   }[];
 }
 
+// Interface for the foreign key
 export interface ForeignKey {
   column_name: string;
   referenced_table: string;
@@ -331,6 +375,7 @@ export interface ForeignKey {
   constraint_name: string;
 }
 
+// Interface for the erd node
 export interface ERDNode {
   id: string;
   type: string;
@@ -342,6 +387,7 @@ export interface ERDNode {
   position: { x: number; y: number };
 }
 
+// Interface for the erd edge
 export interface ERDEdge {
   id: string;
   source: string;
@@ -351,6 +397,7 @@ export interface ERDEdge {
   animated?: boolean;
 }
 
+// Interface for the table
 export interface Table {
   table_catalog: string;
   table_schema: string;

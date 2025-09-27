@@ -6,7 +6,11 @@ import CreatableSelect from "react-select/creatable";
 import { Plus, Trash2 } from "lucide-react";
 import { CteClause, SelectOption, TableColumn } from "@/app/types/query";
 import { selectStyles } from "../../utils/selectStyles";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label"
+import { Input } from "@/components/ui/input";
 
+// Props for the WithSelect component
 interface WithSelectProps {
   selectedTable: SelectOption | null;
   tableNames: string[];
@@ -49,6 +53,7 @@ interface WithSelectProps {
   metadataLoading: boolean;
 }
 
+// Props for the WithSelect component
 export default function WithSelect({
   selectedTable,
   tableNames,
@@ -68,19 +73,26 @@ export default function WithSelect({
   onRemoveCteClause,
   metadataLoading,
 }: WithSelectProps) {
+  // Create the table options
   const tableOptions: SelectOption[] = useMemo(
     () =>
+      // Filter the table names to exclude the selected table
       tableNames
         .filter((table) => table !== selectedTable?.value)
         .map((table) => ({ value: table, label: table })),
+      // Return the table options
     [tableNames, selectedTable]
   );
 
+  // Create the column options
   const getColumnOptions = useCallback(
     (fromTable: SelectOption | null) => {
+      // If the from table is not null
       if (!fromTable?.value) return [];
+      // Return the column options
       return [
         { value: "*", label: "All Columns (*)" },
+        // Create the column options
         ...(tableColumns[fromTable.value]?.map((col) => ({
           value: col,
           label: col,
@@ -90,6 +102,7 @@ export default function WithSelect({
     [tableColumns]
   );
 
+  // Handle the add CTE
   const handleAddCte = useCallback(() => {
     onAddCteClause();
   }, [onAddCteClause]);
@@ -97,10 +110,10 @@ export default function WithSelect({
   return (
     <div className="flex flex-col gap-2 p-2 bg-slate-800 rounded-md">
       <div className="flex items-center justify-between">
-        <label className="text-sm font-medium text-white">
+        <Label className="text-sm font-medium text-white">
           WITH Clause (CTEs)
-        </label>
-        <button
+        </Label>
+        <Button
           onClick={handleAddCte}
           className="flex items-center gap-1 px-2 py-1 text-sm text-white bg-blue-600 rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
           disabled={metadataLoading}
@@ -108,7 +121,7 @@ export default function WithSelect({
         >
           <Plus className="w-4 h-4" />
           Add CTE
-        </button>
+        </Button>
       </div>
       {cteClauses.length === 0 && (
         <p className="text-xs text-slate-400">
@@ -124,19 +137,19 @@ export default function WithSelect({
             <span className="text-xs font-medium text-white">
               CTE {cteIndex + 1}
             </span>
-            <button
+            <Button
               onClick={() => onRemoveCteClause(cteIndex)}
               className="text-red-400 hover:text-red-300"
               title="Remove CTE"
               disabled={metadataLoading}
             >
               <Trash2 className="w-4 h-4" />
-            </button>
+            </Button>
           </div>
           <div className="flex flex-col gap-2">
             <div className="flex flex-col gap-1">
               <label className="text-xs text-[#f8f9fa] mb-1">CTE Alias</label>
-              <input
+              <Input
                 type="text"
                 value={cte.alias || ""}
                 onChange={(e) =>
@@ -151,7 +164,7 @@ export default function WithSelect({
               />
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-xs text-[#f8f9fa] mb-1">From Table</label>
+              <Label className="text-xs text-[#f8f9fa] mb-1">From Table</Label>
               <Select
                 options={tableOptions}
                 value={cte.fromTable}
@@ -164,7 +177,7 @@ export default function WithSelect({
               />
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-xs text-[#f8f9fa] mb-1">Columns</label>
+              <Label className="text-xs text-[#f8f9fa] mb-1">Columns</Label>
               <Select
                 isMulti
                 options={getColumnOptions(cte.fromTable)}
@@ -177,9 +190,9 @@ export default function WithSelect({
               />
             </div>
             <div className="flex flex-col gap-2">
-              <label className="text-xs font-medium text-white">
+              <Label className="text-xs font-medium text-white">
                 WHERE Clause
-              </label>
+              </Label>
               {cte.whereClause.conditions.map((condition, conditionIndex) => (
                 <div
                   key={conditionIndex}
