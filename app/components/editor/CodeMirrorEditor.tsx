@@ -419,29 +419,22 @@ export default function CodeMirrorEditor({
       // Dispatch the changes to the query immediately (this will set isManualEdit to true)
       onQueryChange(newQuery);
       
-      // Use requestAnimationFrame to prevent race conditions
-      requestAnimationFrame(() => {
-        try {
-          const parsedColumns = parseSelectedColumns(newQuery);
-          const parsedTable = parseSelectedTable(newQuery);
-          // const parsedWhere = parseWhereClause(newQuery);
+      // requestAnimationFrame(() => {
+      //   try {
+      //     const parsedColumns = parseSelectedColumns(newQuery);
+      //     const parsedTable = parseSelectedTable(newQuery);          
+      
+      //     if (parsedColumns.length > 0 && JSON.stringify(parsedColumns) !== JSON.stringify(selectedColumns)) {
+      //     }
           
-          // Only update if there are actual changes to prevent unnecessary re-renders
-          // and only if we're not in manual edit mode to prevent race conditions
-          if (parsedColumns.length > 0 && JSON.stringify(parsedColumns) !== JSON.stringify(selectedColumns)) {
-            // Don't call onColumnSelect when in manual edit mode to prevent race conditions
-            // onColumnSelect?.(parsedColumns);
-          }
+      //     if (parsedTable && JSON.stringify(parsedTable) !== JSON.stringify(selectedTable)) {
+        
+      //     }
           
-          if (parsedTable && JSON.stringify(parsedTable) !== JSON.stringify(selectedTable)) {
-            // Don't call onTableSelect when in manual edit mode to prevent race conditions
-            // onTableSelect?.(parsedTable);
-          }
-          
-        } catch (error) {
-          console.error('Error parsing query for state sync:', error);
-        }
-      });
+      //   } catch (error) {
+      //     console.error('Error parsing query for state sync:', error);
+      //   }
+      // });
     }
   });
   
@@ -457,7 +450,7 @@ export default function CodeMirrorEditor({
           fontSize: "clamp(14px, 2.5vw, 16px)",
           height: "100%",
           border: "2px solid transparent",
-          borderRadius: "16px",
+          borderRadius: "0px",
           background: "linear-gradient(#0a0a0f, #0a0a0f) padding-box, linear-gradient(135deg, #8b5cf6, #f472b6, #10b981, #fbbf24) border-box",
           boxShadow: "0 0 40px rgba(139, 92, 246, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.1)",
           position: "relative",
@@ -476,7 +469,7 @@ export default function CodeMirrorEditor({
         },
         ".cm-content": {
           caretColor: "#f472b6",
-          padding: "2rem",
+          padding: "1rem",
           minHeight: "450px",
           fontFamily: "'JetBrains Mono', 'Fira Code', 'SF Mono', 'Monaco', 'Cascadia Code', monospace",
           lineHeight: "1.7",
@@ -562,12 +555,16 @@ export default function CodeMirrorEditor({
           border: "none",
           fontFamily: "'JetBrains Mono', 'Fira Code', 'SF Mono', 'Monaco', 'Cascadia Code', monospace",
           background: "linear-gradient(180deg, #1a1a2e 0%, #16213e 100%)",
-          boxShadow: "2px 0 10px rgba(0, 0, 0, 0.3)",
+          boxShadow: "2px 0 15px rgba(0, 0, 0, 0.4), inset -1px 0 0 rgba(139, 92, 246, 0.2)",
         },
         ".cm-gutter": { 
           background: "transparent", 
           border: "none",
           fontFamily: "'JetBrains Mono', 'Fira Code', 'SF Mono', 'Monaco', 'Cascadia Code', monospace",
+        },
+        ".cm-lineNumbers": {
+          color: "#8b5cf6",
+          textShadow: "0 0 5px rgba(139, 92, 246, 0.4)",
         },
         ".cm-active-line": { 
           backgroundColor: "rgba(139, 92, 246, 0.1)",
