@@ -250,7 +250,7 @@ export function EditorProvider({ children, schema, error, isMySQL = false, refre
         filter: (predicate: (row: Record<string, unknown>) => boolean) => {
           return queryResults.queryResult!.rows.filter(predicate);
         },
-        map: (mapper: (row: Record<string, unknown>) => any) => {
+        map: (mapper: (row: Record<string, unknown>) => unknown) => {
           return queryResults.queryResult!.rows.map(mapper);
         },
         find: (predicate: (row: Record<string, unknown>) => boolean) => {

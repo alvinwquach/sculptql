@@ -8,7 +8,7 @@ declare global {
       fields: string[];
       rowCount?: number;
       filter: (predicate: (row: Record<string, unknown>) => boolean) => Record<string, unknown>[];
-      map: (mapper: (row: Record<string, unknown>) => any) => any[];
+      map: (mapper: (row: Record<string, unknown>) => unknown) => unknown[];
       find: (predicate: (row: Record<string, unknown>) => boolean) => Record<string, unknown> | undefined;
       getColumnValues: (columnName: string) => unknown[];
       getUniqueValues: (columnName: string) => unknown[];
