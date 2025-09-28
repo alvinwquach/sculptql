@@ -238,34 +238,43 @@ export function EditorProvider({ children, schema, error, isMySQL = false, refre
     }
   }, [queryResults.queryResult]);
 
-  // Function to expose query results to browser console for easy filtering and mapping
+  // Get the expose query results to console function
   const exposeQueryResultsToConsole = useCallback(() => {
+    // If the query result and the query result rows are not null
     if (queryResults.queryResult && queryResults.queryResult.rows) {
       // Expose the query results to the global window object for easy access in dev console
-      (window as any).QueryResults = {
+      (window as Window).QueryResults = {
+        // Get the data
         data: queryResults.queryResult.rows,
+        // Get the fields
         fields: queryResults.queryResult.fields,
+        // Get the row count
         rowCount: queryResults.queryResult.rowCount,
-        // Add helper methods for common operations
+        // Get the filter
         filter: (predicate: (row: Record<string, unknown>) => boolean) => {
           return queryResults.queryResult!.rows.filter(predicate);
         },
+        // Get the map
         map: (mapper: (row: Record<string, unknown>) => unknown) => {
           return queryResults.queryResult!.rows.map(mapper);
         },
+        // Get the find
         find: (predicate: (row: Record<string, unknown>) => boolean) => {
           return queryResults.queryResult!.rows.find(predicate);
         },
-        // Add utility methods
+        // Get the column values
         getColumnValues: (columnName: string) => {
           return queryResults.queryResult!.rows.map(row => row[columnName]);
         },
+        // Get the unique values
         getUniqueValues: (columnName: string) => {
           return [...new Set(queryResults.queryResult!.rows.map(row => row[columnName]))];
         },
+        // Get the count
         count: () => {
           return queryResults.queryResult!.rows.length;
         },
+        // Get the full result
         fullResult: queryResults.queryResult
       };
 
