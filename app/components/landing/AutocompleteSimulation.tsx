@@ -3,9 +3,6 @@
 import { useEffect, useRef, useState } from "react";
 import CodeMirror from "@uiw/react-codemirror";
 import { sql } from "@codemirror/lang-sql";
-import { synthwaveExtensions } from "@/app/themes/synthwave";
-import { gsap } from "gsap";
-
 
 // Props for the AutocompleteSimulation component
 interface AutocompleteSimulationProps {
