@@ -376,13 +376,35 @@ ORDER BY count DESC;`,
         <div className="max-w-7xl mx-auto px-4 sm:px-8 lg:px-16 py-4 flex justify-between items-center">
           <div className="flex items-center gap-2">
             <Database className="w-6 h-6 text-pink-400" />
-            <h1 className="text-2xl font-bold bg-gradient-to-r from-pink-400 to-purple-400 bg-clip-text text-transparent">SculptQL</h1>
+            <h1 className="text-2xl font-bold bg-gradient-to-r from-pink-400 to-purple-400 bg-clip-text text-transparent">
+              SculptQL
+            </h1>
           </div>
           <nav className="hidden md:flex items-center gap-8">
-            <a href="#features" className="text-pink-200 hover:text-pink-400 transition-colors">Features</a>
-            <a href="#query-builder" className="text-pink-200 hover:text-pink-400 transition-colors">Query Builder</a>
-            <a href="#demo" className="text-pink-200 hover:text-pink-400 transition-colors">Demo</a>
-            <a href="#schema" className="text-pink-200 hover:text-pink-400 transition-colors">Schema</a>
+            <a
+              href="#features"
+              className="text-pink-200 hover:text-pink-400 transition-colors"
+            >
+              Features
+            </a>
+            <a
+              href="#query-builder"
+              className="text-pink-200 hover:text-pink-400 transition-colors"
+            >
+              Query Builder
+            </a>
+            <a
+              href="#demo"
+              className="text-pink-200 hover:text-pink-400 transition-colors"
+            >
+              Demo
+            </a>
+            <a
+              href="#schema"
+              className="text-pink-200 hover:text-pink-400 transition-colors"
+            >
+              Schema
+            </a>
             <Link
               href="https://github.com/alvinwquach/sculptql"
               target="_blank"
@@ -405,11 +427,19 @@ ORDER BY count DESC;`,
               </div>
               <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold mb-6 text-white leading-tight">
                 Build SQL queries with
-                <span className="bg-gradient-to-r from-pink-400 via-purple-400 to-cyan-400 bg-clip-text text-transparent synthwave-glow"> intelligent autocomplete</span>
+                <span className="bg-gradient-to-r from-pink-400 via-purple-400 to-cyan-400 bg-clip-text text-transparent synthwave-glow">
+                  {" "}
+                  intelligent autocomplete
+                </span>
               </h1>
               <p className="text-xl text-pink-100 mb-8 leading-relaxed">
-                Connect your database to a local web interface. Query, explore, and visualize your data 
-                with context-aware autocomplete and visual query building. <span className="text-cyan-300 font-semibold">Read-only access</span> keeps your data safe.
+                Connect your database to a local web interface. Query, explore,
+                and visualize your data with context-aware autocomplete and
+                visual query building.{" "}
+                <span className="text-cyan-300 font-semibold">
+                  Read-only access
+                </span>{" "}
+                keeps your data safe.
               </p>
               <div className="flex flex-col sm:flex-row gap-4">
                 <Button
@@ -448,28 +478,36 @@ ORDER BY count DESC;`,
           ))}
         </div>
       </section>
-      <section id="features" className="py-20 px-4 sm:px-8 lg:px-16 bg-gradient-to-br from-gray-800/50 to-purple-900/30">
+      <section
+        id="features"
+        className="py-20 px-4 sm:px-8 lg:px-16 bg-gradient-to-br from-gray-800/50 to-purple-900/30"
+      >
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-16">
             <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
               Everything you need to build better SQL
             </h2>
             <p className="text-xl text-pink-100 max-w-3xl mx-auto">
-              Powerful features designed to make SQL development faster, safer, and more intuitive.
+              Powerful features designed to make SQL development faster, safer,
+              and more intuitive.
             </p>
-          </div> 
+          </div>
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
             {overviewItems.map((item, i) => (
               <div
                 key={i}
-                ref={(el) => { if (el) featureRefs.current[i] = el; }}
+                ref={(el) => {
+                  if (el) featureRefs.current[i] = el;
+                }}
                 className="bg-gradient-to-br from-gray-800/80 to-purple-800/40 p-8 rounded-xl shadow-lg hover:shadow-2xl hover:shadow-pink-500/25 transition-all duration-300 border border-pink-500/30 hover:border-pink-400/50"
               >
                 <div className="flex items-center gap-3 mb-4">
                   <div className="p-2 bg-pink-500/20 rounded-lg">
                     <item.icon className="w-6 h-6 text-pink-400" />
                   </div>
-                  <h3 className="text-xl font-semibold text-pink-400">{item.title}</h3>
+                  <h3 className="text-xl font-semibold text-pink-400">
+                    {item.title}
+                  </h3>
                 </div>
                 <p className="text-pink-100">{item.desc}</p>
               </div>
@@ -477,21 +515,28 @@ ORDER BY count DESC;`,
           </div>
         </div>
       </section>
-      <section id="query-builder" className="py-20 px-4 sm:px-8 lg:px-16 bg-gradient-to-br from-cyan-900/20 to-pink-900/20">
+      <section
+        id="query-builder"
+        className="py-20 px-4 sm:px-8 lg:px-16 bg-gradient-to-br from-cyan-900/20 to-pink-900/20"
+      >
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-16">
             <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
               Visual Query Builder
             </h2>
             <p className="text-xl text-pink-100 max-w-3xl mx-auto">
-              Build complex SQL queries with point-and-click interface. No need to remember syntax.
+              Build complex SQL queries with point-and-click interface. No need
+              to remember syntax.
             </p>
           </div>
-          
+
           <VisualQueryBuilder className="max-w-7xl mx-auto" />
         </div>
       </section>
-      <section id="how-it-works" className="py-20 px-4 sm:px-8 lg:px-16 bg-gradient-to-br from-gray-900/80 to-purple-900/60">
+      <section
+        id="how-it-works"
+        className="py-20 px-4 sm:px-8 lg:px-16 bg-gradient-to-br from-gray-900/80 to-purple-900/60"
+      >
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-16">
             <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
@@ -506,34 +551,53 @@ ORDER BY count DESC;`,
               <div className="w-16 h-16 bg-gradient-to-r from-pink-500/20 to-purple-500/20 rounded-full flex items-center justify-center mx-auto mb-6 border border-pink-500/30">
                 <span className="text-2xl font-bold text-pink-400">1</span>
               </div>
-              <h3 className="text-xl font-semibold text-pink-400 mb-4">Install & Connect</h3>
-              <p className="text-pink-100">Install SculptQL via npm and connect to your database with environment variables.</p>
+              <h3 className="text-xl font-semibold text-pink-400 mb-4">
+                Install & Connect
+              </h3>
+              <p className="text-pink-100">
+                Install SculptQL via npm and connect to your database with
+                environment variables.
+              </p>
             </div>
             <div className="text-center">
               <div className="w-16 h-16 bg-gradient-to-r from-pink-500/20 to-purple-500/20 rounded-full flex items-center justify-center mx-auto mb-6 border border-pink-500/30">
                 <span className="text-2xl font-bold text-pink-400">2</span>
               </div>
-              <h3 className="text-xl font-semibold text-pink-400 mb-4">Build Queries</h3>
-              <p className="text-pink-100">Use our intuitive interface with intelligent autocomplete to build complex SQL queries.</p>
+              <h3 className="text-xl font-semibold text-pink-400 mb-4">
+                Build Queries
+              </h3>
+              <p className="text-pink-100">
+                Use our intuitive interface with intelligent autocomplete to
+                build complex SQL queries.
+              </p>
             </div>
             <div className="text-center">
               <div className="w-16 h-16 bg-gradient-to-r from-pink-500/20 to-purple-500/20 rounded-full flex items-center justify-center mx-auto mb-6 border border-pink-500/30">
                 <span className="text-2xl font-bold text-pink-400">3</span>
               </div>
-              <h3 className="text-xl font-semibold text-pink-400 mb-4">Explore & Visualize</h3>
-              <p className="text-pink-100">Explore your schema, visualize relationships, and export results to multiple formats.</p>
+              <h3 className="text-xl font-semibold text-pink-400 mb-4">
+                Explore & Visualize
+              </h3>
+              <p className="text-pink-100">
+                Explore your schema, visualize relationships, and export results
+                to multiple formats.
+              </p>
             </div>
           </div>
         </div>
       </section>
-      <section id="demo" className="py-20 px-4 sm:px-8 lg:px-16 bg-gradient-to-br from-gray-900 via-purple-900 to-pink-900">
+      <section
+        id="demo"
+        className="py-20 px-4 sm:px-8 lg:px-16 bg-gradient-to-br from-gray-900 via-purple-900 to-pink-900"
+      >
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-12">
             <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
               See SculptQL in action
             </h2>
             <p className="text-xl text-gray-300 max-w-3xl mx-auto">
-              Experience the power of our visual SQL builder with real-time previews
+              Experience the power of our visual SQL builder with real-time
+              previews
             </p>
           </div>
           <div
@@ -543,9 +607,9 @@ ORDER BY count DESC;`,
             <div
               ref={editorRef}
               className="relative w-full max-w-6xl rounded-xl shadow-2xl overflow-hidden border border-purple-500/30 bg-[#0f0f23] z-10"
-              style={{ 
-                minHeight: '500px', 
-                minWidth: '100%'
+              style={{
+                minHeight: "500px",
+                minWidth: "100%",
               }}
             >
               <div className="flex items-center justify-between bg-[#0f0f23] px-4 py-2 border-b border-purple-500/30">
@@ -607,27 +671,38 @@ ORDER BY count DESC;`,
       <section className="py-16 px-4 sm:px-8 lg:px-16 bg-white">
         <DatabaseCarousel databases={databases} />
       </section>
-      <section id="schema" className="py-20 px-4 sm:px-8 lg:px-16 bg-gradient-to-br from-gray-800/50 to-purple-900/30">
+      <section
+        id="schema"
+        className="py-20 px-4 sm:px-8 lg:px-16 bg-gradient-to-br from-gray-800/50 to-purple-900/30"
+      >
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-16">
             <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
               Explore your database schema
             </h2>
             <p className="text-xl text-pink-100 max-w-3xl mx-auto">
-              Visualize table relationships and explore your database structure with interactive tools
+              Visualize table relationships and explore your database structure
+              with interactive tools
             </p>
           </div>
           <div className="grid lg:grid-cols-2 gap-12 items-center">
             <div>
-              <h3 className="text-2xl font-bold text-pink-400 mb-6">Table View & ERD</h3>
+              <h3 className="text-2xl font-bold text-pink-400 mb-6">
+                Table View & ERD
+              </h3>
               <div className="space-y-4">
                 <div className="flex items-start gap-4">
                   <div className="w-8 h-8 bg-pink-500/20 rounded-lg flex items-center justify-center flex-shrink-0 mt-1">
                     <Table2 className="w-4 h-4 text-pink-400" />
                   </div>
                   <div>
-                    <h4 className="text-lg font-semibold text-pink-300 mb-2">Table View</h4>
-                    <p className="text-pink-100">Browse tables in a structured format with column details, data types, and constraints.</p>
+                    <h4 className="text-lg font-semibold text-pink-300 mb-2">
+                      Table View
+                    </h4>
+                    <p className="text-pink-100">
+                      Browse tables in a structured format with column details,
+                      data types, and constraints.
+                    </p>
                   </div>
                 </div>
                 <div className="flex items-start gap-4">
@@ -635,8 +710,13 @@ ORDER BY count DESC;`,
                     <BarChart2 className="w-4 h-4 text-purple-400" />
                   </div>
                   <div>
-                    <h4 className="text-lg font-semibold text-purple-300 mb-2">ERD Visualization</h4>
-                    <p className="text-pink-100">Interactive Entity Relationship Diagrams to understand table relationships and foreign keys.</p>
+                    <h4 className="text-lg font-semibold text-purple-300 mb-2">
+                      ERD Visualization
+                    </h4>
+                    <p className="text-pink-100">
+                      Interactive Entity Relationship Diagrams to understand
+                      table relationships and foreign keys.
+                    </p>
                   </div>
                 </div>
                 <div className="flex items-start gap-4">
@@ -644,8 +724,13 @@ ORDER BY count DESC;`,
                     <Database className="w-4 h-4 text-cyan-400" />
                   </div>
                   <div>
-                    <h4 className="text-lg font-semibold text-cyan-300 mb-2">Schema Filtering</h4>
-                    <p className="text-pink-100">Search and filter tables and columns to quickly find what you're looking for.</p>
+                    <h4 className="text-lg font-semibold text-cyan-300 mb-2">
+                      Schema Filtering
+                    </h4>
+                    <p className="text-pink-100">
+                      Search and filter tables and columns to quickly find what
+                      you&apos;re looking for.
+                    </p>
                   </div>
                 </div>
               </div>
@@ -654,7 +739,9 @@ ORDER BY count DESC;`,
               <div className="text-center text-pink-300 mb-4">
                 <Database className="w-12 h-12 mx-auto mb-4 text-pink-400" />
                 <h4 className="text-lg font-semibold">Schema Explorer</h4>
-                <p className="text-sm text-pink-200">Interactive database schema visualization</p>
+                <p className="text-sm text-pink-200">
+                  Interactive database schema visualization
+                </p>
               </div>
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between items-center p-2 bg-gray-800/50 rounded">
@@ -673,7 +760,7 @@ ORDER BY count DESC;`,
             </div>
           </div>
         </div>
-      </section>  
+      </section>
     </div>
   );
 }
