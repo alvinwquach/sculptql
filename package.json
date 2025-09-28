@@ -8,13 +8,21 @@
   "files": [
     "dist/**/*"
   ],
+  
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "build:analyze": "ANALYZE=true npm run build",
+    "perf:test": "node scripts/performance-test.js",
     "start": "NODE_ENV=production node server.js",
     "build:cli": "tsc -p tsconfig.cli.json && chmod +x dist/index.js",
     "lint": "next lint",
-    "test": "jest",
+    "test": "jest --no-cache",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "test:unit": "jest tests/unit",
+    "test:integration": "jest tests/integration",
+    "test:all": "npm run test && npm run test:e2e",
     "cypress:open": "cypress open",
     "e2e": "start-server-and-test dev http://localhost:3000 \"cypress open --e2e\"",
     "e2e:headless": "start-server-and-test dev http://localhost:3000 \"cypress run --e2e\"",
@@ -77,6 +85,7 @@
     "@testing-library/dom": "^10.4.1",
     "@testing-library/jest-dom": "^6.6.4",
     "@testing-library/react": "^16.3.0",
+    "@testing-library/user-event": "^14.6.1",
     "@types/d3": "^7.4.3",
     "@types/dom-to-image": "^2.6.7",
     "@types/jest": "^30.0.0",
@@ -93,10 +102,12 @@
     "eslint-config-next": "15.4.5",
     "jest": "^30.0.5",
     "jest-environment-jsdom": "^30.0.5",
+    "msw": "^2.11.3",
     "tailwindcss": "^4",
     "ts-node": "^10.9.2",
     "tsx": "^4.20.3",
     "tw-animate-css": "^1.3.6",
-    "typescript": "^5"
+    "typescript": "^5",
+    "webpack-bundle-analyzer": "^4.10.2"
   }
 }

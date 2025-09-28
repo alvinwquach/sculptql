@@ -177,8 +177,8 @@ export const suggestTablesAfterFrom = (
   };
 
   // Set the after from regex to the after from regex
-  const afterFromRegex =
-    /\bSELECT\s+(DISTINCT\s+)?(.+?)(?:\s+AS\s+"[^"]*")?\s+FROM\s*$/i;
+  // const afterFromRegex =
+  //   /\bSELECT\s+(DISTINCT\s+)?(.+?)(?:\s+AS\s+"[^"]*")?\s+FROM\s*$/i;
   // Set the after table regex to the after table regex
   const afterTableRegex =
     /\bSELECT\s+(DISTINCT\s+)?(.+?)\s+FROM\s+([a-zA-Z_][a-zA-Z0-9_"]*)\s*$/i;

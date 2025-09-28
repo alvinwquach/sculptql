@@ -30,10 +30,11 @@ interface ExportButtonsProps {
 }
 
 const baseButtonStyles = `
-px-2 py-1
-text-green-300 border-slate-600 bg-slate-800
-hover:bg-green-500 hover:text-white
-transition-all duration-200 rounded-full shadow-sm
+px-3 py-2
+text-cyan-300 border-cyan-500/40 bg-gradient-to-r from-slate-800/80 to-slate-700/80
+hover:from-cyan-500/20 hover:to-blue-500/20 hover:text-cyan-200 hover:border-cyan-400/60
+hover:shadow-lg hover:shadow-cyan-500/20
+transition-all duration-300 rounded-lg font-medium
 `;
 
 const iconStyles = "w-4 h-4";
@@ -54,7 +55,10 @@ export default function ExportButtons({
   const endIndex = Math.min(startIndex + pageSize, totalRows);
 
   return (
-    <div className="flex flex-wrap gap-2 sm:gap-3">
+    <div className="flex flex-wrap gap-3 sm:gap-4 p-4 bg-gradient-to-r from-slate-900/30 to-slate-800/30 backdrop-blur-sm border border-purple-500/20 rounded-xl">
+      <div className="flex items-center gap-2 text-slate-300 text-sm font-medium">
+        <span>Export:</span>
+      </div>
       <TooltipProvider>
         <Tooltip>
           <TooltipTrigger asChild>
@@ -62,12 +66,12 @@ export default function ExportButtons({
               variant="outline"
               size="icon"
               onClick={() => onExportToCsv(false, startIndex, endIndex)}
-              className={`${baseButtonStyles} w-8 h-8`}
+              className="text-emerald-300 border-emerald-500/40 bg-gradient-to-r from-slate-800/80 to-slate-700/80 hover:from-emerald-500/20 hover:to-teal-500/20 hover:text-emerald-200 hover:border-emerald-400/60 hover:shadow-lg hover:shadow-emerald-500/20 transition-all duration-300 rounded-lg font-medium w-10 h-10"
             >
               <Sheet className={iconStyles} />
             </Button>
           </TooltipTrigger>
-          <TooltipContent>Export current page as CSV</TooltipContent>
+          <TooltipContent className="bg-slate-800 border-purple-500/50 text-cyan-200">Export current page as CSV</TooltipContent>
         </Tooltip>
 
         <Tooltip>
@@ -76,12 +80,12 @@ export default function ExportButtons({
               variant="outline"
               size="icon"
               onClick={() => onExportToCsv(true, 0, totalRows)}
-              className={`${baseButtonStyles} w-8 h-8`}
+              className="text-emerald-300 border-emerald-500/40 bg-gradient-to-r from-slate-800/80 to-slate-700/80 hover:from-emerald-500/20 hover:to-teal-500/20 hover:text-emerald-200 hover:border-emerald-400/60 hover:shadow-lg hover:shadow-emerald-500/20 transition-all duration-300 rounded-lg font-medium w-10 h-10"
             >
               <Sheet className={iconStyles} />
             </Button>
           </TooltipTrigger>
-          <TooltipContent>Export all data as CSV</TooltipContent>
+          <TooltipContent className="bg-slate-800 border-purple-500/50 text-cyan-200">Export all data as CSV</TooltipContent>
         </Tooltip>
 
         <Tooltip>
@@ -90,12 +94,12 @@ export default function ExportButtons({
               variant="outline"
               size="icon"
               onClick={() => onExportToJson(false, startIndex, endIndex)}
-              className={`${baseButtonStyles} w-8 h-8`}
+              className="text-pink-300 border-pink-500/40 bg-gradient-to-r from-slate-800/80 to-slate-700/80 hover:from-pink-500/20 hover:to-purple-500/20 hover:text-pink-200 hover:border-pink-400/60 hover:shadow-lg hover:shadow-pink-500/20 transition-all duration-300 rounded-lg font-medium w-10 h-10"
             >
               <Braces className={iconStyles} />
             </Button>
           </TooltipTrigger>
-          <TooltipContent>Export current page as JSON</TooltipContent>
+          <TooltipContent className="bg-slate-800 border-purple-500/50 text-cyan-200">Export current page as JSON</TooltipContent>
         </Tooltip>
 
         <Tooltip>
@@ -104,12 +108,12 @@ export default function ExportButtons({
               variant="outline"
               size="icon"
               onClick={() => onExportToJson(true, 0, totalRows)}
-              className={`${baseButtonStyles} w-8 h-8`}
+              className="text-pink-300 border-pink-500/40 bg-gradient-to-r from-slate-800/80 to-slate-700/80 hover:from-pink-500/20 hover:to-purple-500/20 hover:text-pink-200 hover:border-pink-400/60 hover:shadow-lg hover:shadow-pink-500/20 transition-all duration-300 rounded-lg font-medium w-10 h-10"
             >
               <Braces className={iconStyles} />
             </Button>
           </TooltipTrigger>
-          <TooltipContent>Export all data as JSON</TooltipContent>
+          <TooltipContent className="bg-slate-800 border-purple-500/50 text-cyan-200">Export all data as JSON</TooltipContent>
         </Tooltip>
 
         <Tooltip>
@@ -118,12 +122,12 @@ export default function ExportButtons({
               variant="outline"
               size="icon"
               onClick={() => onExportToMarkdown(false, startIndex, endIndex)}
-              className={`${baseButtonStyles} w-8 h-8`}
+              className="text-yellow-300 border-yellow-500/40 bg-gradient-to-r from-slate-800/80 to-slate-700/80 hover:from-yellow-500/20 hover:to-orange-500/20 hover:text-yellow-200 hover:border-yellow-400/60 hover:shadow-lg hover:shadow-yellow-500/20 transition-all duration-300 rounded-lg font-medium w-10 h-10"
             >
               <FileText className={iconStyles} />
             </Button>
           </TooltipTrigger>
-          <TooltipContent>Export current page as Markdown</TooltipContent>
+          <TooltipContent className="bg-slate-800 border-purple-500/50 text-cyan-200">Export current page as Markdown</TooltipContent>
         </Tooltip>
 
         <Tooltip>
@@ -132,12 +136,12 @@ export default function ExportButtons({
               variant="outline"
               size="icon"
               onClick={() => onExportToMarkdown(true, 0, totalRows)}
-              className={`${baseButtonStyles} w-8 h-8`}
+              className="text-yellow-300 border-yellow-500/40 bg-gradient-to-r from-slate-800/80 to-slate-700/80 hover:from-yellow-500/20 hover:to-orange-500/20 hover:text-yellow-200 hover:border-yellow-400/60 hover:shadow-lg hover:shadow-yellow-500/20 transition-all duration-300 rounded-lg font-medium w-10 h-10"
             >
               <FileText className={iconStyles} />
             </Button>
           </TooltipTrigger>
-          <TooltipContent>Export all data as Markdown</TooltipContent>
+          <TooltipContent className="bg-slate-800 border-purple-500/50 text-cyan-200">Export all data as Markdown</TooltipContent>
         </Tooltip>
       </TooltipProvider>
     </div>

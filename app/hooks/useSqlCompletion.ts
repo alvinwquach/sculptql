@@ -18,6 +18,7 @@ import { suggestJoinClause } from "@/app/utils/sqlCompletion/suggestions/suggest
 import { suggestUnionClause } from "@/app/utils/sqlCompletion/suggestions/suggestUnionClause";
 import { suggestCaseClause } from "@/app/utils/sqlCompletion/suggestions/suggestCaseClause";
 import { suggestWithClause } from "@/app/utils/sqlCompletion/suggestions/suggestWithClause";
+import { EnhancedSQLCompletion } from "@/app/utils/sqlCompletion/enhancedCompletion";
 import { MultiValue, SingleValue } from "react-select";
 
 export const useSqlCompletion = (
@@ -66,7 +67,6 @@ export const useSqlCompletion = (
 ) => {
   // Get all columns from the table names and table columns
   const allColumns = getAllColumns(tableNames, tableColumns);
-
   // Check if the node is a select node
   const isSelectNode = (node: unknown): node is Select =>
     // - The node is an object
@@ -76,6 +76,13 @@ export const useSqlCompletion = (
     "type" in node &&
     // - The type property is "select"
     (node as { type: unknown }).type === "select";
+  // Create enhanced completion instance
+  const enhancedCompletion = new EnhancedSQLCompletion(
+    tableNames,
+    tableColumns,
+    stripQuotes,
+    needsQuotes
+  );
 
   // Create the sql completion
   const sqlCompletion = useCallback(
@@ -88,6 +95,24 @@ export const useSqlCompletion = (
       const pos = context.pos;
       // Get the document text from the context
       const docText = context.state.sliceDoc(0, context.pos);
+
+      // Debug: log completion attempts (remove in production)
+      // console.log('SQL completion called:', { currentWord, pos, docText, tableNames: tableNames.length });
+
+      // Try enhanced completion first
+      try {
+        const enhancedResult = enhancedCompletion.getCompletion(docText, currentWord, pos, word);
+        if (enhancedResult) {
+          // console.log('Enhanced completion returned result:', enhancedResult.options.length, 'options');
+          return enhancedResult;
+        } else {
+          // console.log('Enhanced completion returned null');
+        }
+      } catch (error) {
+        console.warn('Enhanced completion failed, falling back to legacy completion:', error);
+      }
+
+      // Fallback to legacy completion system
       // Create the parser
       const parser = new Parser();
       // Create the ast
@@ -111,7 +136,7 @@ export const useSqlCompletion = (
         // Set the ast to null
         ast = null;
       }
-
+      
       return (
         // Suggest the select clause
         suggestSelect(docText, currentWord, pos, word, ast) ||
@@ -256,8 +281,14 @@ export const useSqlCompletion = (
       onLogicalOperatorSelect,
       onOrderBySelect,
       onGroupByColumnSelect,
+      onAggregateColumnSelect,
+      onColumnSelect,
+      onDistinctSelect,
+      onHavingOperatorSelect,
+      onHavingValueSelect,
     ]
   );
 
+  // Return the sql completion
   return sqlCompletion;
 };

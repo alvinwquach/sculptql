@@ -47,7 +47,7 @@ export default function TableView({
   const paginatedRows = getPaginatedRows(result.rows, currentPage, pageSize);
 
   return (
-    <div className="bg-[#1e293b] p-4 sm:p-6 rounded-xl shadow-lg border border-slate-700/50 min-h-[200px]">
+    <div className="h-full bg-gradient-to-br from-[#1e1b4b] to-[#312e81] p-4 sm:p-6 rounded-xl shadow-[0_0_25px_rgba(139,92,246,0.15)] border border-purple-500/30 flex flex-col">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 gap-4">
         <h2 className="text-lg sm:text-xl font-semibold text-green-300 flex items-center">
           <Table className="w-5 h-5 text-green-400 mr-2" />
@@ -62,14 +62,14 @@ export default function TableView({
           pageSize={pageSize}
         />
       </div>
-      <div className="overflow-x-auto max-w-full">
+      <div className="flex-1 overflow-x-auto max-w-full">
         <table className="w-full text-left text-sm">
-          <thead className="bg-[#111827] text-green-400 sticky top-0 z-10">
+          <thead className="bg-gradient-to-r from-[#0f0f23] to-[#1e1b4b] text-cyan-400 sticky top-0 z-10 border-b-2 border-purple-500/30">
             <tr>
               {result.fields.map((field, index) => (
                 <th
                   key={`field-${field}-${index}`}
-                  className="px-3 sm:px-4 py-2 sm:py-3 font-semibold border-b border-slate-600 whitespace-nowrap"
+                  className="px-3 sm:px-4 py-2 sm:py-3 font-semibold border-b border-purple-500/30 whitespace-nowrap text-shadow-[0_0_6px_rgba(6,182,212,0.3)]"
                 >
                   {field}
                 </th>
@@ -81,7 +81,7 @@ export default function TableView({
               <tr>
                 <td
                   colSpan={result.fields.length}
-                  className="px-3 sm:px-4 py-2 sm:py-3 text-center text-gray-400"
+                  className="px-3 sm:px-4 py-2 sm:py-3 text-center text-purple-300"
                 >
                   No data available for this page.
                 </td>
@@ -90,12 +90,12 @@ export default function TableView({
               paginatedRows.map((row, rowIndex) => (
                 <tr
                   key={`row-${rowIndex}`}
-                  className="border-b border-slate-600 hover:bg-slate-700/50 transition-colors duration-200"
+                  className="border-b border-purple-500/20 hover:bg-purple-500/10 transition-colors duration-200"
                 >
                   {result.fields.map((field, fieldIndex) => (
                     <td
                       key={`cell-${field}-${fieldIndex}`}
-                      className="px-3 sm:px-4 py-2 sm:py-3 text-green-300 break-words max-w-[150px] sm:max-w-xs"
+                      className="px-3 sm:px-4 py-2 sm:py-3 text-green-300 break-words max-w-[150px] sm:max-w-xs hover:text-green-200 transition-colors duration-200"
                     >
                       {row[field] !== null ? String(row[field]) : "null"}
                     </td>
@@ -107,13 +107,15 @@ export default function TableView({
         </table>
       </div>
       {totalRows > 0 && (
-        <PaginationControls
-          totalRows={totalRows}
-          currentPage={currentPage}
-          pageSize={pageSize}
-          onPageChange={onPageChange}
-          onPageSizeChange={onPageSizeChange}
-        />
+        <div className="mt-4">
+          <PaginationControls
+            totalRows={totalRows}
+            currentPage={currentPage}
+            pageSize={pageSize}
+            onPageChange={onPageChange}
+            onPageSizeChange={onPageSizeChange}
+          />
+        </div>
       )}
     </div>
   );

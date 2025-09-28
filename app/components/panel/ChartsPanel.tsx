@@ -143,9 +143,9 @@ export default function ChartsPanel({
       const value = payload[0].value as number;
       // Return the custom tooltip
       return (
-        <div className="bg-slate-900 border border-slate-700 rounded-lg p-3 text-sm shadow-md">
-          <p className="font-semibold text-green-400 mb-2">{label}</p>
-          <p className="text-white">Count: {value}</p>
+        <div className="bg-gradient-to-br from-[#0f0f23] to-[#1e1b4b] border-2 border-purple-500/50 rounded-lg p-3 text-sm shadow-[0_0_15px_rgba(139,92,246,0.3)]">
+          <p className="font-semibold text-cyan-400 mb-2 font-mono">{label}</p>
+          <p className="text-cyan-300 font-mono">Count: {value}</p>
         </div>
       );
     }
@@ -163,9 +163,9 @@ export default function ChartsPanel({
       const value = payload[0].value as number;
       // Return the pie tooltip
       return (
-        <div className="bg-slate-900 border border-slate-700 rounded-lg p-3 text-sm shadow-md">
-          <p className="font-semibold text-green-400 mb-2">{name}</p>
-          <p className="text-white">Count: {value}</p>
+        <div className="bg-gradient-to-br from-[#0f0f23] to-[#1e1b4b] border-2 border-purple-500/50 rounded-lg p-3 text-sm shadow-[0_0_15px_rgba(139,92,246,0.3)]">
+          <p className="font-semibold text-cyan-400 mb-2 font-mono">{name}</p>
+          <p className="text-cyan-300 font-mono">Count: {value}</p>
         </div>
       );
     }
@@ -282,19 +282,19 @@ export default function ChartsPanel({
   };
 
   return (
-    <Card className="bg-slate-800 border border-slate-700/50 hover:border-slate-600/50 transition-colors duration-200 shadow-lg rounded-xl">
+    <Card className="bg-gradient-to-br from-[#0f0f23] via-[#1e1b4b] to-[#312e81] border-2 border-purple-500/50 hover:border-pink-500/50 transition-all duration-300 shadow-[0_0_25px_rgba(139,92,246,0.3)] rounded-xl backdrop-blur-sm">
       <CardHeader className="flex flex-row items-center justify-between space-x-2">
         <div className="flex items-center space-x-2">
           {viewMode === "bar" && (
-            <BarChart2 className="w-5 h-5 text-green-400" />
+            <BarChart2 className="w-5 h-5 text-cyan-400 drop-shadow-[0_0_8px_rgba(6,182,212,0.6)]" />
           )}
           {viewMode === "pie" && (
-            <PieChartIcon className="w-5 h-5 text-green-400" />
+            <PieChartIcon className="w-5 h-5 text-cyan-400 drop-shadow-[0_0_8px_rgba(6,182,212,0.6)]" />
           )}
           {viewMode === "line" && (
-            <LineChartIcon className="w-5 h-5 text-green-400" />
+            <LineChartIcon className="w-5 h-5 text-cyan-400 drop-shadow-[0_0_8px_rgba(6,182,212,0.6)]" />
           )}
-          <CardTitle className="text-lg sm:text-xl font-semibold text-gray-300">
+          <CardTitle className="text-lg sm:text-xl font-semibold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-purple-400 font-mono">
             {viewMode.charAt(0).toUpperCase() + viewMode.slice(1)} Chart
           </CardTitle>
         </div>
@@ -305,7 +305,7 @@ export default function ChartsPanel({
                 <Button
                   onClick={exportToPNG}
                   disabled={isExporting}
-                  className="px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-medium border border-slate-600 bg-slate-800 text-green-300 hover:bg-green-500 hover:text-white transition-all duration-200 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed w-20 sm:w-auto"
+                  className="px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-medium border border-cyan-500/50 bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/40 hover:text-cyan-100 hover:shadow-[0_0_10px_rgba(6,182,212,0.3)] transition-all duration-200 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed w-20 sm:w-auto font-mono"
                 >
                   <Download className="w-3 sm:w-4 h-3 sm:h-4 mr-1 sm:mr-2" />
                   PNG
@@ -318,7 +318,7 @@ export default function ChartsPanel({
                 <Button
                   onClick={exportToJPEG}
                   disabled={isExporting}
-                  className="px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-medium border border-slate-600 bg-slate-800 text-green-300 hover:bg-green-500 hover:text-white transition-all duration-200 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed w-20 sm:w-auto"
+                  className="px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-medium border border-pink-500/50 bg-pink-500/20 text-pink-300 hover:bg-pink-500/40 hover:text-pink-100 hover:shadow-[0_0_10px_rgba(244,114,182,0.3)] transition-all duration-200 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed w-20 sm:w-auto font-mono"
                 >
                   <Download className="w-3 sm:w-4 h-3 sm:h-4 mr-1 sm:mr-2" />
                   JPEG
@@ -331,7 +331,7 @@ export default function ChartsPanel({
                 <Button
                   onClick={exportToSVG}
                   disabled={isExporting}
-                  className="px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-medium border border-slate-600 bg-slate-800 text-green-300 hover:bg-green-500 hover:text-white transition-all duration-200 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed w-20 sm:w-auto"
+                  className="px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-medium border border-purple-500/50 bg-purple-500/20 text-purple-300 hover:bg-purple-500/40 hover:text-purple-100 hover:shadow-[0_0_10px_rgba(139,92,246,0.3)] transition-all duration-200 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed w-20 sm:w-auto font-mono"
                 >
                   <Download className="w-3 sm:w-4 h-3 sm:h-4 mr-1 sm:mr-2" />
                   SVG

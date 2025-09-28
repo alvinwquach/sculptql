@@ -1,7 +1,7 @@
 "use client"
 
 import { useEditorContext } from "@/app/context/EditorContext";
-import { JoinClause, SelectOption, HavingClause } from "@/app/types/query";
+import { JoinClause, SelectOption } from "@/app/types/query";
 import { SingleValue } from "react-select";
 import CreatableSelect from "react-select/creatable";
 import { stripQuotes } from "@/app/utils/sqlCompletion/stripQuotes";
@@ -17,7 +17,6 @@ interface HavingSelectProps {
 
 export default function HavingSelect({
   metadataLoading,
-  joinClauses,
   isMySQL = false,
 }: HavingSelectProps) {
   // Get the selected table, table columns, having clause, unique values, operator options, logical operator options, handle aggregate column select, handle having operator select, and handle having value select from the editor context
@@ -27,7 +26,6 @@ export default function HavingSelect({
     havingClause,
     uniqueValues,
     operatorOptions,
-    logicalOperatorOptions,
     handleAggregateColumnSelect,
     handleHavingOperatorSelect,
     handleHavingValueSelect,
@@ -36,26 +34,17 @@ export default function HavingSelect({
 
   // Handle the aggregate column select
   const handleAggregateColumnSelectWrapper = (value: SingleValue<SelectOption>, conditionIndex: number) => {
-    // If the value is not null
-    if (value) {
-      handleAggregateColumnSelect(value, conditionIndex);
-    }
+    handleAggregateColumnSelect(value, conditionIndex);
   };
 
   // Handle the having operator select
   const handleHavingOperatorSelectWrapper = (value: SingleValue<SelectOption>, conditionIndex: number) => {
-    // If the value is not null
-    if (value) {
-      handleHavingOperatorSelect(value, conditionIndex);
-    }
+    handleHavingOperatorSelect(value, conditionIndex);
   };
 
   // Handle the having value select
   const handleHavingValueSelectWrapper = (value: SingleValue<SelectOption>, conditionIndex: number) => {
-    // If the value is not null
-    if (value) {
-      handleHavingValueSelect(value, conditionIndex);
-    }
+    handleHavingValueSelect(value, conditionIndex);
   };
 
   // Create the aggregate options
@@ -102,7 +91,6 @@ export default function HavingSelect({
             targetColumn: col,
           },
         ];
-
         // If MySQL, add the distinct aggregates
         if (isMySQL) {
           // Add the distinct aggregates
@@ -133,23 +121,41 @@ export default function HavingSelect({
             }
           );
         }
-
         // Return the aggregates
         return aggregates;
       }) || []
     : [];
-
-  // Create the value options
-  const valueOptions =
-    // If the selected table is not null and the aggregate column is not null
-    selectedTable && havingClause.condition.aggregateColumn
-      ? uniqueValues[
-          // Create the unique values
-          `${stripQuotes(selectedTable.value)}.${stripQuotes(
-            havingClause.condition.aggregateColumn.value
-          )}`
-        ] || []
-      : [];
+  // Create the value options for HAVING clause (aggregate comparisons)
+  const valueOptions = selectedTable && havingClause.condition.aggregateColumn
+    ? [
+        // Common numeric values for aggregate comparisons
+        { value: "0", label: "0" },
+        { value: "1", label: "1" },
+        { value: "5", label: "5" },
+        { value: "10", label: "10" },
+        { value: "100", label: "100" },
+        { value: "1000", label: "1000" },
+        // Common comparison values
+        { value: "0.5", label: "0.5" },
+        { value: "1.0", label: "1.0" },
+        { value: "10.5", label: "10.5" },
+        { value: "100.0", label: "100.0" },
+        // SQL functions and expressions
+        { value: "COUNT(*)", label: "COUNT(*)" },
+        { value: "AVG(column)", label: "AVG(column)" },
+        { value: "SUM(column)", label: "SUM(column)" },
+        { value: "MAX(column)", label: "MAX(column)" },
+        { value: "MIN(column)", label: "MIN(column)" },
+        // Common thresholds
+        { value: "> 0", label: "> 0" },
+        { value: ">= 1", label: ">= 1" },
+        { value: "< 10", label: "< 10" },
+        { value: "<= 100", label: "<= 100" },
+        // NULL checks
+        { value: "IS NULL", label: "IS NULL" },
+        { value: "IS NOT NULL", label: "IS NOT NULL" },
+      ]
+    : [];
 
   return (
     <div className="space-y-2">

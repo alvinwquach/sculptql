@@ -128,7 +128,7 @@ export function useQueryHistory(dependencies?: QueryHistoryDependencies): QueryH
       // Log a warning if the setQuery function is not provided
       console.warn("setQuery function not provided to useQueryHistory");
     }
-  }, [dependencies?.setQuery]);
+  }, [dependencies]);
 
   // Run the query from history
   const runQueryFromHistory = useCallback(async (query: string) => {
@@ -140,7 +140,7 @@ export function useQueryHistory(dependencies?: QueryHistoryDependencies): QueryH
       // Log a warning if the runQuery function is not provided
       console.warn("runQuery function not provided to useQueryHistory");
     }
-  }, [dependencies?.runQuery]);
+  }, [dependencies]);
 
   // Add a pinned query
   const addPinnedQuery = useCallback((query: string) => {

@@ -6,6 +6,7 @@ import CreatableSelect from "react-select/creatable";
 import { selectStyles } from "@/app/utils/selectStyles";
 import { Label } from "@/components/ui/label"
 
+// Props for the GroupBySelect component
 interface GroupBySelectProps {
   metadataLoading: boolean;
   joinClauses: JoinClause[];
@@ -13,8 +14,8 @@ interface GroupBySelectProps {
 
 export default function GroupBySelect({
   metadataLoading,
-  joinClauses,
 }: GroupBySelectProps) {
+  // Get the selected table, table columns, selected group by columns, and handle group by column select from the editor context
   const {
     selectedTable,
     tableColumns,
@@ -22,8 +23,11 @@ export default function GroupBySelect({
     handleGroupByColumnSelect,
   } = useEditorContext();
 
+  // Create the column options
   const columnOptions: SelectOption[] = selectedTable
+    // If the selected table is not null
     ? tableColumns[selectedTable.value]?.map((col) => ({
+        // Add the column options
         value: col,
         label: col,
       })) || []

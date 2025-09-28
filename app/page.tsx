@@ -5,7 +5,7 @@ import oracleImg from "../public/databases/oracle.jpeg";
 import postgresqlImg from "../public/databases/Postgresql_elephant.svg";
 import sqlServerImg from "../public/databases/sql-server.png";
 import sqliteImg from "../public/databases/SQLite370.svg.png";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { ScrambleTextPlugin } from "gsap/ScrambleTextPlugin";
@@ -116,19 +116,19 @@ export default function Home() {
   const tabRefs = useRef<HTMLButtonElement[]>([]);
   const [activeTab, setActiveTab] = useState(0);
 
-  const sqlLines = [
+  const sqlLines = useMemo(() => [
     "SELECT ranger_name, color, power_level",
     "FROM power_rangers",
     "WHERE team = 'Mighty Morphin'",
     "ORDER BY power_level DESC;",
-  ];
+  ], []);
 
-  const tooltips = [
+  const tooltips = useMemo(() => [
     "Select these columns: ranger_name, color, power_level",
     "From the table: power_rangers",
     "Filter rows where team equals 'Mighty Morphin'",
     "Sort results by power_level descending",
-  ];
+  ], []);
 
   const overviewItems = [
     {
@@ -356,13 +356,14 @@ ORDER BY count DESC;`,
 
     return () => {
       ScrollTrigger.getAll().forEach((trigger) => trigger.kill());
-      textLinesRef.current.forEach((lineEl) => {
+      const currentLines = textLinesRef.current;
+      currentLines.forEach((lineEl) => {
         lineEl.removeEventListener("mouseenter", () => {});
         lineEl.removeEventListener("mouseleave", () => {});
       });
       window.removeEventListener("resize", handleResize);
     };
-  }, []);
+  }, [sqlLines, tooltips]);
 
   const addLineRef = (el: LineDiv | null) => {
     if (el && !textLinesRef.current.includes(el)) textLinesRef.current.push(el);

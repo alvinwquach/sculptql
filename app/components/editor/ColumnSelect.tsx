@@ -28,16 +28,16 @@ export default function ColumnSelect({
     handleDistinctChange,
   } = useEditorContext();
 
+
   // Create the aggregate functions
-  const aggregateFunctions = [
+  const aggregateFunctions = useMemo(() => [
     { value: "COUNT(*)", label: "COUNT(*)", isAggregate: true },
-  ];
+  ], []);
 
   // Create the column options
   const columnOptions: SelectOption[] = useMemo(() => {
     // If no table is selected, return an empty array
     if (!selectedTable) return [];
-
     // Create the columns
     const columns = [
       // All columns
@@ -181,23 +181,19 @@ export default function ColumnSelect({
             }
           );
         }
-
         // Return the aggregates
         return aggregates;
       }) || []),
       // Aggregate functions 
       ...aggregateFunctions,
     ];
-
     // Ensure uniqueness by filtering out duplicates
     const uniqueColumns = Array.from(
       new Map(columns.map((option) => [option.value, option])).values()
     );
-
+    // Return the unique columns
     return uniqueColumns;
-  }, [selectedTable, tableColumns, isMySQL]);
-
-
+  }, [selectedTable, tableColumns, isMySQL, aggregateFunctions]);
   // Handle the change
   const handleChange = (value: MultiValue<SelectOption>) => {
     // Get the last selected column
@@ -224,7 +220,6 @@ export default function ColumnSelect({
       }
     }
   };
-
   // Create the label
   const label =
     // If the selected columns length is 1 and the first column value is the all columns
