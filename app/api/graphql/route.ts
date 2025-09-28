@@ -11,6 +11,7 @@ import mysql, { Pool as MySqlPool, RowDataPacket, FieldPacket } from "mysql2/pro
 import * as mssql from "mssql";
 import { open, Database as SqliteDatabase } from "sqlite";
 import * as sqlite3 from "sqlite3";
+import oracledb, { Pool as OraclePool } from "oracledb";
 
 // Interface for the schema cache entry
 interface SchemaCacheEntry {
@@ -289,10 +290,10 @@ const CustomResponse = Response as typeof Response & {
 };
 
 // Supported dialects
-type SupportedDialect = "postgres" | "mysql" | "mssql" | "sqlite";
+type SupportedDialect = "postgres" | "mysql" | "mssql" | "sqlite" | "oracle";
 
 // Database pool
-type DatabasePool = PgPool | MySqlPool | mssql.ConnectionPool | SqliteDatabase;
+type DatabasePool = PgPool | MySqlPool | mssql.ConnectionPool | SqliteDatabase | OraclePool;
 
 // Interface for the database adapter
 interface DatabaseAdapter {
@@ -422,6 +423,36 @@ class SqliteAdapter implements DatabaseAdapter {
   }
 }
 
+// Oracle adapter
+class OracleAdapter implements DatabaseAdapter {
+  // Constructor for the oracle adapter
+  constructor(private connection: import('oracledb').Connection) {}
+  // Query method for the oracle adapter
+  async query<T = unknown>(text: string, params?: (string | number)[]) {
+    try {
+      // Execute the connection and the text and the params
+      const result = await this.connection.execute(text, params || []);
+      // Return the result
+      return {
+        rows: result.rows as T[],
+        rowCount: result.rowsAffected || result.rows?.length || 0,
+        fields: result.metaData?.map((field) => ({ name: field.name })) || []
+      };
+    } catch (error) {
+      console.error('Oracle query error:', error);
+      throw error;
+    }
+  }
+
+  // Release method for the oracle adapter
+  release() {
+    // Release the connection
+    this.connection.close();
+    // Release the connection from the manager
+    connectionManager.releaseConnection();
+  }
+}
+
 // Get the dialect from the environment variables
 const dialect = (process.env.DB_DIALECT as SupportedDialect) || "postgres";
 
@@ -484,6 +515,18 @@ async function createDatabasePool(): Promise<DatabasePool> {
     return await open({
       filename: dbFile,
       driver: sqlite3.Database,
+    });
+  } else if (dialect === "oracle") {
+    // Oracle connection pool
+    return await oracledb.createPool({
+      user: process.env.DB_USER,
+      password: process.env.DB_PASSWORD,
+      connectString: `${process.env.DB_HOST}:${process.env.DB_PORT || 1521}/${process.env.DB_DATABASE}`,
+      poolMin: commonPoolSettings.min,
+      poolMax: commonPoolSettings.max,
+      poolIncrement: 1,
+      poolTimeout: 60,
+      stmtCacheSize: 30,
     });
   } else {
     return new PgPool({
@@ -604,6 +647,11 @@ async function getDatabaseAdapter(): Promise<DatabaseAdapter> {
     } else if (dialect === "sqlite") {
       // Return the sqlite adapter
       return new SqliteAdapter(pool as SqliteDatabase);
+    } else if (dialect === "oracle") {
+      // Get the connection from the oracle pool
+      const connection = await (pool as OraclePool).getConnection();
+      // Return the oracle adapter
+      return new OracleAdapter(connection);
     } else {
       // Get the client from the pool
       const client = await (pool as PgPool).connect();
@@ -689,6 +737,27 @@ class SqlQueries {
       query += ` ORDER BY name`;
       // Return the query and the params
       return { query, params };
+    } else if (dialect === "oracle") {
+      // Oracle
+      let query = `
+        SELECT 
+          owner as table_catalog,
+          owner as table_schema,
+          table_name,
+          'BASE TABLE' as table_type
+        FROM all_tables
+        WHERE owner = USER
+      `;
+      // If the table search is not null
+      if (tableSearch) {
+        query += ` AND table_name LIKE :1`;
+        // Append the table search to the params
+        params.push(`%${tableSearch}%`);
+      }
+      // Append the order by table name
+      query += ` ORDER BY table_name`;
+      // Return the query and the params
+      return { query, params };
     } else {
       // PostgreSQL
       let query = `
@@ -769,6 +838,26 @@ class SqlQueries {
       query += ` ORDER BY cid`;
       // Return the query and the params
       return { query, params };
+    } else if (dialect === "oracle") {
+      // Set the query to the oracle columns query
+      let query = `
+        SELECT 
+          column_name, 
+          data_type, 
+          CASE WHEN nullable = 'Y' THEN 'YES' ELSE 'NO' END as is_nullable
+        FROM user_tab_columns
+        WHERE table_name = :1
+      `;
+      // If the column search is not null
+      if (columnSearch) {
+        query += ` AND (column_name LIKE :2 OR data_type LIKE :2)`;
+        // Append the column search to the params
+        params.push(`%${columnSearch}%`);
+      }
+      // Append the order by column_id
+      query += ` ORDER BY column_id`;
+      // Return the query and the params
+      return { query, params };
     } else {
       // PostgreSQL
       let query = `
@@ -828,6 +917,19 @@ class SqlQueries {
           FROM pragma_table_info(?)
           WHERE pk = 1
           ORDER BY cid
+        `,
+        // Append the table name to the params
+        params: [tableName]
+      };
+    } else if (dialect === "oracle") {
+      // Set the query to the oracle primary keys query
+      return {
+        query: `
+          SELECT column_name
+          FROM user_cons_columns ucc
+          JOIN user_constraints uc ON ucc.constraint_name = uc.constraint_name
+          WHERE uc.constraint_type = 'P' AND ucc.table_name = :1
+          ORDER BY ucc.position
         `,
         // Append the table name to the params
         params: [tableName]
@@ -900,6 +1002,23 @@ class SqlQueries {
             "to" as referenced_column,
             id as constraint_name
           FROM pragma_foreign_key_list(?)
+        `,
+        // Append the table name to the params
+        params: [tableName]
+      };
+    } else if (dialect === "oracle") {
+      // Set the query to the oracle foreign keys query
+      return {
+        query: `
+          SELECT 
+            ucc.column_name,
+            ucc2.table_name as referenced_table,
+            ucc2.column_name as referenced_column,
+            ucc.constraint_name
+          FROM user_cons_columns ucc
+          JOIN user_constraints uc ON ucc.constraint_name = uc.constraint_name
+          JOIN user_cons_columns ucc2 ON uc.r_constraint_name = ucc2.constraint_name
+          WHERE uc.constraint_type = 'R' AND ucc.table_name = :1
         `,
         // Append the table name to the params
         params: [tableName]
@@ -1043,6 +1162,20 @@ class SqlQueries {
       }
       // Return the query and the params
       return { query, params };
+    } else if (dialect === "oracle") {
+      // Set the query to the oracle sample data query
+      let query = `SELECT * FROM ${tableName}`;
+      // Set the params to an empty array
+      const params: (string | number)[] = [];
+      // If the limit is a number
+      if (typeof limit === "number") {
+        // Append the limit to the query
+        query += ` WHERE ROWNUM <= :1`;
+        // Append the limit to the params
+        params.push(limit);
+      }
+      // Return the query and the params
+      return { query, params };
     } else {
       // Set the query to the postgres sample data query
       let query = `SELECT * FROM public.${tableName}`;
@@ -1072,6 +1205,9 @@ class SqlQueries {
     } else if (dialect === "sqlite") {
       // SQLite - EXPLAIN QUERY PLAN provides basic query analysis
       return `EXPLAIN QUERY PLAN ${originalQuery}`;
+    } else if (dialect === "oracle") {
+      // Oracle - EXPLAIN PLAN provides query analysis
+      return `EXPLAIN PLAN FOR ${originalQuery}`;
     } else {
       // PostgreSQL
       return `EXPLAIN (ANALYZE, FORMAT JSON) ${originalQuery}`;
