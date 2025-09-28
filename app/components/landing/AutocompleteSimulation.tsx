@@ -145,13 +145,13 @@ export default function AutocompleteSimulation({
 
 
   return (
-    <div 
-      ref={editorRef} 
+    <div
+      ref={editorRef}
       className={`autocomplete-simulation relative w-full rounded-xl shadow-2xl overflow-hidden border border-purple-500/30 bg-[#0f0f23] ${className}`}
-      style={{ 
+      style={{
         minHeight: height,
         opacity: 1,
-        transform: 'scale(1) translateY(0px)'
+        transform: "scale(1) translateY(0px)",
       }}
     >
       {/* Browser header */}
@@ -161,7 +161,9 @@ export default function AutocompleteSimulation({
           <span className="w-3 h-3 bg-yellow-500 rounded-full shadow-lg"></span>
           <span className="w-3 h-3 bg-green-500 rounded-full shadow-lg"></span>
         </div>
-        <div className="text-cyan-400 text-sm font-mono">SQL EDITOR [SYNTHWAVE MODE]</div>
+        <div className="text-cyan-400 text-sm font-mono">
+          SQL EDITOR [SYNTHWAVE MODE]
+        </div>
         <div className="w-16" />
       </div>
 
@@ -187,58 +189,69 @@ export default function AutocompleteSimulation({
             searchKeymap: false,
           }}
         />
-        
-      {/* Autocomplete dropdown simulation */}
-      {showAutocomplete && (
-        <div className="absolute top-12 left-4 bg-[#1e1b4b] border border-purple-500/30 rounded-lg shadow-xl backdrop-blur-sm z-10 min-w-48">
-          <div className="p-2">
-            <div className="text-cyan-400 text-xs font-mono mb-1">
-              {autocompleteType === "column" ? "Columns:" : 
-               autocompleteType === "table" ? "Tables:" : "Values:"}
-            </div>
-            <div className="space-y-1">
-              {autocompleteType === "column" ? (
-                <>
-                  <div className="px-2 py-1 text-[#e0e6ed] text-sm hover:bg-purple-500/20 rounded cursor-pointer">
-                    <span className="text-cyan-400">user_name</span> - VARCHAR(255)
-                  </div>
-                  <div className="px-2 py-1 text-[#e0e6ed] text-sm hover:bg-purple-500/20 rounded cursor-pointer">
-                    <span className="text-cyan-400">email</span> - VARCHAR(255)
-                  </div>
-                  <div className="px-2 py-1 text-[#e0e6ed] text-sm hover:bg-purple-500/20 rounded cursor-pointer">
-                    <span className="text-cyan-400">created_at</span> - TIMESTAMP
-                  </div>
-                </>
-              ) : autocompleteType === "table" ? (
-                <>
-                  <div className="px-2 py-1 text-[#e0e6ed] text-sm hover:bg-purple-500/20 rounded cursor-pointer">
-                    <span className="text-cyan-400">users</span> - 1,234 rows
-                  </div>
-                  <div className="px-2 py-1 text-[#e0e6ed] text-sm hover:bg-purple-500/20 rounded cursor-pointer">
-                    <span className="text-cyan-400">orders</span> - 5,678 rows
-                  </div>
-                  <div className="px-2 py-1 text-[#e0e6ed] text-sm hover:bg-purple-500/20 rounded cursor-pointer">
-                    <span className="text-cyan-400">products</span> - 890 rows
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div className="px-2 py-1 text-[#e0e6ed] text-sm hover:bg-purple-500/20 rounded cursor-pointer">
-                    <span className="text-cyan-400">'active'</span> - 1,234 matches
-                  </div>
-                  <div className="px-2 py-1 text-[#e0e6ed] text-sm hover:bg-purple-500/20 rounded cursor-pointer">
-                    <span className="text-cyan-400">'inactive'</span> - 56 matches
-                  </div>
-                  <div className="px-2 py-1 text-[#e0e6ed] text-sm hover:bg-purple-500/20 rounded cursor-pointer">
-                    <span className="text-cyan-400">'pending'</span> - 12 matches
-                  </div>
-                </>
-              )}
+
+        {/* Autocomplete dropdown simulation */}
+        {showAutocomplete && (
+          <div className="absolute top-12 left-4 bg-[#1e1b4b] border border-purple-500/30 rounded-lg shadow-xl backdrop-blur-sm z-10 min-w-48">
+            <div className="p-2">
+              <div className="text-cyan-400 text-xs font-mono mb-1">
+                {autocompleteType === "column"
+                  ? "Columns:"
+                  : autocompleteType === "table"
+                  ? "Tables:"
+                  : "Values:"}
+              </div>
+              <div className="space-y-1">
+                {autocompleteType === "column" ? (
+                  <>
+                    <div className="px-2 py-1 text-[#e0e6ed] text-sm hover:bg-purple-500/20 rounded cursor-pointer">
+                      <span className="text-cyan-400">user_name</span> -
+                      VARCHAR(255)
+                    </div>
+                    <div className="px-2 py-1 text-[#e0e6ed] text-sm hover:bg-purple-500/20 rounded cursor-pointer">
+                      <span className="text-cyan-400">email</span> -
+                      VARCHAR(255)
+                    </div>
+                    <div className="px-2 py-1 text-[#e0e6ed] text-sm hover:bg-purple-500/20 rounded cursor-pointer">
+                      <span className="text-cyan-400">created_at</span> -
+                      TIMESTAMP
+                    </div>
+                  </>
+                ) : autocompleteType === "table" ? (
+                  <>
+                    <div className="px-2 py-1 text-[#e0e6ed] text-sm hover:bg-purple-500/20 rounded cursor-pointer">
+                      <span className="text-cyan-400">users</span> - 1,234 rows
+                    </div>
+                    <div className="px-2 py-1 text-[#e0e6ed] text-sm hover:bg-purple-500/20 rounded cursor-pointer">
+                      <span className="text-cyan-400">orders</span> - 5,678 rows
+                    </div>
+                    <div className="px-2 py-1 text-[#e0e6ed] text-sm hover:bg-purple-500/20 rounded cursor-pointer">
+                      <span className="text-cyan-400">products</span> - 890 rows
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="px-2 py-1 text-[#e0e6ed] text-sm hover:bg-purple-500/20 rounded cursor-pointer">
+                      <span className="text-cyan-400">&apos;active&apos;</span>{" "}
+                      - 1,234 matches
+                    </div>
+                    <div className="px-2 py-1 text-[#e0e6ed] text-sm hover:bg-purple-500/20 rounded cursor-pointer">
+                      <span className="text-cyan-400">
+                        &apos;inactive&apos;
+                      </span>{" "}
+                      - 56 matches
+                    </div>
+                    <div className="px-2 py-1 text-[#e0e6ed] text-sm hover:bg-purple-500/20 rounded cursor-pointer">
+                      <span className="text-cyan-400">&apos;pending&apos;</span>{" "}
+                      - 12 matches
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
           </div>
-        </div>
-      )}
-        
+        )}
+
         {/* Typing indicator */}
         {isTyping && (
           <div className="absolute bottom-4 right-4 flex items-center gap-2 text-cyan-400 text-sm">
