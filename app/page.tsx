@@ -10,10 +10,11 @@ import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { ScrambleTextPlugin } from "gsap/ScrambleTextPlugin";
 import { MotionPathPlugin } from "gsap/MotionPathPlugin";
-import { useGSAP } from "@gsap/react";
-import { Card, CardContent } from "@/components/ui/card";
 import CodeMirror from "@uiw/react-codemirror";
 import { sql } from "@codemirror/lang-sql";
+import { Database as DatabaseType } from "@/app/types/query";
+import AutocompleteSimulation from "@/app/components/landing/AutocompleteSimulation";
+import VisualQueryBuilder from "@/app/components/landing/VisualQueryBuilder";
 import {
   Database,
   BarChart2,
@@ -23,91 +24,21 @@ import {
   History,
   Table2,
   LucideGithub,
+  Copy,
+  Check,
 } from "lucide-react";
-import Image from "next/image";
 import Link from "next/link";
+import { Input } from "@/components/ui/input";
+import DatabaseCarousel from "./components/landing/DatabaseCarousel";
+import { Button } from "@/components/ui/button";
 
 gsap.registerPlugin(ScrollTrigger, ScrambleTextPlugin, MotionPathPlugin);
 
 type LineDiv = HTMLDivElement & { orig?: string };
 
-interface Database {
-  src: string;
-  alt: string;
-  tooltip: string;
-}
-
-function DatabaseCarousel({ databases }: { databases: Database[] }) {
-  const scrollerRef = useRef<HTMLDivElement>(null);
-
-  useGSAP(() => {
-    const scroller = scrollerRef.current;
-    if (!scroller) return;
-
-    const originalChildren = Array.from(scroller.children);
-    originalChildren.forEach((child) => {
-      const clone = child.cloneNode(true);
-      scroller.appendChild(clone);
-    });
-
-    const totalWidth = scroller.scrollWidth;
-    const containerWidth = scroller.clientWidth;
-
-    gsap.fromTo(
-      scroller,
-      { x: 0 },
-      {
-        x: `${totalWidth / 2}px`, 
-        ease: "none",
-        duration: (totalWidth / containerWidth) * 15, 
-        repeat: -1,
-        modifiers: {
-          x: gsap.utils.unitize(
-            (x) => -Math.abs(parseFloat(x) % (totalWidth / 2))
-          ), 
-        },
-      }
-    );
-
-    return () => {
-      gsap.killTweensOf(scroller);
-    };
-  }, [databases]);
-
-  return (
-    <div className="relative overflow-hidden bg-white py-12">
-      <h2 className="text-3xl font-bold mb-12 text-center text-green-400">
-        Works with the following databases
-      </h2>
-      <div ref={scrollerRef} className="flex flex-nowrap whitespace-nowrap">
-        {databases.map((db, i) => (
-          <Card
-            key={i}
-            className="flex items-center p-6 mx-3 transition-all duration-300 hover:scale-105 hover:shadow-xl "
-          >
-            <CardContent className="relative group flex items-center justify-center p-0">
-              <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 -translate-y-6 opacity-0 group-hover:opacity-100 transition-all duration-200 bg-slate-900 text-slate-200 text-sm rounded-lg px-3 py-1 mb-2 shadow-lg whitespace-nowrap">
-                {db.tooltip}
-              </div>
-
-              <div className="relative w-24 h-24">
-                <Image
-                  src={db.src}
-                  alt={db.alt}
-                  fill
-                  className="object-contain"
-                />
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-    </div>
-  );
-}
 
 export default function Home() {
-  const typewriterRef = useRef<HTMLDivElement>(null);
+  const typewriterRef = useRef<HTMLButtonElement>(null);
   const editorRef = useRef<HTMLDivElement>(null);
   const textLinesRef = useRef<LineDiv[]>([]);
   const featureRefs = useRef<HTMLDivElement[]>([]);
@@ -115,6 +46,17 @@ export default function Home() {
   const animatedBoxRef = useRef<HTMLDivElement>(null);
   const tabRefs = useRef<HTMLButtonElement[]>([]);
   const [activeTab, setActiveTab] = useState(0);
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText("npx sculptql");
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error("Failed to copy: ", err);
+    }
+  };
 
   const sqlLines = useMemo(() => [
     "SELECT ranger_name, color, power_level",
@@ -205,7 +147,7 @@ ORDER BY count DESC;`,
     },
   ];
 
-  const databases: Database[] = [
+  const databases: DatabaseType[] = [
     {
       src: mysqlImg.src,
       alt: "MySQL",
@@ -234,36 +176,73 @@ ORDER BY count DESC;`,
   ];
 
   useEffect(() => {
-    const typeText = "npx sculptql";
+    // Animate the typewriter
     if (typewriterRef.current) {
-      const el = typewriterRef.current;
-      gsap.set(el, { opacity: 0 });
-      el.textContent = "";
-      let i = 0;
-      const typeInterval = setInterval(() => {
-        if (i < typeText.length) {
-          el.textContent = typeText.slice(0, i + 1) + "|";
-          i++;
-        } else {
-          el.textContent = typeText;
-          clearInterval(typeInterval);
+      gsap.fromTo(
+        typewriterRef.current,
+        { opacity: 0, scale: 0.8, y: 20 },
+        {
+          opacity: 1,
+          scale: 1,
+          y: 0,
+          duration: 0.8,
+          ease: "back.out(1.7)",
+          delay: 0.5,
         }
-      }, 120);
-      gsap.to(el, { opacity: 1, duration: 0.3 });
+      );
     }
 
+    // Animate the background blur
+    gsap.to(".bg-blur-1", {
+      x: 100,
+      y: -50,
+      rotation: 10,
+      duration: 20,
+      repeat: -1,
+      yoyo: true,
+      ease: "sine.inOut"
+    });
+
+    // Animate the background blur
+    gsap.to(".bg-blur-2", {
+      x: -100,
+      y: 50,
+      rotation: -10,
+      duration: 25,
+      repeat: -1,
+      yoyo: true,
+      ease: "sine.inOut"
+    });
+
+    // Animate the background blur
+    gsap.to(".bg-blur-3", {
+      x: 50,
+      y: -100,
+      rotation: 5,
+      duration: 30,
+      repeat: -1,
+      yoyo: true,
+      ease: "sine.inOut"
+    });
+
+    // Animate the text lines
     const upperAndLowerCase =
       "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
+    // Animate the text lines
     textLinesRef.current.forEach((lineEl, idx) => {
+      // Set the original text for the line
       lineEl.orig = sqlLines[idx];
+      // Add a mouse enter event listener to the line
       lineEl.addEventListener("mouseenter", () => {
+        // Animate the text to the tooltip
         gsap.to(lineEl, {
           duration: 0.8,
           scrambleText: { text: tooltips[idx], chars: upperAndLowerCase },
           ease: "power2.out",
         });
       });
+      // Add a mouse leave event listener to the line
       lineEl.addEventListener("mouseleave", () => {
         gsap.to(lineEl, {
           duration: 0.8,
@@ -287,7 +266,6 @@ ORDER BY count DESC;`,
         }
       );
     });
-
     featureRefs.current.forEach((el, i) => {
       gsap.fromTo(
         el,
@@ -307,7 +285,9 @@ ORDER BY count DESC;`,
       );
     });
 
+
     if (overviewRef.current) {
+      // Animate the features
       gsap.fromTo(
         overviewRef.current.querySelectorAll(".overview-item"),
         { opacity: 0, y: 30 },
@@ -326,88 +306,130 @@ ORDER BY count DESC;`,
       );
     }
 
+    // Editor is static by default, only animates on scroll
     if (editorRef.current) {
-      gsap.set(editorRef.current, {
-        opacity: 0,
-        rotateX: 25,
-        transformPerspective: 800,
-        transformOrigin: "bottom center",
-      });
-
-      gsap.to(editorRef.current, {
-        opacity: 1,
-        rotateX: 0,
-        duration: 3,
-        ease: "power3.out",
-        scrollTrigger: {
-          trigger: editorRef.current,
-          start: "top 85%",
-          end: "top 35%",
-          scrub: 1.5,
-          invalidateOnRefresh: true,
+      gsap.fromTo(editorRef.current, 
+        {
+          opacity: 0,
+          scale: 0.95,
+          y: 20,
         },
-      });
+        {
+          opacity: 1,
+          scale: 1,
+          y: 0,
+          duration: 1.2,
+          ease: "power3.out",
+          scrollTrigger: {
+            trigger: editorRef.current,
+            start: "top 85%",
+            end: "top 35%",
+            scrub: 1.5,
+            invalidateOnRefresh: true,
+          },
+        }
+      );
     }
 
     const handleResize = () => {
+      // Refresh the scroll trigger
       ScrollTrigger.refresh();
     };
     window.addEventListener("resize", handleResize);
-
+    // Return a function to kill the tweens
     return () => {
       ScrollTrigger.getAll().forEach((trigger) => trigger.kill());
+      // Get the current lines
       const currentLines = textLinesRef.current;
+      // Remove the mouse enter event listener from the lines
       currentLines.forEach((lineEl) => {
+        // Remove the mouse enter event listener from the lines
         lineEl.removeEventListener("mouseenter", () => {});
+        // Remove the mouse leave event listener from the lines
         lineEl.removeEventListener("mouseleave", () => {});
       });
+      // Remove the resize event listener
       window.removeEventListener("resize", handleResize);
     };
   }, [sqlLines, tooltips]);
 
   const addLineRef = (el: LineDiv | null) => {
+    // Add a line reference
+    // If the element is not null and the line references do not include the element, add the element to the line references
     if (el && !textLinesRef.current.includes(el)) textLinesRef.current.push(el);
   };
 
   const addTabRef = (el: HTMLButtonElement | null) => {
+    // Add a tab reference
+    // If the element is not null and the tab references do not include the element, add the element to the tab references
     if (el && !tabRefs.current.includes(el)) tabRefs.current.push(el);
   };
 
   return (
-    <div className="min-h-screen bg-[#0f172a] text-slate-200 font-sans overflow-x-hidden">
-      <header className="sticky top-0 z-50 bg-[#0f172a]/95 backdrop-blur-sm border-b border-green-700/50">
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-pink-900 text-pink-100 font-sans overflow-x-hidden">
+      <div className="fixed inset-0 overflow-hidden pointer-events-none">
+        <div className="bg-blur-1 absolute -top-40 -right-40 w-80 h-80 bg-purple-500/20 rounded-full blur-3xl"></div>
+        <div className="bg-blur-2 absolute -bottom-40 -left-40 w-80 h-80 bg-pink-500/20 rounded-full blur-3xl"></div>
+        <div className="bg-blur-3 absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-cyan-500/10 rounded-full blur-3xl"></div>
+      </div>
+      <header className="sticky top-0 z-50 bg-gray-900/80 backdrop-blur-sm border-b border-pink-500/30">
         <div className="max-w-7xl mx-auto px-4 sm:px-8 lg:px-16 py-4 flex justify-between items-center">
           <div className="flex items-center gap-2">
-            <Database className="w-6 h-6 text-green-400" />
-            <h1 className="text-2xl font-bold text-green-400">SculptQL</h1>
+            <Database className="w-6 h-6 text-pink-400" />
+            <h1 className="text-2xl font-bold bg-gradient-to-r from-pink-400 to-purple-400 bg-clip-text text-transparent">SculptQL</h1>
           </div>
-          <nav className="flex items-center gap-6">
+          <nav className="hidden md:flex items-center gap-8">
+            <a href="#features" className="text-pink-200 hover:text-pink-400 transition-colors">Features</a>
+            <a href="#query-builder" className="text-pink-200 hover:text-pink-400 transition-colors">Query Builder</a>
+            <a href="#demo" className="text-pink-200 hover:text-pink-400 transition-colors">Demo</a>
+            <a href="#schema" className="text-pink-200 hover:text-pink-400 transition-colors">Schema</a>
             <Link
               href="https://github.com/alvinwquach/sculptql"
               target="_blank"
               rel="noopener noreferrer"
-              aria-label="Visit the SculptQL GitHub repository"
-              className="inline-flex items-center gap-2 px-4 py-2 border border-green-500 rounded-md text-slate-200 hover:text-green-400 hover:border-green-400 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-pink-600 text-white rounded-lg hover:bg-pink-700 transition-colors"
             >
-              <LucideGithub className="w-5 h-5" aria-hidden="true" />
+              <LucideGithub className="w-4 h-4" />
               <span className="text-sm font-medium">GitHub</span>
             </Link>
           </nav>
         </div>
       </header>
-      <section className="flex flex-col items-center text-center py-20 px-4 sm:px-8 lg:px-16 bg-gradient-to-b from-green-900/20 to-[#0f172a]">
-        <div className="max-w-4xl mx-auto">
-          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold mb-6 bg-clip-text text-transparent bg-gradient-to-r from-green-400 to-teal-300 leading-tight">
-            SculptQL: Shape Your Data with Precision
-          </h1>
-          <p className="text-lg sm:text-xl max-w-3xl text-slate-200 mb-8 font-medium leading-relaxed">
-            Seamlessly build, visualize, and optimize SQL queries in real-time
-            with our intuitive, professional-grade interface.
-          </p>
-          <div
-            ref={typewriterRef}
-            className="inline-block px-6 py-3 bg-green-500/10 text-green-400 rounded-lg font-mono text-lg sm:text-xl border border-green-500/30 shadow-lg"
-          ></div>
+      <section className="relative py-20 px-4 sm:px-8 lg:px-16 bg-gradient-to-b from-purple-900/20 to-transparent">
+        <div className="max-w-7xl mx-auto">
+          <div className="grid lg:grid-cols-2 gap-12 items-center">
+            <div className="relative z-10">
+              <div className="inline-flex items-center px-3 py-1 rounded-full bg-pink-500/20 text-pink-300 text-sm font-medium mb-4 border border-pink-500/30">
+                <span className="w-2 h-2 bg-green-400 rounded-full mr-2 animate-pulse"></span>
+                Read-Only Database Interface
+              </div>
+              <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold mb-6 text-white leading-tight">
+                Build SQL queries with
+                <span className="bg-gradient-to-r from-pink-400 via-purple-400 to-cyan-400 bg-clip-text text-transparent synthwave-glow"> intelligent autocomplete</span>
+              </h1>
+              <p className="text-xl text-pink-100 mb-8 leading-relaxed">
+                Connect your database to a local web interface. Query, explore, and visualize your data 
+                with context-aware autocomplete and visual query building. <span className="text-cyan-300 font-semibold">Read-only access</span> keeps your data safe.
+              </p>
+              <div className="flex flex-col sm:flex-row gap-4">
+                <Button
+                  ref={typewriterRef}
+                  onClick={handleCopy}
+                  className="group inline-flex items-center justify-center gap-3 px-8 py-4 synthwave-button text-pink-300 rounded-lg font-semibold text-lg hover:scale-105 synthwave-glow"
+                >
+                  <span>npx sculptql</span>
+                  {copied ? (
+                    <Check className="w-5 h-5" />
+                  ) : (
+                    <Copy className="w-5 h-5" />
+                  )}
+                </Button>
+              </div>
+            </div>
+            <div className="relative">
+              <AutocompleteSimulation height="400px" className="w-full" />
+            </div>
+          </div>
         </div>
       </section>
       <section className="py-12 px-4 sm:px-8 lg:px-16 bg-[#111827]">
@@ -426,90 +448,232 @@ ORDER BY count DESC;`,
           ))}
         </div>
       </section>
-      <section className="py-12 px-4 sm:px-8 lg:px-16 bg-[#111827]">
-        <div
-          ref={animatedBoxRef}
-          className="relative max-w-5xl mx-auto h-[600px] flex justify-center items-center"
-        >
-          <div
-            ref={editorRef}
-            className="relative w-full max-w-5xl rounded-xl shadow-2xl overflow-hidden border border-green-700/50 z-10"
-          >
-            <div className="flex items-center justify-between bg-slate-900 px-4 py-2 border-b border-green-700/50">
-              <div className="flex gap-2">
-                <span className="w-3 h-3 bg-red-500 rounded-full"></span>
-                <span className="w-3 h-3 bg-yellow-500 rounded-full"></span>
-                <span className="w-3 h-3 bg-green-500 rounded-full"></span>
+      <section id="features" className="py-20 px-4 sm:px-8 lg:px-16 bg-gradient-to-br from-gray-800/50 to-purple-900/30">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-16">
+            <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
+              Everything you need to build better SQL
+            </h2>
+            <p className="text-xl text-pink-100 max-w-3xl mx-auto">
+              Powerful features designed to make SQL development faster, safer, and more intuitive.
+            </p>
+          </div> 
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {overviewItems.map((item, i) => (
+              <div
+                key={i}
+                ref={(el) => { if (el) featureRefs.current[i] = el; }}
+                className="bg-gradient-to-br from-gray-800/80 to-purple-800/40 p-8 rounded-xl shadow-lg hover:shadow-2xl hover:shadow-pink-500/25 transition-all duration-300 border border-pink-500/30 hover:border-pink-400/50"
+              >
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="p-2 bg-pink-500/20 rounded-lg">
+                    <item.icon className="w-6 h-6 text-pink-400" />
+                  </div>
+                  <h3 className="text-xl font-semibold text-pink-400">{item.title}</h3>
+                </div>
+                <p className="text-pink-100">{item.desc}</p>
               </div>
-              <input
-                type="text"
-                value="https://sculptql.com/"
-                disabled
-                className="w-full max-w-sm px-3 py-1 rounded-md bg-slate-800/70 text-slate-300 text-sm font-mono border border-slate-700 text-center cursor-default mx-6"
-              />
-              <div className="w-16" />
+            ))}
+          </div>
+        </div>
+      </section>
+      <section id="query-builder" className="py-20 px-4 sm:px-8 lg:px-16 bg-gradient-to-br from-cyan-900/20 to-pink-900/20">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-16">
+            <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
+              Visual Query Builder
+            </h2>
+            <p className="text-xl text-pink-100 max-w-3xl mx-auto">
+              Build complex SQL queries with point-and-click interface. No need to remember syntax.
+            </p>
+          </div>
+          
+          <VisualQueryBuilder className="max-w-7xl mx-auto" />
+        </div>
+      </section>
+      <section id="how-it-works" className="py-20 px-4 sm:px-8 lg:px-16 bg-gradient-to-br from-gray-900/80 to-purple-900/60">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-16">
+            <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
+              How it works
+            </h2>
+            <p className="text-xl text-pink-100 max-w-3xl mx-auto">
+              Get started with SculptQL in three simple steps
+            </p>
+          </div>
+          <div className="grid md:grid-cols-3 gap-8">
+            <div className="text-center">
+              <div className="w-16 h-16 bg-gradient-to-r from-pink-500/20 to-purple-500/20 rounded-full flex items-center justify-center mx-auto mb-6 border border-pink-500/30">
+                <span className="text-2xl font-bold text-pink-400">1</span>
+              </div>
+              <h3 className="text-xl font-semibold text-pink-400 mb-4">Install & Connect</h3>
+              <p className="text-pink-100">Install SculptQL via npm and connect to your database with environment variables.</p>
             </div>
-            <div className="flex items-start bg-slate-800/60 border-b border-green-700/50">
-              {queries.map((tab, idx) => (
-                <button
-                  key={idx}
-                  ref={addTabRef}
-                  onClick={() => setActiveTab(idx)}
-                  className={`px-3.5 py-1 font-mono text-sm transition-colors ${
-                    idx === activeTab
-                      ? "bg-slate-900 text-green-400 border border-b-0 border-green-700/50"
-                      : "bg-slate-800/60 text-slate-400 hover:text-green-400"
-                  }`}
-                >
-                  {tab.title}
-                </button>
-              ))}
+            <div className="text-center">
+              <div className="w-16 h-16 bg-gradient-to-r from-pink-500/20 to-purple-500/20 rounded-full flex items-center justify-center mx-auto mb-6 border border-pink-500/30">
+                <span className="text-2xl font-bold text-pink-400">2</span>
+              </div>
+              <h3 className="text-xl font-semibold text-pink-400 mb-4">Build Queries</h3>
+              <p className="text-pink-100">Use our intuitive interface with intelligent autocomplete to build complex SQL queries.</p>
             </div>
-            <CodeMirror
-              value={queries[activeTab].code}
-              height="450px"
-              width="100%"
-              extensions={[sql()]}
-              theme="dark"
-              editable={false}
-            />
+            <div className="text-center">
+              <div className="w-16 h-16 bg-gradient-to-r from-pink-500/20 to-purple-500/20 rounded-full flex items-center justify-center mx-auto mb-6 border border-pink-500/30">
+                <span className="text-2xl font-bold text-pink-400">3</span>
+              </div>
+              <h3 className="text-xl font-semibold text-pink-400 mb-4">Explore & Visualize</h3>
+              <p className="text-pink-100">Explore your schema, visualize relationships, and export results to multiple formats.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+      <section id="demo" className="py-20 px-4 sm:px-8 lg:px-16 bg-gradient-to-br from-gray-900 via-purple-900 to-pink-900">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
+              See SculptQL in action
+            </h2>
+            <p className="text-xl text-gray-300 max-w-3xl mx-auto">
+              Experience the power of our visual SQL builder with real-time previews
+            </p>
+          </div>
+          <div
+            ref={animatedBoxRef}
+            className="relative max-w-6xl mx-auto h-[600px] flex justify-center items-center"
+          >
+            <div
+              ref={editorRef}
+              className="relative w-full max-w-6xl rounded-xl shadow-2xl overflow-hidden border border-purple-500/30 bg-[#0f0f23] z-10"
+              style={{ 
+                minHeight: '500px', 
+                minWidth: '100%'
+              }}
+            >
+              <div className="flex items-center justify-between bg-[#0f0f23] px-4 py-2 border-b border-purple-500/30">
+                <div className="flex gap-2">
+                  <span className="w-3 h-3 bg-red-500 rounded-full"></span>
+                  <span className="w-3 h-3 bg-yellow-500 rounded-full"></span>
+                  <span className="w-3 h-3 bg-green-500 rounded-full"></span>
+                </div>
+                <Input
+                  type="text"
+                  value="https://sculptql.com/editor"
+                  disabled
+                  className="w-full max-w-sm px-3 py-1 rounded-md bg-[#1e1b4b] text-[#e0e6ed] text-sm font-mono border border-purple-500/30 text-center cursor-default mx-6"
+                />
+                <div className="w-16" />
+              </div>
+              <div className="flex items-start bg-[#1e1b4b] border-b border-purple-500/30">
+                {queries.map((tab, idx) => (
+                  <Button
+                    key={idx}
+                    ref={addTabRef}
+                    onClick={() => setActiveTab(idx)}
+                    className={`px-3.5 py-1 font-mono text-sm transition-colors ${
+                      idx === activeTab
+                        ? "bg-[#0f0f23] text-cyan-400 border border-b-0 border-purple-500/50"
+                        : "bg-[#1e1b4b] text-[#e0e6ed] hover:text-cyan-400"
+                    }`}
+                  >
+                    {tab.title}
+                  </Button>
+                ))}
+              </div>
+              <div className="editor-container">
+                <CodeMirror
+                  value={queries[activeTab].code}
+                  height="450px"
+                  width="100%"
+                  extensions={[sql()]}
+                  theme="dark"
+                  editable={false}
+                  basicSetup={{
+                    lineNumbers: true,
+                    foldGutter: true,
+                    dropCursor: false,
+                    allowMultipleSelections: false,
+                    indentOnInput: false,
+                    bracketMatching: true,
+                    closeBrackets: false,
+                    autocompletion: false,
+                    highlightSelectionMatches: false,
+                    searchKeymap: false,
+                  }}
+                />
+              </div>
+            </div>
           </div>
         </div>
       </section>
       <section className="py-16 px-4 sm:px-8 lg:px-16 bg-white">
         <DatabaseCarousel databases={databases} />
       </section>
-      <section
-        ref={overviewRef}
-        className="py-16 px-4 sm:px-8 lg:px-16 bg-[#111827]"
-      >
-        <h2 className="text-green-400 text-3xl sm:text-4xl font-bold text-center mb-12">
-          All-In-One Data Exploration
-        </h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 max-w-5xl mx-auto">
-          {overviewItems.map((item, i) => (
-            <div
-              key={i}
-              className="overview-item bg-slate-800/80 p-6 rounded-xl border border-green-700/50 hover:shadow-2xl transition-all transform hover:-translate-y-2"
-            >
-              <div className="flex items-center gap-3 mb-2">
-                <item.icon className="w-6 h-6 text-green-400" />
-                <h3 className="text-green-400 font-semibold">{item.title}</h3>
+      <section id="schema" className="py-20 px-4 sm:px-8 lg:px-16 bg-gradient-to-br from-gray-800/50 to-purple-900/30">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-16">
+            <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
+              Explore your database schema
+            </h2>
+            <p className="text-xl text-pink-100 max-w-3xl mx-auto">
+              Visualize table relationships and explore your database structure with interactive tools
+            </p>
+          </div>
+          <div className="grid lg:grid-cols-2 gap-12 items-center">
+            <div>
+              <h3 className="text-2xl font-bold text-pink-400 mb-6">Table View & ERD</h3>
+              <div className="space-y-4">
+                <div className="flex items-start gap-4">
+                  <div className="w-8 h-8 bg-pink-500/20 rounded-lg flex items-center justify-center flex-shrink-0 mt-1">
+                    <Table2 className="w-4 h-4 text-pink-400" />
+                  </div>
+                  <div>
+                    <h4 className="text-lg font-semibold text-pink-300 mb-2">Table View</h4>
+                    <p className="text-pink-100">Browse tables in a structured format with column details, data types, and constraints.</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-4">
+                  <div className="w-8 h-8 bg-purple-500/20 rounded-lg flex items-center justify-center flex-shrink-0 mt-1">
+                    <BarChart2 className="w-4 h-4 text-purple-400" />
+                  </div>
+                  <div>
+                    <h4 className="text-lg font-semibold text-purple-300 mb-2">ERD Visualization</h4>
+                    <p className="text-pink-100">Interactive Entity Relationship Diagrams to understand table relationships and foreign keys.</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-4">
+                  <div className="w-8 h-8 bg-cyan-500/20 rounded-lg flex items-center justify-center flex-shrink-0 mt-1">
+                    <Database className="w-4 h-4 text-cyan-400" />
+                  </div>
+                  <div>
+                    <h4 className="text-lg font-semibold text-cyan-300 mb-2">Schema Filtering</h4>
+                    <p className="text-pink-100">Search and filter tables and columns to quickly find what you're looking for.</p>
+                  </div>
+                </div>
               </div>
-              <p className="text-slate-300">{item.desc}</p>
             </div>
-          ))}
+            <div className="bg-gradient-to-br from-gray-900 to-purple-900 rounded-xl p-8 border border-pink-500/30">
+              <div className="text-center text-pink-300 mb-4">
+                <Database className="w-12 h-12 mx-auto mb-4 text-pink-400" />
+                <h4 className="text-lg font-semibold">Schema Explorer</h4>
+                <p className="text-sm text-pink-200">Interactive database schema visualization</p>
+              </div>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between items-center p-2 bg-gray-800/50 rounded">
+                  <span className="text-pink-300">users</span>
+                  <span className="text-cyan-400">1,234 rows</span>
+                </div>
+                <div className="flex justify-between items-center p-2 bg-gray-800/50 rounded">
+                  <span className="text-pink-300">orders</span>
+                  <span className="text-cyan-400">5,678 rows</span>
+                </div>
+                <div className="flex justify-between items-center p-2 bg-gray-800/50 rounded">
+                  <span className="text-pink-300">products</span>
+                  <span className="text-cyan-400">890 rows</span>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
-      </section>
-      <section className="py-16 px-4 sm:px-8 lg:px-16 bg-[#0f172a] text-center">
-        <h2 className="text-green-400 text-3xl sm:text-4xl font-bold mb-6">
-          Ready to Sculpt Your Data?
-        </h2>
-        <p className="text-slate-300 text-lg sm:text-xl max-w-2xl mx-auto mb-8">
-          Connect to your database via CLI and start exploring with SculptQL’s
-          powerful, visual interface.
-        </p>
-      </section>
+      </section>  
     </div>
   );
 }

@@ -219,6 +219,7 @@ export interface TableReference {
 export interface SelectOption {
   value: string;
   label: string;
+  operator?: string;
   aggregate?: boolean;
   column?: string;
 }
@@ -408,4 +409,11 @@ export interface Table {
   primary_keys: string[];
   foreign_keys: ForeignKey[];
   values: Record<string, unknown>[];
+}
+
+// Interface for the database
+export interface Database {
+  src: string;
+  alt: string;
+  tooltip: string;
 }
