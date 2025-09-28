@@ -4,6 +4,7 @@ import { useEffect, useRef, useCallback } from "react";
 import { TableSchema } from "@/app/types/query";
 import * as d3 from "d3";
 import { Button } from "@/components/ui/button";
+import { Eye } from "lucide-react";
 
 // Props for the ERDView component
 interface D3Node extends d3.SimulationNodeDatum {
@@ -150,31 +151,34 @@ export default function ERDView({ schema }: ERDViewProps) {
   }, []);
   // Function to fit to view
   const fitToView = () => {
-    // If the svg ref current or the svg selection ref current or the zoom ref current is not null
     if (!svgRef.current || !svgSelectionRef.current || !zoomRef.current) return;
-    // Create the bounds by the svg ref current and the query selector g and the get bbox
+    
     const bounds = svgRef.current.querySelector("g")?.getBBox();
-    // If the bounds is not null
     if (!bounds) return;
-    // Create the dx by the bounds width
-    const dx = bounds.width;
-    // Create the dy by the bounds height
-    const dy = bounds.height;
-    // Create the x by the bounds x and the dx and the 2
-    const x = bounds.x + dx / 2;
-    // Create the y by the bounds y and the dy and the 2
-    const y = bounds.y + dy / 2;
-    // Create the scale by the width ref current and the dx and the height ref current and the dy and the 1 and the 0.9
-    const scale =
-      Math.min(widthRef.current / dx, heightRef.current / dy, 1) * 0.9;
-      const translate = [
-      widthRef.current / 2 - scale * x,
-      heightRef.current / 2 - scale * y,
+    
+    // Add padding to the bounds
+    const padding = 50;
+    const dx = bounds.width + padding * 2;
+    const dy = bounds.height + padding * 2;
+    const x = bounds.x - padding;
+    const y = bounds.y - padding;
+    
+    // Calculate scale with better margins
+    const scale = Math.min(
+      widthRef.current / dx, 
+      heightRef.current / dy, 
+      1
+    ) * 0.85; // Slightly smaller scale for better margins
+    
+    const translate = [
+      widthRef.current / 2 - scale * (x + dx / 2),
+      heightRef.current / 2 - scale * (y + dy / 2),
     ];
-    // Transition the svg selection ref current
+    
     svgSelectionRef.current
       .transition()
       .duration(750)
+      .ease(d3.easeCubicInOut)
       .call(
         zoomRef.current.transform,
         d3.zoomIdentity.translate(translate[0], translate[1]).scale(scale)
@@ -190,7 +194,7 @@ export default function ERDView({ schema }: ERDViewProps) {
     // Set the height ref current to the maximum of 600 and the window inner height and the window inner width and the 200 and the 100
     heightRef.current = Math.max(
       600,
-      window.innerHeight - (window.innerWidth < 640 ? 200 : 100)
+      window.innerHeight - (window.innerWidth < 640 ? 300 : 150)
     );
     // Clear previous SVG content
     d3.select(svgRef.current).selectAll("*").remove();
@@ -234,8 +238,8 @@ export default function ERDView({ schema }: ERDViewProps) {
         is_nullable: column.is_nullable,
       })),
       primary_keys: table.primary_keys,
-      x: (index % 6) * (window.innerWidth < 640 ? 600 : 900) + 300,
-      y: Math.floor(index / 6) * (window.innerWidth < 640 ? 300 : 400) + 200,
+      x: (index % 4) * (window.innerWidth < 640 ? 400 : 600) + 200,
+      y: Math.floor(index / 4) * (window.innerWidth < 640 ? 250 : 350) + 150,
     }));
     // Create the links by the schema
     const links: D3Link[] = [];
@@ -264,13 +268,13 @@ export default function ERDView({ schema }: ERDViewProps) {
         d3
           .forceLink<D3Node, D3Link>(links)
           .id((d) => d.id)
-          .distance(window.innerWidth < 640 ? 400 : 600)
-          .strength(0.5)
+          .distance(window.innerWidth < 640 ? 300 : 500)
+          .strength(0.3)
       )
       // Force the charge with the many body
       .force(
         "charge",
-        d3.forceManyBody().strength(window.innerWidth < 640 ? -1200 : -1800)
+        d3.forceManyBody().strength(window.innerWidth < 640 ? -800 : -1200)
       )
       // Force the center with the width ref current and the height ref current
       .force(
@@ -287,8 +291,8 @@ export default function ERDView({ schema }: ERDViewProps) {
         d3.forceCollide().radius((node: d3.SimulationNodeDatum) => {
           const d = node as D3Node;
           return (
-            (window.innerWidth < 640 ? 300 : 350) +
-            (d.columns?.length || 0) * 15
+            (window.innerWidth < 640 ? 200 : 250) +
+            (d.columns?.length || 0) * 12
           );
         })
       )
@@ -312,8 +316,8 @@ export default function ERDView({ schema }: ERDViewProps) {
     link
       // Append the line
       .append("line")
-      // Set the stroke to the 22c55e
-      .attr("stroke", "#22c55e")
+      // Set the stroke to the pink color
+      .attr("stroke", "#f472b6")
       // Set the stroke width to the window inner width and the 640 and the 3 and the 4
       .attr("stroke-width", window.innerWidth < 640 ? 3 : 4)
       // Set the stroke dasharray to the 5 and the 5
@@ -347,8 +351,8 @@ export default function ERDView({ schema }: ERDViewProps) {
       .append("path")
       // Set the d to the M0,-5L10,0L0,5
       .attr("d", "M0,-5L10,0L0,5")
-      // Set the fill to the 22c55e
-      .attr("fill", "#22c55e");
+      // Set the fill to the pink color
+      .attr("fill", "#f472b6");
     // Create the node by the g
       const node = g
       // Select the g and the class node
@@ -403,10 +407,10 @@ export default function ERDView({ schema }: ERDViewProps) {
       .attr("rx", 12)
       // Set the ry to the 12
       .attr("ry", 12)
-      // Set the fill to the #1e293b
+      // Set the fill to the dark slate
       .attr("fill", "#1e293b")
-      // Set the stroke to the #4ade80
-      .attr("stroke", "#4ade80")
+      // Set the stroke to the cyan color
+      .attr("stroke", "#06b6d4")
       // Set the stroke width to the window inner width and the 640 and the 1.5 and the 2
       .attr("stroke-width", window.innerWidth < 640 ? 1.5 : 2)
       // Set the filter to the drop shadow
@@ -419,8 +423,8 @@ export default function ERDView({ schema }: ERDViewProps) {
       .attr("x", 12)
       // Set the y to the 28
       .attr("y", 28)
-      // Set the fill to the #4ade80
-      .attr("fill", "#4ade80")
+      // Set the fill to the cyan color
+      .attr("fill", "#06b6d4")
       // Set the font size to the window inner width and the 640 and the 14px and the 16px
       .attr("font-size", window.innerWidth < 640 ? "14px" : "16px")
       // Set the font weight to the bold
@@ -446,8 +450,8 @@ export default function ERDView({ schema }: ERDViewProps) {
       .attr("x2", (d) => getNodeWidth(d) - 12)
       // Set the y2 to the 40
       .attr("y2", 40)
-      // Set the stroke to the #4ade80
-      .attr("stroke", "#4ade80")
+      // Set the stroke to the cyan color
+      .attr("stroke", "#06b6d4")
       // Set the stroke width to the window inner width and the 640 and the 1 and the 1.5
       .attr("stroke-width", window.innerWidth < 640 ? 1 : 1.5);
 
@@ -474,8 +478,8 @@ export default function ERDView({ schema }: ERDViewProps) {
           .attr("x", offsets[i])
           // Set the y to the 56
           .attr("y", 56)
-          // Set the fill to the #4ade80
-          .attr("fill", "#4ade80")
+          // Set the fill to the cyan color
+          .attr("fill", "#06b6d4")
           // Set the font size to the window inner width and the 640 and the 10px and the 12px
           .attr("font-size", window.innerWidth < 640 ? "10px" : "12px")
           // Set the font weight to the bold
@@ -516,8 +520,8 @@ export default function ERDView({ schema }: ERDViewProps) {
           .attr("x", 12)
           // Set the y to the 76 and the i and the window inner width and the 640 and the 20 and the 24
           .attr("y", 76 + i * (window.innerWidth < 640 ? 20 : 24))
-          // Set the fill to the is primary and the fk and the #d1d5db
-          .attr("fill", isPrimary ? "#ffd700" : fk ? "#ff69b4" : "#d1d5db")
+          // Set the fill to the is primary and the fk and the white
+          .attr("fill", isPrimary ? "#fbbf24" : fk ? "#f472b6" : "#e0e6ed")
           // Set the font size to the window inner width and the 640 and the 10px and the 12px
           .attr("font-size", window.innerWidth < 640 ? "10px" : "12px")
           // Set the font weight to the is primary and the bold and the normal
@@ -716,15 +720,28 @@ export default function ERDView({ schema }: ERDViewProps) {
   return (
     <div
       ref={containerRef}
-      className="bg-[#111827] rounded-lg p-4 overflow-hidden relative erd-container"
+      className="bg-slate-900/80 backdrop-blur-sm rounded-lg p-4 overflow-hidden relative erd-container border border-purple-500/30 shadow-lg"
     >
-      <Button
-        onClick={fitToView}
-        className="absolute top-4 right-4 bg-green-400 text-[#111827] px-4 py-2 rounded hover:bg-green-500"
-      >
-        Fit to View
-      </Button>
-      <svg ref={svgRef}></svg>
+      <div className="absolute top-4 right-4 z-10 flex space-x-2">
+        <Button
+          onClick={fitToView}
+          className="bg-gradient-to-r from-cyan-500 to-purple-500 text-white px-4 py-2 rounded-lg hover:from-cyan-400 hover:to-purple-400 transition-all duration-200 shadow-lg font-medium font-mono border border-cyan-400/30 hover:shadow-cyan-500/20"
+        >
+          <Eye className="w-4 h-4 mr-2" />
+          FIT TO VIEW
+        </Button>
+      </div>
+      <div className="absolute top-4 left-4 z-10">
+        <div className="bg-slate-800/80 backdrop-blur-sm rounded-lg px-3 py-2 border border-purple-500/30">
+          <p className="text-cyan-300 text-sm font-mono">
+            <span className="font-bold text-purple-300">{schema.length}</span> TABLES • 
+            <span className="font-bold text-pink-300 ml-1">
+              {schema.reduce((acc, table) => acc + table.foreign_keys.length, 0)}
+            </span> RELATIONSHIPS
+          </p>
+        </div>
+      </div>
+      <svg ref={svgRef} className="w-full h-full"></svg>
     </div>
   );
 }

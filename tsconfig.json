@@ -33,6 +33,9 @@
     ".next/types/**/*.ts",
     "cypress/e2e/app.cy.js",
     "index.ts"
-  ],
+,
+"app/components/schema/DatabaseView.tsx",
+"app/components/schema/DatabaseFolderView"
+],
   "exclude": ["node_modules"]
 }

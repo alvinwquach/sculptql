@@ -202,7 +202,7 @@ const EditorClient = memo(function EditorClient({
                     <ColumnSelect metadataLoading={metadataLoading} isMySQL={isMySQL} />
                   </div>
                 </div>
-                                <div className="space-y-4">
+                <div className="space-y-4">
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <h3 className="text-sm font-bold text-cyan-400 uppercase tracking-wider flex items-center gap-2 cursor-help">
@@ -356,7 +356,7 @@ const EditorClient = memo(function EditorClient({
               />
             </div>
           </ResizablePane>
-                    <ResizablePane
+          <ResizablePane
             initialSize={55}
             minSize={30}
             maxSize={75}
