@@ -28,6 +28,7 @@ interface EditorContextType extends QueryState, QueryHistoryState, QueryResultsS
   setIsManualEdit: (isManual: boolean) => void;
   runQuery: (query: string) => Promise<void>;
   logQueryResultAsJson: () => void;
+  exposeQueryResultsToConsole: () => void;
   refreshSchema: () => Promise<void>;
   handleQueryChange: (newQuery: string) => void;
    handleTableSelect: (value: SelectOption | null) => void;
@@ -237,7 +238,74 @@ export function EditorProvider({ children, schema, error, isMySQL = false, refre
     }
   }, [queryResults.queryResult]);
 
-  // Get the generate query from state function - memoized to prevent unnecessary recalculations
+  // Get the expose query results to console function
+  const exposeQueryResultsToConsole = useCallback(() => {
+    // If the query result and the query result rows are not null
+    if (queryResults.queryResult && queryResults.queryResult.rows) {
+      // Expose the query results to the global window object for easy access in dev console
+      (window as Window).QueryResults = {
+        // Get the data
+        data: queryResults.queryResult.rows,
+        // Get the fields
+        fields: queryResults.queryResult.fields,
+        // Get the row count
+        rowCount: queryResults.queryResult.rowCount,
+        // Get the filter
+        filter: (predicate: (row: Record<string, unknown>) => boolean) => {
+          return queryResults.queryResult!.rows.filter(predicate);
+        },
+        // Get the map
+        map: (mapper: (row: Record<string, unknown>) => unknown) => {
+          return queryResults.queryResult!.rows.map(mapper);
+        },
+        // Get the find
+        find: (predicate: (row: Record<string, unknown>) => boolean) => {
+          return queryResults.queryResult!.rows.find(predicate);
+        },
+        // Get the column values
+        getColumnValues: (columnName: string) => {
+          return queryResults.queryResult!.rows.map(row => row[columnName]);
+        },
+        // Get the unique values
+        getUniqueValues: (columnName: string) => {
+          return [...new Set(queryResults.queryResult!.rows.map(row => row[columnName]))];
+        },
+        // Get the count
+        count: () => {
+          return queryResults.queryResult!.rows.length;
+        },
+        // Get the full result
+        fullResult: queryResults.queryResult
+      };
+
+      // Log the query results to the console
+      console.log("Query results exposed to console! Use QueryResults to access data:");
+      // Log the query results data
+      console.log("- QueryResults.data - array of all rows");
+      // Log the query results filter
+      console.log("- QueryResults.filter(row => condition) - filter rows");
+      // Log the query results map
+      console.log("- QueryResults.map(row => transformation) - transform rows");
+      // Log the query results find
+      console.log("- QueryResults.find(row => condition) - find first matching row");
+      // Log the query results get column values
+      console.log("- QueryResults.getColumnValues('columnName') - get all values for a column");
+      // Log the query results get unique values
+      console.log("- QueryResults.getUniqueValues('columnName') - get unique values for a column");
+      // Log the query results count
+      console.log("- QueryResults.count() - get total row count");
+      // Log the query results full result
+      console.log("- QueryResults.fullResult - complete result object");
+      // Log the query results example
+      console.log("Example: QueryResults.filter(row => row.username === 'john')");
+      // Log the query results toast
+      toast.success("Query results exposed to console! Check console for usage instructions.");
+    } else {
+      toast.error("No query result available to expose");
+    }
+  }, [queryResults.queryResult]);
+
+  // Get the generate query from state function
   const generateQueryFromState = useCallback((
     selectedTable = queryState.selectedTable,
     selectedColumns = queryState.selectedColumns,
@@ -1121,6 +1189,7 @@ export function EditorProvider({ children, schema, error, isMySQL = false, refre
     ...exportFunctions,
     runQuery,
     logQueryResultAsJson,
+    exposeQueryResultsToConsole,
     refreshSchema: refreshSchema || (async () => {}),
     handleQueryChange,
     handleTableSelect,
@@ -1177,6 +1246,7 @@ export function EditorProvider({ children, schema, error, isMySQL = false, refre
   exportFunctions,
   runQuery,
   logQueryResultAsJson,
+  exposeQueryResultsToConsole,
   refreshSchema,
   handleQueryChange,
   handleTableSelect,
