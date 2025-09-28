@@ -523,5 +523,18 @@
     height: 350px !important;
     min-height: 350px !important;
   }
+  
+  .autocomplete-simulation {
+    min-height: 300px !important;
+  }
+  
+  .autocomplete-simulation .cm-editor {
+    min-height: 250px !important;
+    height: 250px !important;
+  }
+  
+  .autocomplete-simulation .cm-scroller {
+    min-height: 250px !important;
+  }
 }
 
