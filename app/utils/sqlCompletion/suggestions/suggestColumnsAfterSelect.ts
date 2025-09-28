@@ -1,4 +1,4 @@
-import { Completion, CompletionResult } from "@codemirror/autocomplete";
+import { CompletionResult } from "@codemirror/autocomplete";
 import { EditorView } from "codemirror";
 import { Select } from "node-sql-parser";
 import { SelectOption } from "@/app/types/query";
@@ -54,7 +54,7 @@ export const suggestColumnsAfterSelect = (
   const cteSelectRegex =
     /\bWITH\s+[\w"]+\s+AS\s*\(\s*SELECT\s*(DISTINCT\s*)?$/i;
   // Set the after column regex to the after column regex
-    const afterColumnRegex = /\bSELECT\s+([^;]*?)(?:"[\w]+"|'[\w]+'|[\w_]+)\s*$/i;
+  const afterColumnRegex = /\bSELECT\s+([^;]*?)(?:"[\w]+"|'[\w]+'|[\w_]+)\s*$/i;
   // If the in case statement regex test the doc text
   if (inCaseStatementRegex.test(docText)) {
     // Return null
@@ -83,7 +83,6 @@ export const suggestColumnsAfterSelect = (
     unionSelectRegex.test(docText.trim()) ||
     // If the cte select regex test the doc text
     cteSelectRegex.test(docText) ||
-
     (ast &&
       (Array.isArray(ast)
         // If the ast is an array, some of the ast has a select node 
@@ -169,19 +168,14 @@ export const suggestColumnsAfterSelect = (
         options: filteredColumns.map((column) => ({
           label: column,
           type: "field",
-          apply: (
-            view: EditorView,
-            completion: Completion,
-            from: number,
-            to: number
-          ) => {
+          apply: (view: EditorView) => {
             // Set the apply text to the apply text
             const applyText = needsQuotes(column)
               ? `"${column}"), `
               : `${column}), `;
             // Dispatch the changes
             view.dispatch({
-              changes: { from, to, insert: applyText },
+              changes: { from: view.state.selection.main.from, to: view.state.selection.main.to, insert: applyText },
             });
             // If the on column select and the inner func is not null
             if (onColumnSelect && innerFunc) {
@@ -262,12 +256,7 @@ export const suggestColumnsAfterSelect = (
         options: filteredColumns.map((column) => ({
           label: column,
           type: "field",
-          apply: (
-            view: EditorView,
-            completion: Completion,
-            from: number,
-            to: number
-          ) => {
+          apply: (view: EditorView) => {
             // Set the func to the func
             const func = aggrMatch
               ? aggrMatch[0].match(/(SUM|MAX|MIN|AVG|COUNT)/i)?.[1]
@@ -288,7 +277,7 @@ export const suggestColumnsAfterSelect = (
               : `${column}), `;
             // Dispatch the changes
             view.dispatch({
-              changes: { from, to, insert: applyText },
+              changes: { from: view.state.selection.main.from, to: view.state.selection.main.to, insert: applyText },
             });
             // If the on column select is not null
             if (onColumnSelect) {
@@ -357,7 +346,6 @@ export const suggestColumnsAfterSelect = (
     };
   }
 
-
   if (
     // If the is in select clause
     isInSelectClause ||
@@ -410,12 +398,7 @@ export const suggestColumnsAfterSelect = (
             {
               label: "DISTINCT",
               type: "keyword",
-              apply: (
-                view: EditorView,
-                completion: Completion,
-                from: number,
-                to: number
-              ) => {
+              apply: (view: EditorView) => {
                 // Set the current query to the current query
                 const currentQuery = view.state.doc.toString();
                 // Set the new query to the new query
@@ -457,15 +440,10 @@ export const suggestColumnsAfterSelect = (
             {
               label: "COUNT(*)",
               type: "function",
-              apply: (
-                view: EditorView,
-                completion: Completion,
-                from: number,
-                to: number
-              ) => {
+              apply: (view: EditorView) => {
                 // Dispatch the changes
                 view.dispatch({
-                  changes: { from, to, insert: "COUNT(*), " },
+                  changes: { from: view.state.selection.main.from, to: view.state.selection.main.to, insert: "COUNT(*), " },
                 });
                 // If the on column select is not null
                 // On column select the count star
@@ -515,12 +493,7 @@ export const suggestColumnsAfterSelect = (
             {
               label: "*",
               type: "field",
-              apply: (
-                view: EditorView,
-                completion: Completion,
-                from: number,
-                to: number
-              ) => {
+              apply: (view: EditorView) => {
                 // Set the current query to the current query
                 const currentQuery = view.state.doc.toString();
                 // Set the new query to the new query
@@ -558,12 +531,7 @@ export const suggestColumnsAfterSelect = (
       ...filteredColumns.map((column) => ({
         label: column,
         type: "field",
-        apply: (
-          view: EditorView,
-          completion: Completion,
-          from: number,
-          to: number
-        ) => {
+        apply: (view: EditorView) => {
           // Set the current query to the current query
           const currentQuery = view.state.doc.toString();
           // Set the apply text to the apply text
@@ -613,19 +581,8 @@ export const suggestColumnsAfterSelect = (
           view.dispatch({
             changes: { from: 0, to: view.state.doc.length, insert: newQuery },
           });
-          // If the on column select is not null
-          // On column select the column
-          if (onColumnSelect) {
-            const newSelectedColumns = [
-              ...selectedColumns.filter((c) => c.value !== "*"),
-              // Set the new selected columns 
-              // to the new selected columns
-              // Filter the selected columns 
-              // by the value not equal to *
-              { value: column, label: column },
-            ];
-            onColumnSelect(newSelectedColumns);
-          }
+          // Note: We don't call onColumnSelect here because it would conflict with the editor update
+          // The column selection state will be synced through the query parsing in the editor
         },
         detail: "Column name",
       })),
@@ -634,17 +591,12 @@ export const suggestColumnsAfterSelect = (
           {
             label: `COUNT(${column})`,
             type: "function",
-            apply: (
-              view: EditorView,
-              completion: Completion,
-              from: number,
-              to: number
-            ) => {
+            apply: (view: EditorView) => {
               const applyText = needsQuotes(column)
                 ? `COUNT("${column}"), `
                 : `COUNT(${column}), `;
               view.dispatch({
-                changes: { from, to, insert: applyText },
+                changes: { from: view.state.selection.main.from, to: view.state.selection.main.to, insert: applyText },
               });
               // If the on column select is not null
               // On column select the count column
@@ -670,19 +622,14 @@ export const suggestColumnsAfterSelect = (
           {
             label: `COUNT(DISTINCT ${column})`,
             type: "function",
-            apply: (
-              view: EditorView,
-              completion: Completion,
-              from: number,
-              to: number
-            ) => {
+            apply: (view: EditorView) => {
               // Set the apply text to the apply text
               const applyText = needsQuotes(column)
                 ? `COUNT(DISTINCT "${column}"), `
                 : `COUNT(DISTINCT ${column}), `;
               // Dispatch the changes
               view.dispatch({
-                changes: { from, to, insert: applyText },
+                changes: { from: view.state.selection.main.from, to: view.state.selection.main.to, insert: applyText },
               });
               // If the on column select is not null
               // On column select the count distinct column
@@ -708,19 +655,14 @@ export const suggestColumnsAfterSelect = (
           {
             label: `SUM(${column})`,
             type: "function",
-            apply: (
-              view: EditorView,
-              completion: Completion,
-              from: number,
-              to: number
-            ) => {
+            apply: (view: EditorView) => {
               // Set the apply text to the apply text
               const applyText = needsQuotes(column)
                 ? `SUM("${column}"), `
                 : `SUM(${column}), `;
               // Dispatch the changes
               view.dispatch({
-                changes: { from, to, insert: applyText },
+                changes: { from: view.state.selection.main.from, to: view.state.selection.main.to, insert: applyText },
               });
               // If the on column select is not null
               // On column select the sum column
@@ -745,19 +687,14 @@ export const suggestColumnsAfterSelect = (
           {
             label: `AVG(${column})`,
             type: "function",
-            apply: (
-              view: EditorView,
-              completion: Completion,
-              from: number,
-              to: number
-            ) => {
+            apply: (view: EditorView) => {
               // Set the apply text to the apply text
               const applyText = needsQuotes(column)
                 ? `AVG("${column}"), `
                 : `AVG(${column}), `;
               // Dispatch the changes
               view.dispatch({
-                changes: { from, to, insert: applyText },
+                changes: { from: view.state.selection.main.from, to: view.state.selection.main.to, insert: applyText },
               });
               // If the on column select is not null
               // On column select the avg column
@@ -782,19 +719,14 @@ export const suggestColumnsAfterSelect = (
           {
             label: `MAX(${column})`,
             type: "function",
-            apply: (
-              view: EditorView,
-              completion: Completion,
-              from: number,
-              to: number
-            ) => {
+            apply: (view: EditorView) => {
               // Set the apply text to the apply text
               const applyText = needsQuotes(column)
                 ? `MAX("${column}"), `
                 : `MAX(${column}), `;
               // Dispatch the changes
               view.dispatch({
-                changes: { from, to, insert: applyText },
+                changes: { from: view.state.selection.main.from, to: view.state.selection.main.to, insert: applyText },
               });
               // If the on column select is not null
               // On column select the max column
@@ -819,19 +751,14 @@ export const suggestColumnsAfterSelect = (
           {
             label: `MIN(${column})`,
             type: "function",
-            apply: (
-              view: EditorView,
-              completion: Completion,
-              from: number,
-              to: number
-            ) => {
+            apply: (view: EditorView) => {
               // Set the apply text to the apply text
               const applyText = needsQuotes(column)
                 ? `MIN("${column}"), `
                 : `MIN(${column}), `;
               // Dispatch the changes
               view.dispatch({
-                changes: { from, to, insert: applyText },
+                changes: { from: view.state.selection.main.from, to: view.state.selection.main.to, insert: applyText },
               });
               // If the on column select is not null
               // On column select the min column
@@ -856,19 +783,14 @@ export const suggestColumnsAfterSelect = (
           {
             label: `ROUND(${column}, 0)`,
             type: "function",
-            apply: (
-              view: EditorView,
-              completion: Completion,
-              from: number,
-              to: number
-            ) => {
+            apply: (view: EditorView) => {
               // Set the apply text to the apply text
               const applyText = needsQuotes(column)
                 ? `ROUND("${column}", 0), `
                 : `ROUND(${column}, 0), `;
               // Dispatch the changes
               view.dispatch({
-                changes: { from, to, insert: applyText },
+                changes: { from: view.state.selection.main.from, to: view.state.selection.main.to, insert: applyText },
               });
               // If the on column select is not null
               // On column select the round column
@@ -893,19 +815,14 @@ export const suggestColumnsAfterSelect = (
           {
             label: `ROUND(${column}, 1)`,
             type: "function",
-            apply: (
-              view: EditorView,
-              completion: Completion,
-              from: number,
-              to: number
-            ) => {
+            apply: (view: EditorView) => {
               // Set the apply text to the apply text
               const applyText = needsQuotes(column)
                 ? `ROUND("${column}", 1), `
                 : `ROUND(${column}, 1), `;
               // Dispatch the changes
               view.dispatch({
-                changes: { from, to, insert: applyText },
+                changes: { from: view.state.selection.main.from, to: view.state.selection.main.to, insert: applyText },
               });
               // If the on column select is not null
               // On column select the round column
@@ -930,19 +847,14 @@ export const suggestColumnsAfterSelect = (
           {
             label: `ROUND(${column}, 2)`,
             type: "function",
-            apply: (
-              view: EditorView,
-              completion: Completion,
-              from: number,
-              to: number
-            ) => {
+            apply: (view: EditorView) => {
               // Set the apply text to the apply text
               const applyText = needsQuotes(column)
                 ? `ROUND("${column}", 2), `
                 : `ROUND(${column}, 2), `;
               // Dispatch the changes
               view.dispatch({
-                changes: { from, to, insert: applyText },
+                changes: { from: view.state.selection.main.from, to: view.state.selection.main.to, insert: applyText },
               });
               // If the on column select is not null
               // On column select the round column
@@ -967,19 +879,14 @@ export const suggestColumnsAfterSelect = (
           {
             label: `ROUND(${column}, 3)`,
             type: "function",
-            apply: (
-              view: EditorView,
-              completion: Completion,
-              from: number,
-              to: number
-            ) => {
+            apply: (view: EditorView) => {
               // Set the apply text to the apply text
               const applyText = needsQuotes(column)
                 ? `ROUND("${column}", 3), `
                 : `ROUND(${column}, 3), `;
               // Dispatch the changes
               view.dispatch({
-                changes: { from, to, insert: applyText },
+                changes: { from: view.state.selection.main.from, to: view.state.selection.main.to, insert: applyText },
               });
               // If the on column select is not null
               // On column select the round column
@@ -1004,18 +911,13 @@ export const suggestColumnsAfterSelect = (
           {
             label: `ROUND(${column}, 4)`,
             type: "function",
-            apply: (
-              view: EditorView,
-              completion: Completion,
-              from: number,
-              to: number
-            ) => {
+            apply: (view: EditorView) => {
               // Set the apply text to the apply text
               const applyText = needsQuotes(column)
                 ? `ROUND("${column}", 4), `
                 : `ROUND(${column}, 4), `;
               view.dispatch({
-                changes: { from, to, insert: applyText },
+                changes: { from: view.state.selection.main.from, to: view.state.selection.main.to, insert: applyText },
               });
               // If the on column select is not null
               // On column select the round column
@@ -1040,19 +942,14 @@ export const suggestColumnsAfterSelect = (
           {
             label: `ROUND(AVG(${column}), 0)`,
             type: "function",
-            apply: (
-              view: EditorView,
-              completion: Completion,
-              from: number,
-              to: number
-            ) => {
+            apply: (view: EditorView) => {
               // Set the apply text to the apply text
               const applyText = needsQuotes(column)
                 ? `ROUND(AVG("${column}"), 0), `
                 : `ROUND(AVG(${column}), 0), `;
               // Dispatch the changes
               view.dispatch({
-                changes: { from, to, insert: applyText },
+                changes: { from: view.state.selection.main.from, to: view.state.selection.main.to, insert: applyText },
               });
               // If the on column select is not null
               // On column select the round column
@@ -1077,19 +974,14 @@ export const suggestColumnsAfterSelect = (
           {
             label: `ROUND(AVG(${column}), 1)`,
             type: "function",
-            apply: (
-              view: EditorView,
-              completion: Completion,
-              from: number,
-              to: number
-            ) => {
+            apply: (view: EditorView) => {
               // Set the apply text to the apply text
               const applyText = needsQuotes(column)
                 ? `ROUND(AVG("${column}"), 1), `
                 : `ROUND(AVG(${column}), 1), `;
               // Dispatch the changes
               view.dispatch({
-                changes: { from, to, insert: applyText },
+                changes: { from: view.state.selection.main.from, to: view.state.selection.main.to, insert: applyText },
               });
               // If the on column select is not null
               // On column select the round column
@@ -1114,19 +1006,14 @@ export const suggestColumnsAfterSelect = (
           {
             label: `ROUND(AVG(${column}), 2)`,
             type: "function",
-            apply: (
-              view: EditorView,
-              completion: Completion,
-              from: number,
-              to: number
-            ) => {
+            apply: (view: EditorView) => {
               // Set the apply text to the apply text
               const applyText = needsQuotes(column)
                 ? `ROUND(AVG("${column}"), 2), `
                 : `ROUND(AVG(${column}), 2), `;
               // Dispatch the changes
               view.dispatch({
-                changes: { from, to, insert: applyText },
+                changes: { from: view.state.selection.main.from, to: view.state.selection.main.to, insert: applyText },
               });
               // If the on column select is not null
               // On column select the round column
@@ -1151,19 +1038,14 @@ export const suggestColumnsAfterSelect = (
           {
             label: `ROUND(AVG(${column}), 3)`,
             type: "function",
-            apply: (
-              view: EditorView,
-              completion: Completion,
-              from: number,
-              to: number
-            ) => {
+            apply: (view: EditorView) => {
               // Set the apply text to the apply text
               const applyText = needsQuotes(column)
                 ? `ROUND(AVG("${column}"), 3), `
                 : `ROUND(AVG(${column}), 3), `;
               // Dispatch the changes
               view.dispatch({
-                changes: { from, to, insert: applyText },
+                changes: { from: view.state.selection.main.from, to: view.state.selection.main.to, insert: applyText },
               });
               // If the on column select is not null
               // On column select the round column
@@ -1188,19 +1070,14 @@ export const suggestColumnsAfterSelect = (
           {
             label: `ROUND(AVG(${column}), 4)`,
             type: "function",
-            apply: (
-              view: EditorView,
-              completion: Completion,
-              from: number,
-              to: number
-            ) => {
+            apply: (view: EditorView) => {
               // Set the apply text to the apply text
               const applyText = needsQuotes(column)
                 ? `ROUND(AVG("${column}"), 4), `
                 : `ROUND(AVG(${column}), 4), `;
               // Dispatch the changes
               view.dispatch({
-                changes: { from, to, insert: applyText },
+                changes: { from: view.state.selection.main.from, to: view.state.selection.main.to, insert: applyText },
               });
               if (onColumnSelect) {
                 onColumnSelect([
@@ -1224,19 +1101,14 @@ export const suggestColumnsAfterSelect = (
             {
               label: `SUM(DISTINCT ${column})`,
               type: "function",
-              apply: (
-                view: EditorView,
-                completion: Completion,
-                from: number,
-                to: number
-              ) => {
+              apply: (view: EditorView) => {
                 // Set the apply text to the apply text
                 const applyText = needsQuotes(column)
                   ? `SUM(DISTINCT "${column}"), `
                   : `SUM(DISTINCT ${column}), `;
                 // Dispatch the changes
                 view.dispatch({
-                  changes: { from, to, insert: applyText },
+                  changes: { from: view.state.selection.main.from, to: view.state.selection.main.to, insert: applyText },
                 });
                 // If the on column select is not null
                 // On column select the sum distinct column
@@ -1261,19 +1133,14 @@ export const suggestColumnsAfterSelect = (
             {
               label: `AVG(DISTINCT ${column})`,
               type: "function",
-              apply: (
-                view: EditorView,
-                completion: Completion,
-                from: number,
-                to: number
-              ) => {
+              apply: (view: EditorView) => {
                 // Set the apply text to the apply text
                 const applyText = needsQuotes(column)
                   ? `AVG(DISTINCT "${column}"), `
                   : `AVG(DISTINCT ${column}), `;
                 // Dispatch the changes
                 view.dispatch({
-                  changes: { from, to, insert: applyText },
+                  changes: { from: view.state.selection.main.from, to: view.state.selection.main.to, insert: applyText },
                 });
                 // If the on column select is not null
                 // On column select the avg distinct column
@@ -1298,19 +1165,14 @@ export const suggestColumnsAfterSelect = (
             {
               label: `MAX(DISTINCT ${column})`,
               type: "function",
-              apply: (
-                view: EditorView,
-                completion: Completion,
-                from: number,
-                to: number
-              ) => {
+              apply: (view: EditorView) => {
                 // Set the apply text to the apply text
                 const applyText = needsQuotes(column)
                   ? `MAX(DISTINCT "${column}"), `
                   : `MAX(DISTINCT ${column}), `;
                 // Dispatch the changes
                 view.dispatch({
-                  changes: { from, to, insert: applyText },
+                  changes: { from: view.state.selection.main.from, to: view.state.selection.main.to, insert: applyText },
                 });
                 // If the on column select is not null
                 // On column select the max distinct column
@@ -1335,19 +1197,14 @@ export const suggestColumnsAfterSelect = (
             {
               label: `MIN(DISTINCT ${column})`,
               type: "function",
-              apply: (
-                view: EditorView,
-                completion: Completion,
-                from: number,
-                to: number
-              ) => {  
+              apply: (view: EditorView) => {  
                 // Set the apply text to the apply text
                 const applyText = needsQuotes(column)
                   ? `MIN(DISTINCT "${column}"), `
                   : `MIN(DISTINCT ${column}), `;
                 // Dispatch the changes
                 view.dispatch({
-                  changes: { from, to, insert: applyText },
+                  changes: { from: view.state.selection.main.from, to: view.state.selection.main.to, insert: applyText },
                 });
                 // If the on column select is not null
                 // On column select the min distinct column

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { EditorView, keymap, drawSelection } from "@codemirror/view";
 import { EditorState, Compartment } from "@codemirror/state";
 import { autocompletion, startCompletion } from "@codemirror/autocomplete";
@@ -18,6 +18,7 @@ import { needsQuotes } from "@/app/utils/sqlCompletion/needsQuotes";
 import { stripQuotes } from "@/app/utils/sqlCompletion/stripQuotes";
 import { TableColumn, SelectOption, Tab } from "@/app/types/query";
 import { MultiValue, SingleValue } from "react-select";
+import { parseSelectedColumns, parseSelectedTable, parseWhereClause } from "@/app/utils/queryParser";
 import QueryTabs from "./QueryTabs";
 import {
   Tooltip,
@@ -28,7 +29,6 @@ import {
 import {
   getLocalStorageItem,
   setLocalStorageItem,
-  removeLocalStorageItem,
 } from "@/app/utils/localStorageUtils";
 
 // Props for the CodeMirrorEditor component
@@ -37,9 +37,11 @@ interface CodeMirrorEditorProps {
   tableNames: string[];
   tableColumns: TableColumn;
   selectedColumns: SelectOption[];
+  selectedTable: SelectOption | null;
   uniqueValues: Record<string, SelectOption[]>;
   runQuery: (query: string) => Promise<void>;
   onQueryChange: (query: string) => void;
+  loading?: boolean;
   onTableSelect?: (value: SelectOption | null) => void;
   onWhereColumnSelect?: (
     value: SingleValue<SelectOption>,
@@ -82,8 +84,10 @@ export default function CodeMirrorEditor({
   tableNames,
   tableColumns,
   selectedColumns,
+  selectedTable,
   uniqueValues,
   onQueryChange,
+  loading = false,
   onTableSelect,
   onWhereColumnSelect,
   onOperatorSelect,
@@ -106,6 +110,82 @@ export default function CodeMirrorEditor({
   const languageCompartment = useRef(new Compartment());
   // Get the full screen editor 
   const [fullScreenEditor, setFullScreenEditor] = useState(false);
+  // Handle fullscreen toggle with proper browser fullscreen API
+  const toggleFullscreen = useCallback(() => {
+    if (!fullScreenEditor) {
+      // Enter fullscreen
+      if (containerRef.current?.requestFullscreen) {
+        // Request fullscreen
+        containerRef.current.requestFullscreen();
+        // Set the full screen editor state to true
+        setFullScreenEditor(true);
+
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } else if ((containerRef.current as any)?.webkitRequestFullscreen) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (containerRef.current as any).webkitRequestFullscreen();
+        setFullScreenEditor(true);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } else if ((containerRef.current as any)?.mozRequestFullScreen) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (containerRef.current as any).mozRequestFullScreen();
+        setFullScreenEditor(true);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } else if ((containerRef.current as any)?.msRequestFullscreen) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (containerRef.current as any).msRequestFullscreen();
+        setFullScreenEditor(true);
+      }
+    } else {
+      // Exit fullscreen
+      if (document.exitFullscreen) {
+        document.exitFullscreen();
+        setFullScreenEditor(false);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } else if ((document as any).webkitExitFullscreen) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (document as any).webkitExitFullscreen();
+        setFullScreenEditor(false);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } else if ((document as any).mozCancelFullScreen) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (document as any).mozCancelFullScreen();
+        setFullScreenEditor(false);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } else if ((document as any).msExitFullscreen) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (document as any).msExitFullscreen();
+        setFullScreenEditor(false);
+      }
+    }
+  }, [fullScreenEditor]);
+
+  // Listen for fullscreen changes
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      const isFullscreen = !!(document.fullscreenElement || 
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (document as any).webkitFullscreenElement || 
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (document as any).mozFullScreenElement || 
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (document as any).msFullscreenElement);
+      setFullScreenEditor(isFullscreen);
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+    document.addEventListener('mozfullscreenchange', handleFullscreenChange);
+    document.addEventListener('MSFullscreenChange', handleFullscreenChange);
+
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+      document.removeEventListener('mozfullscreenchange', handleFullscreenChange);
+      document.removeEventListener('MSFullscreenChange', handleFullscreenChange);
+    };
+  }, []);
   // Get the error state
   const [error, setError] = useState<string | null>(null);
   // Get the is mac state
@@ -267,11 +347,12 @@ export default function CodeMirrorEditor({
     try {
       // Try to detect database dialect from environment or default to postgresql
       const dialect = (typeof window !== 'undefined' && (window as { DB_DIALECT?: string }).DB_DIALECT) || "postgresql";
-      // Format the current text
-      const formatted = formatSQL(currentText, {
-        language: dialect === "sqlite" ? "sqlite" : dialect === "mysql" ? "mysql" : dialect === "mssql" ? "transactsql" : "postgresql",
-        keywordCase: "upper",
-      });
+        // Format the current text
+        const formatted = formatSQL(currentText, {
+          language: dialect === "sqlite" ? "sqlite" : dialect === "mysql" ? "mysql" : dialect === "mssql" ? "transactsql" : "postgresql",
+          keywordCase: "upper",
+        });
+      
       // Dispatch the changes to the editor
       editor.dispatch({
         changes: {
@@ -311,13 +392,22 @@ export default function CodeMirrorEditor({
     onHavingValueSelect
   );
 
+  // Debounce timer for query parsing to prevent race conditions
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  
   // Get the update listener function
   const updateListener = EditorView.updateListener.of((update) => {
     // If the update doc changed
     if (update.docChanged) {
       // Get the new query
       const newQuery = update.state.doc.toString();
-      // Set the query tabs to the new query
+      
+      // Clear existing debounce timer
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+      
+      // Update query tabs immediately for UI responsiveness
       setQueryTabs((prevTabs) =>
         // Map the query tabs to the active tab and set the query to the new query
         prevTabs.map((tab) =>
@@ -325,55 +415,188 @@ export default function CodeMirrorEditor({
           tab.id === activeTab ? { ...tab, query: newQuery } : tab
         )
       );
-      // Dispatch the changes to the query
+      
+      // Dispatch the changes to the query immediately (this will set isManualEdit to true)
       onQueryChange(newQuery);
+      
+      // Use requestAnimationFrame to prevent race conditions
+      requestAnimationFrame(() => {
+        try {
+          const parsedColumns = parseSelectedColumns(newQuery);
+          const parsedTable = parseSelectedTable(newQuery);
+          // const parsedWhere = parseWhereClause(newQuery);
+          
+          // Only update if there are actual changes to prevent unnecessary re-renders
+          // and only if we're not in manual edit mode to prevent race conditions
+          if (parsedColumns.length > 0 && JSON.stringify(parsedColumns) !== JSON.stringify(selectedColumns)) {
+            // Don't call onColumnSelect when in manual edit mode to prevent race conditions
+            // onColumnSelect?.(parsedColumns);
+          }
+          
+          if (parsedTable && JSON.stringify(parsedTable) !== JSON.stringify(selectedTable)) {
+            // Don't call onTableSelect when in manual edit mode to prevent race conditions
+            // onTableSelect?.(parsedTable);
+          }
+          
+        } catch (error) {
+          console.error('Error parsing query for state sync:', error);
+        }
+      });
     }
   });
   
   useEffect(() => {
     // If the container ref is not null and the editor ref is not null
     if (!containerRef.current || editorRef.current) return;
-    // Get the custom theme
+    // Premium retro wave theme with enhanced visual appeal
     const customTheme = EditorView.theme(
       {
         "&": {
-          backgroundColor: "#1e293b",
-          borderRadius: "0.75rem",
-          border: "1px solid #334155",
-          boxShadow: "0 2px 6px rgba(0,0,0,0.4)",
-          color: "#f8f9fa",
-          fontSize: "clamp(12px, 3vw, 14px)",
+          backgroundColor: "#0a0a0f",
+          color: "#e0e6ed",
+          fontSize: "clamp(14px, 2.5vw, 16px)",
           height: "100%",
+          border: "2px solid transparent",
+          borderRadius: "16px",
+          background: "linear-gradient(#0a0a0f, #0a0a0f) padding-box, linear-gradient(135deg, #8b5cf6, #f472b6, #10b981, #fbbf24) border-box",
+          boxShadow: "0 0 40px rgba(139, 92, 246, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.1)",
+          position: "relative",
+          overflow: "hidden",
+        },
+        "&::before": {
+          content: '""',
+          position: "absolute",
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: "linear-gradient(135deg, rgba(139, 92, 246, 0.05), rgba(244, 114, 182, 0.05), rgba(16, 185, 129, 0.05))",
+          pointerEvents: "none",
+          zIndex: 0,
         },
         ".cm-content": {
-          caretColor: "#22c55e",
-          paddingRight: "1.5rem",
-          minHeight: "400px",
+          caretColor: "#f472b6",
+          padding: "2rem",
+          minHeight: "450px",
+          fontFamily: "'JetBrains Mono', 'Fira Code', 'SF Mono', 'Monaco', 'Cascadia Code', monospace",
+          lineHeight: "1.7",
+          position: "relative",
+          zIndex: 1,
+          background: "transparent",
         },
-        ".cm-line": { backgroundColor: "transparent" },
-        ".cm-keyword": { color: "#f8f9fa !important" },
-        ".cm-operator": { color: "#f8f9fa !important" },
-        ".cm-variableName": { color: "#f8f9fa !important" },
-        ".cm-string": { color: "#f8f9fa" },
-        ".cm-comment": { color: "#4a4a4a", fontStyle: "italic" },
-        ".cm-attribute": { color: "#f8f9fa" },
-        ".cm-property": { color: "#f8f9fa" },
-        ".cm-atom": { color: "#f8f9fa" },
-        ".cm-number": { color: "#f8f9fa" },
-        ".cm-def": { color: "#f8f9fa" },
-        ".cm-variable-2": { color: "#f8f9fa" },
-        ".cm-tag": { color: "#f8f9fa" },
-        "&.cm-focused .cm-cursor": { borderLeftColor: "#22c55e" },
+        ".cm-line": { 
+          backgroundColor: "transparent",
+          fontFamily: "'JetBrains Mono', 'Fira Code', 'SF Mono', 'Monaco', 'Cascadia Code', monospace",
+        },
+        ".cm-keyword": { 
+          color: "#f472b6 !important",
+          fontWeight: "700",
+          textShadow: "0 0 12px rgba(244, 114, 182, 0.6)",
+          background: "linear-gradient(135deg, #f472b6, #ec4899)",
+          WebkitBackgroundClip: "text",
+          WebkitTextFillColor: "transparent",
+        },
+        ".cm-operator": { 
+          color: "#8b5cf6 !important",
+          fontWeight: "600",
+          textShadow: "0 0 8px rgba(139, 92, 246, 0.5)",
+        },
+        ".cm-variableName": { 
+          color: "#fbbf24 !important",
+          textShadow: "0 0 10px rgba(251, 191, 36, 0.5)",
+          fontWeight: "600",
+        },
+        ".cm-string": { 
+          color: "#10b981",
+          textShadow: "0 0 8px rgba(16, 185, 129, 0.4)",
+          fontWeight: "500",
+        },
+        ".cm-comment": { 
+          color: "#6b7280",
+          fontStyle: "italic",
+          opacity: 0.8,
+        },
+        ".cm-attribute": { 
+          color: "#f472b6",
+          fontWeight: "600",
+        },
+        ".cm-property": { 
+          color: "#10b981",
+          fontWeight: "600",
+        },
+        ".cm-atom": { 
+          color: "#f472b6",
+          fontWeight: "600",
+        },
+        ".cm-number": { 
+          color: "#f59e0b",
+          fontWeight: "700",
+          textShadow: "0 0 6px rgba(245, 158, 11, 0.4)",
+        },
+        ".cm-def": { 
+          color: "#fbbf24",
+          fontWeight: "600",
+        },
+        ".cm-variable-2": { 
+          color: "#8b5cf6",
+          fontWeight: "600",
+        },
+        ".cm-tag": { 
+          color: "#8b5cf6",
+          fontWeight: "600",
+        },
+        "&.cm-focused .cm-cursor": { 
+          borderLeftColor: "#f472b6",
+          borderLeftWidth: "3px",
+          boxShadow: "0 0 20px rgba(244, 114, 182, 0.8), 0 0 40px rgba(244, 114, 182, 0.4)",
+          animation: "pulse 2s infinite",
+        },
         "&.cm-focused .cm-selectionBackground, ::selection": {
-          backgroundColor: "rgba(34, 197, 94, 0.1)",
+          backgroundColor: "rgba(244, 114, 182, 0.25)",
+          border: "1px solid rgba(244, 114, 182, 0.5)",
+          borderRadius: "4px",
         },
         ".cm-gutters": {
-          backgroundColor: "#0f172a",
-          color: "#22c55e",
+          backgroundColor: "#1a1a2e",
+          color: "#8b5cf6",
           border: "none",
+          fontFamily: "'JetBrains Mono', 'Fira Code', 'SF Mono', 'Monaco', 'Cascadia Code', monospace",
+          background: "linear-gradient(180deg, #1a1a2e 0%, #16213e 100%)",
+          boxShadow: "2px 0 10px rgba(0, 0, 0, 0.3)",
         },
-        ".cm-gutter": { background: "#0f172a", border: "none" },
-        ".cm-active-line": { backgroundColor: "rgba(34, 197, 94, 0.05)" },
+        ".cm-gutter": { 
+          background: "transparent", 
+          border: "none",
+          fontFamily: "'JetBrains Mono', 'Fira Code', 'SF Mono', 'Monaco', 'Cascadia Code', monospace",
+        },
+        ".cm-active-line": { 
+          backgroundColor: "rgba(139, 92, 246, 0.1)",
+          boxShadow: "0 0 20px rgba(139, 92, 246, 0.2)",
+          borderLeft: "3px solid #8b5cf6",
+        },
+        ".cm-completionInfo": {
+          backgroundColor: "#1a1a2e",
+          border: "2px solid #8b5cf6",
+          borderRadius: "16px",
+          color: "#e0e6ed",
+          fontFamily: "'JetBrains Mono', 'Fira Code', 'SF Mono', 'Monaco', 'Cascadia Code', monospace",
+          boxShadow: "0 0 30px rgba(139, 92, 246, 0.4), 0 0 60px rgba(139, 92, 246, 0.2)",
+          background: "linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)",
+          backdropFilter: "blur(10px)",
+        },
+        ".cm-completionIcon": {
+          color: "#f472b6",
+          filter: "drop-shadow(0 0 4px rgba(244, 114, 182, 0.6))",
+        },
+        ".cm-completionMatchedText": {
+          color: "#fbbf24",
+          fontWeight: "700",
+          textShadow: "0 0 6px rgba(251, 191, 36, 0.6)",
+        },
+        ".cm-completionDetail": {
+          color: "#6b7280",
+          fontStyle: "italic",
+        },
       },
       { dark: true }
     );
@@ -450,8 +673,15 @@ export default function CodeMirrorEditor({
         ]),
         // Get the language compartment
         languageCompartment.current.of(sql()),
-        // Get the autocompletion
-        autocompletion({ override: [sqlCompletion], activateOnTyping: true }),
+        // Get the autocompletion - optimized for instant response
+        autocompletion({ 
+          override: [sqlCompletion], 
+          activateOnTyping: true,
+          // closeOnBlur: false,
+          // maxRenderedOptions: 15,
+          defaultKeymap: true,
+    
+        }),
         // Get the draw selection
         drawSelection(),
         // Get the custom theme
@@ -471,6 +701,10 @@ export default function CodeMirrorEditor({
     editorRef.current = view;
 
     return () => {
+      // Clear debounce timer
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
       // Destroy the view
       view.destroy();
       // Set the editor ref to null
@@ -499,28 +733,46 @@ export default function CodeMirrorEditor({
 
   return (
     <div
-      className={`border border-slate-700/50 rounded-md relative ${
+      ref={containerRef}
+      className={`relative h-full ${
         fullScreenEditor ? "fixed inset-0 z-50 bg-[#0f172a] p-4" : ""
       }`}
     >
+      {loading && (
+        <div className="absolute inset-0 bg-gradient-to-br from-slate-900/90 to-slate-800/90 backdrop-blur-md z-10 flex items-center justify-center">
+          <div className="flex flex-col items-center gap-4 p-6 bg-gradient-to-r from-slate-800/80 to-slate-700/80 backdrop-blur-sm border border-purple-500/30 rounded-xl shadow-2xl">
+            <div className="relative">
+              <div className="w-8 h-8 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full animate-pulse"></div>
+              <div className="absolute inset-0 w-8 h-8 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full animate-ping opacity-20"></div>
+            </div>
+            <div className="text-center">
+              <span className="font-mono text-sm text-cyan-300 font-medium">Loading database schema...</span>
+              <div className="mt-2 w-32 h-1 bg-slate-700 rounded-full overflow-hidden">
+                <div className="h-full bg-gradient-to-r from-purple-500 to-pink-500 rounded-full animate-pulse"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       <TooltipProvider delayDuration={150}>
-        <div className="flex items-center justify-between p-2">
+        <div className="flex items-center justify-between p-4 bg-gradient-to-r from-slate-900/50 to-slate-800/50 backdrop-blur-sm border-b border-purple-500/20">
           <Button
             variant="ghost"
             size="sm"
             onClick={addNewTab}
-            className="text-green-300 hover:bg-transparent hover:text-green-400"
+            className="text-cyan-300 hover:bg-gradient-to-r hover:from-cyan-500/20 hover:to-blue-500/20 hover:text-cyan-200 transition-all duration-300 font-medium px-4 py-2 rounded-lg border border-cyan-500/30 hover:border-cyan-400/50 hover:shadow-lg hover:shadow-cyan-500/20"
           >
-            + New Tab
+            <span className="text-lg mr-2">+</span>
+            New Tab
           </Button>
-          <div className="flex gap-2">
+          <div className="flex gap-3">
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
                   variant="ghost"
                   size="icon"
-                  onClick={() => setFullScreenEditor(!fullScreenEditor)}
-                  className="text-green-300 hover:bg-transparent hover:text-green-400 transition-all duration-300"
+                  onClick={toggleFullscreen}
+                  className="text-pink-300 hover:bg-gradient-to-r hover:from-pink-500/20 hover:to-purple-500/20 hover:text-pink-200 transition-all duration-300 w-10 h-10 rounded-lg border border-pink-500/30 hover:border-pink-400/50 hover:shadow-lg hover:shadow-pink-500/20"
                   aria-label={
                     fullScreenEditor
                       ? "Exit editor fullscreen"
@@ -534,7 +786,7 @@ export default function CodeMirrorEditor({
                   )}
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>
+              <TooltipContent className="bg-slate-800 border-purple-500/50 text-cyan-200">
                 {fullScreenEditor ? "Exit fullscreen" : "Enter fullscreen"}
               </TooltipContent>
             </Tooltip>
@@ -544,20 +796,20 @@ export default function CodeMirrorEditor({
                   variant="ghost"
                   size="icon"
                   onClick={handleFormatSQL}
-                  className="text-blue-300 hover:bg-transparent hover:text-blue-400 transition-all duration-300"
+                  className="text-emerald-300 hover:bg-gradient-to-r hover:from-emerald-500/20 hover:to-teal-500/20 hover:text-emerald-200 transition-all duration-300 w-10 h-10 rounded-lg border border-emerald-500/30 hover:border-emerald-400/50 hover:shadow-lg hover:shadow-emerald-500/20"
                   aria-label="Format SQL"
                 >
                   <Wand2 className="w-5 h-5" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>
+              <TooltipContent className="bg-slate-800 border-purple-500/50 text-cyan-200">
                 Format SQL ({isMac ? "⌘+⇧+F" : "Ctrl+Shift+F"})
               </TooltipContent>
             </Tooltip>
           </div>
         </div>
       </TooltipProvider>
-      <div className="rounded-lg flex items-center bg-[#1e293b] border-slate-700">
+      <div className="flex items-center">
         <QueryTabs
           queryTabs={queryTabs}
           activeTab={activeTab}
@@ -566,22 +818,14 @@ export default function CodeMirrorEditor({
           onTabReorder={handleTabReorder}
         />
       </div>
-      <div ref={containerRef} className="flex-1" />
-      {error && <p className="text-red-300 mt-2">{error}</p>}
-      <div className="absolute top-2 right-2 z-50 flex flex-col gap-2">
-        <div className="relative group">
-          <div className="absolute top-1 right-8 z-30 hidden md:group-hover:block bg-gray-700 text-white text-xs rounded px-3 py-2 shadow-lg whitespace-nowrap">
-            {fullScreenEditor ? "Exit fullscreen" : "Enter fullscreen"}
-            <div className="absolute top-1/2 -right-1 w-2 h-2 bg-gray-700 rotate-45 -translate-y-1/2" />
+      <div className="flex-1" />
+      {error && (
+        <div className="absolute bottom-4 left-4 right-4 z-50">
+          <div className="bg-red-900/90 border border-red-500/50 text-red-200 px-4 py-3 rounded-lg backdrop-blur-sm shadow-lg">
+            <p className="font-medium">{error}</p>
           </div>
         </div>
-        <div className="relative group">
-          <div className="absolute top-1 right-8 z-30 hidden md:group-hover:block bg-gray-700 text-white text-xs rounded px-3 py-2 shadow-lg whitespace-nowrap">
-            Format SQL ({isMac ? "⌘+⇧+F" : "Ctrl+Shift+F"})
-            <div className="absolute top-1/2 -right-1 w-2 h-2 bg-gray-700 rotate-45 -translate-y-1/2" />
-          </div>
-        </div>
-      </div>
+      )}
     </div>
   );
 }

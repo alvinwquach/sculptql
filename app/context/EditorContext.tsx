@@ -1,12 +1,15 @@
 "use client";
 
-import { createContext, useContext, useCallback, useEffect } from "react";
+import { createContext, useContext, useCallback, useEffect, useMemo, useState } from "react";
 import { useMutation } from "@apollo/client/react";
 import { toast } from "react-toastify";
 import {
   TableSchema,
   SelectOption,
   QueryResult,
+  JoinClause,
+  UnionClause,
+  CteClause,
 } from "@/app/types/query";
 import { RUN_QUERY } from "@/app/graphql/mutations/runQuery";
 import { useQueryState, QueryState } from "./hooks/useQueryState";
@@ -21,24 +24,48 @@ interface EditorContextType extends QueryState, QueryHistoryState, QueryResultsS
   schema: TableSchema[];
   error: string | null;
   isMySQL: boolean;
+  isManualEdit: boolean;
+  setIsManualEdit: (isManual: boolean) => void;
   runQuery: (query: string) => Promise<void>;
   logQueryResultAsJson: () => void;
+  refreshSchema: () => Promise<void>;
   handleQueryChange: (newQuery: string) => void;
    handleTableSelect: (value: SelectOption | null) => void;
   handleColumnSelect: (value: SelectOption[]) => void;
   handleDistinctChange: (value: boolean) => void;
   handleGroupByColumnSelect: (value: SelectOption[]) => void;
-  handleWhereColumnSelect: (value: SelectOption, conditionIndex: number) => void;
-  handleOperatorSelect: (value: SelectOption, conditionIndex: number) => void;
-  handleValueSelect: (value: SelectOption, conditionIndex: number) => void;
-  handleLogicalOperatorSelect: (value: SelectOption, conditionIndex: number) => void;
-  handleOrderByColumnSelect: (value: SelectOption) => void;
-  handleOrderByDirectionSelect: (value: SelectOption) => void;
-  handleLimitSelect: (value: SelectOption) => void;
-  handleAggregateColumnSelect: (value: SelectOption, conditionIndex: number) => void;
-  handleHavingOperatorSelect: (value: SelectOption, conditionIndex: number) => void;
-  handleHavingValueSelect: (value: SelectOption, conditionIndex: number) => void;
+  handleWhereColumnSelect: (value: SelectOption | null, conditionIndex: number) => void;
+  handleOperatorSelect: (value: SelectOption | null, conditionIndex: number) => void;
+  handleValueSelect: (value: SelectOption | null, conditionIndex: number, isValue2?: boolean) => void;
+  handleLogicalOperatorSelect: (value: SelectOption | null, conditionIndex: number) => void;
+  handleOrderByColumnSelect: (value: SelectOption | null) => void;
+  handleOrderByDirectionSelect: (value: SelectOption | null) => void;
+  handleLimitSelect: (value: SelectOption | null) => void;
+  handleAggregateColumnSelect: (value: SelectOption | null, conditionIndex: number) => void;
+  handleHavingOperatorSelect: (value: SelectOption | null, conditionIndex: number) => void;
+  handleHavingValueSelect: (value: SelectOption | null, conditionIndex: number) => void;
   onDeleteCondition: (conditionIndex: number) => void;
+  // Join handlers
+  onJoinTableSelect: (value: SelectOption | null, joinIndex: number) => void;
+  onJoinTypeSelect: (value: SelectOption | null, joinIndex: number) => void;
+  onJoinOnColumn1Select: (value: SelectOption | null, joinIndex: number) => void;
+  onJoinOnColumn2Select: (value: SelectOption | null, joinIndex: number) => void;
+  onAddJoinClause: () => void;
+  onRemoveJoinClause: (joinIndex: number) => void;
+  // Union handlers
+  onUnionTableSelect: (value: SelectOption | null, unionIndex: number) => void;
+  onAddUnionClause: () => void;
+  onRemoveUnionClause: (unionIndex: number) => void;
+  // CTE handlers
+  onCteAliasChange: (cteIndex: number, alias: string | null) => void;
+  onCteTableSelect: (cteIndex: number, value: SelectOption | null) => void;
+  onCteColumnSelect: (cteIndex: number, value: SelectOption[]) => void;
+  onCteLogicalOperatorSelect: (cteIndex: number, value: SelectOption | null) => void;
+  onCteWhereColumnSelect: (cteIndex: number, conditionIndex: number, value: SelectOption | null) => void;
+  onCteOperatorSelect: (cteIndex: number, conditionIndex: number, value: SelectOption | null) => void;
+  onCteValueSelect: (cteIndex: number, conditionIndex: number, value: SelectOption | null, isValue2: boolean) => void;
+  onAddCteClause: () => void;
+  onRemoveCteClause: (cteIndex: number) => void;
   operatorOptions: SelectOption[];
   logicalOperatorOptions: SelectOption[];
   orderByDirectionOptions: SelectOption[];
@@ -57,6 +84,7 @@ export function useEditorContext() {
     // Throw an error
     throw new Error("useEditorContext must be used within an EditorProvider");
   }
+  // Return the context
   return context;
 }
 
@@ -66,9 +94,10 @@ interface EditorProviderProps {
   schema: TableSchema[];
   error: string | null;
   isMySQL?: boolean;
+  refreshSchema?: () => Promise<void>;
 }
 
-export function EditorProvider({ children, schema, error, isMySQL = false }: EditorProviderProps) {
+export function EditorProvider({ children, schema, error, isMySQL = false, refreshSchema }: EditorProviderProps) {
   // Get the query state
   const queryState = useQueryState();
   // Get the query results
@@ -96,9 +125,12 @@ export function EditorProvider({ children, schema, error, isMySQL = false }: Edi
     { runQuery: QueryResult },
     { query: string }
   >(RUN_QUERY);
+  
+  // State to track if the query is being manually edited (prevents race conditions)
+  const [isManualEdit, setIsManualEdit] = useState(false);
 
-  // Options
-  const operatorOptions: SelectOption[] = [
+  // Memoized options to prevent unnecessary re-renders
+  const operatorOptions: SelectOption[] = useMemo(() => [
     { value: "=", label: "=" },
     { value: "!=", label: "!=" },
     { value: ">", label: ">" },
@@ -109,29 +141,29 @@ export function EditorProvider({ children, schema, error, isMySQL = false }: Edi
     { value: "IS NULL", label: "IS NULL" },
     { value: "IS NOT NULL", label: "IS NOT NULL" },
     { value: "BETWEEN", label: "BETWEEN" },
-  ];
+  ], []);
 
   // Get the logical operator options
-  const logicalOperatorOptions: SelectOption[] = [
+  const logicalOperatorOptions: SelectOption[] = useMemo(() => [
     { value: "AND", label: "AND" },
     { value: "OR", label: "OR" },
-  ];
+  ], []);
 
   // Get the order by direction options
-  const orderByDirectionOptions: SelectOption[] = [
+  const orderByDirectionOptions: SelectOption[] = useMemo(() => [
     { value: "ASC", label: "Ascending (A-Z, low-high)" },
     { value: "DESC", label: "Descending (Z-A, high-low)" },
-  ];
+  ], []);
 
   // Get the limit options
-  const limitOptions: SelectOption[] = [
+  const limitOptions: SelectOption[] = useMemo(() => [
     { value: "10", label: "10" },
     { value: "25", label: "25" },
     { value: "50", label: "50" },
     { value: "100", label: "100" },
     { value: "500", label: "500" },
     { value: "1000", label: "1000" },
-  ];
+  ], []);
 
   // Get the run query without history function
   const runQueryWithoutHistory = useCallback(
@@ -205,7 +237,7 @@ export function EditorProvider({ children, schema, error, isMySQL = false }: Edi
     }
   }, [queryResults.queryResult]);
 
-  // Get the generate query from state function
+  // Get the generate query from state function - memoized to prevent unnecessary recalculations
   const generateQueryFromState = useCallback((
     selectedTable = queryState.selectedTable,
     selectedColumns = queryState.selectedColumns,
@@ -221,7 +253,6 @@ export function EditorProvider({ children, schema, error, isMySQL = false }: Edi
       // Return an empty string
       return "";
     }
-
     // Get the table name
     const tableName = selectedTable.value;
     // Get the columns string
@@ -260,13 +291,19 @@ export function EditorProvider({ children, schema, error, isMySQL = false }: Edi
           }
           // If the operator is BETWEEN and the value and value2 is not null
           if (op === "BETWEEN" && cond.value && cond.value2) {
-            return `${logicalOp} ${colName} BETWEEN ${cond.value.value} AND ${cond.value2.value}`.trim();
-            // Return the logical operator and column name and operator and value and value2
+            const value1 = typeof cond.value.value === 'string' && !cond.value.value.match(/^['"]/) 
+              ? `'${cond.value.value}'` : cond.value.value;
+            const value2 = typeof cond.value2.value === 'string' && !cond.value2.value.match(/^['"]/) 
+              ? `'${cond.value2.value}'` : cond.value2.value;
+            return `${logicalOp} ${colName} BETWEEN ${value1} AND ${value2}`.trim();
           }
           // If the operator is BETWEEN and the value and value2 is not null
           if (cond.value) {
+            // Properly quote string values for SQL
+            const value = typeof cond.value.value === 'string' && !cond.value.value.match(/^['"]/) 
+              ? `'${cond.value.value}'` : cond.value.value;
             // Return the logical operator and column name and operator and value
-            return `${logicalOp} ${colName} ${op} ${cond.value.value}`.trim();
+            return `${logicalOp} ${colName} ${op} ${value}`.trim();
           }
           // Return the logical operator and column name and operator
           return `${logicalOp} ${colName} ${op}`.trim();
@@ -277,7 +314,6 @@ export function EditorProvider({ children, schema, error, isMySQL = false }: Edi
         query += ` WHERE ${whereConditions.join(" ")}`;
       }
     }
-
     // If the selected group by columns length is greater than 0
     if (selectedGroupByColumns.length > 0) {
       // Get the group by string
@@ -289,7 +325,6 @@ export function EditorProvider({ children, schema, error, isMySQL = false }: Edi
       // Add the group by clause to the query with the group by string
       query += ` GROUP BY ${groupByString}`;
     }
-
     // If the having clause is not null and the aggregate column 
     // and operator is not null
     if (havingClause.condition.aggregateColumn && havingClause.condition.operator) {
@@ -302,16 +337,16 @@ export function EditorProvider({ children, schema, error, isMySQL = false }: Edi
         // Add the having clause to the query
         query += ` HAVING ${agg} ${op}`;
       } else if (havingClause.condition.value) {
-        // Get the value
-        const value = havingClause.condition.value.value;
-        // Add the having clause to the query
+        // Get the value and properly quote string values
+        const value = typeof havingClause.condition.value.value === 'string' && !havingClause.condition.value.value.match(/^['"]/) 
+          ? `'${havingClause.condition.value.value}'` : havingClause.condition.value.value;
+        // Add the having clause to the query with proper value handling
         query += ` HAVING ${agg} ${op} ${value}`;
       } else {
-        // Add the having clause to the query
+        // Add the having clause to the query without value
         query += ` HAVING ${agg} ${op}`;
       }
     }
-
     // If the order by clause column is not null
     if (orderByClause.column) {
       // Get the column name
@@ -328,68 +363,61 @@ export function EditorProvider({ children, schema, error, isMySQL = false }: Edi
     }
     // Return the query with a semicolon
     return query + ";";
-  }, []);
+  }, [
+    // Only depend on the actual state values, not the entire queryState object
+    queryState.selectedTable,
+    queryState.selectedColumns,
+    queryState.isDistinct,
+    queryState.whereClause,
+    queryState.selectedGroupByColumns,
+    queryState.havingClause,
+    queryState.orderByClause,
+    queryState.limit
+  ]);
 
   // Handle the query change
   const handleQueryChange = useCallback(
     (newQuery: string) => {
+      // Set the manual edit flag to true when query is changed manually
+      setIsManualEdit(true);
       // Set the query to the new query
       queryState.setQuery(newQuery);
     },
-    [queryState.setQuery]
+    [queryState]
   );
 
   // Handle the table select
   const handleTableSelect = useCallback(
     (value: SelectOption | null) => {
-      // Create a new selected columns array
-      const newSelectedColumns: SelectOption[] = [];
-      // Create a new selected group by columns array
-      const newSelectedGroupByColumns: SelectOption[] = [];
-      // Create a new where clause
-      const newWhereClause = {
-        conditions: [
-          { column: null, operator: null, value: null, value2: null },
-        ],
-      };
-      // Create a new order by clause
-      const newOrderByClause = { column: null, direction: null };
-      // Create a new limit
-      const newLimit = null;
-      // Create a new having clause
-      const newHavingClause = {
-        condition: { aggregateColumn: null, operator: null, value: null },
-      };
-      // Create a new is distinct
-      const newIsDistinct = false;
+      // Reset manual edit flag when using visual query builder
+      setIsManualEdit(false);
+      
+      // Only reset columns if no table was previously selected or if we're clearing the table
+      const shouldResetColumns = !queryState.selectedTable || !value;
+      const newSelectedColumns: SelectOption[] = shouldResetColumns 
+        ? (value ? [{ value: "*", label: "All Columns (*)" }] : [])
+        : queryState.selectedColumns;
+      
       // Set the selected table
       queryState.setSelectedTable(value);
-      // Set the selected columns
-      queryState.setSelectedColumns(newSelectedColumns);
-      // Set the selected group by columns
-      queryState.setSelectedGroupByColumns(newSelectedGroupByColumns);
-      // Set the where clause
-      queryState.setWhereClause(newWhereClause);
-      // Set the order by clause
-      queryState.setOrderByClause(newOrderByClause);
-      // Set the limit
-      queryState.setLimit(newLimit);
-      // Set the having clause
-      queryState.setHavingClause(newHavingClause);
-      // Set the is distinct
-      queryState.setIsDistinct(newIsDistinct);
-    // Generate a new query from the state
+      
+      // Only update columns if we need to reset them
+      if (shouldResetColumns) {
+        queryState.setSelectedColumns(newSelectedColumns);
+      }
+      
+      // Generate a new query from the current state
       const newQuery = generateQueryFromState(
         value,
         newSelectedColumns,
-        newIsDistinct,
-        newWhereClause,
-        newSelectedGroupByColumns,
-        newHavingClause,
-        newOrderByClause,
-        newLimit
+        queryState.isDistinct,
+        queryState.whereClause,
+        queryState.selectedGroupByColumns,
+        queryState.havingClause,
+        queryState.orderByClause,
+        queryState.limit
       );
-          // Set the query
+      // Set the query
       queryState.setQuery(newQuery);
     },
     [queryState, generateQueryFromState]
@@ -398,10 +426,13 @@ export function EditorProvider({ children, schema, error, isMySQL = false }: Edi
   // Handle the column select
   const handleColumnSelect = useCallback(
     (value: SelectOption[]) => {
+      // Reset manual edit flag when using visual query builder
+      setIsManualEdit(false);
+      
       // Set the selected columns
       queryState.setSelectedColumns(value);
       // Generate a new query from the state
-            const newQuery = generateQueryFromState(
+      const newQuery = generateQueryFromState(
         queryState.selectedTable,
         value,
         queryState.isDistinct,
@@ -420,6 +451,9 @@ export function EditorProvider({ children, schema, error, isMySQL = false }: Edi
   // Handle the distinct change
   const handleDistinctChange = useCallback(
     (value: boolean) => {
+      // Reset manual edit flag when using visual query builder
+      setIsManualEdit(false);
+      
       // Set the is distinct
       queryState.setIsDistinct(value);
       // Generate a new query from the state
@@ -441,10 +475,13 @@ export function EditorProvider({ children, schema, error, isMySQL = false }: Edi
   // Handle the group by column select
   const handleGroupByColumnSelect = useCallback(
     (value: SelectOption[]) => {
+      // Reset manual edit flag when using visual query builder
+      setIsManualEdit(false);
+      
       // Set the selected group by columns
       queryState.setSelectedGroupByColumns(value);
       // Generate a new query from the state
-            const newQuery = generateQueryFromState(
+      const newQuery = generateQueryFromState(
         queryState.selectedTable,
         queryState.selectedColumns,
         queryState.isDistinct,
@@ -462,7 +499,10 @@ export function EditorProvider({ children, schema, error, isMySQL = false }: Edi
 
   // Handle the where column select
   const handleWhereColumnSelect = useCallback(
-    (value: SelectOption, conditionIndex: number) => {
+    (value: SelectOption | null, conditionIndex: number) => {
+      // Reset manual edit flag when using visual query builder
+      setIsManualEdit(false);
+      
       // Create a new conditions array from the 
       // where clause conditions array
       const newConditions = [...queryState.whereClause.conditions];
@@ -476,7 +516,8 @@ export function EditorProvider({ children, schema, error, isMySQL = false }: Edi
       const newWhereClause = { conditions: newConditions };
       // Set the where clause
       queryState.setWhereClause(newWhereClause);
-            const newQuery = generateQueryFromState(
+      // Generate a new query from the state
+      const newQuery = generateQueryFromState(
         queryState.selectedTable,
         queryState.selectedColumns,
         queryState.isDistinct,
@@ -493,7 +534,10 @@ export function EditorProvider({ children, schema, error, isMySQL = false }: Edi
 
   // Handle the operator select
   const handleOperatorSelect = useCallback(
-    (value: SelectOption, conditionIndex: number) => {
+    (value: SelectOption | null, conditionIndex: number) => {
+      // Reset manual edit flag when using visual query builder
+      setIsManualEdit(false);
+      
       // Create a new conditions array from the 
       // where clause conditions array
       const newConditions = [...queryState.whereClause.conditions];
@@ -507,7 +551,8 @@ export function EditorProvider({ children, schema, error, isMySQL = false }: Edi
       const newWhereClause = { conditions: newConditions };
       // Set the where clause
       queryState.setWhereClause(newWhereClause);
-            const newQuery = generateQueryFromState(
+      // Generate a new query from the state
+      const newQuery = generateQueryFromState(
         queryState.selectedTable,
         queryState.selectedColumns,
         queryState.isDistinct,
@@ -525,19 +570,23 @@ export function EditorProvider({ children, schema, error, isMySQL = false }: Edi
 
   // Handle the value select
   const handleValueSelect = useCallback(
-    (value: SelectOption, conditionIndex: number) => {
+    (value: SelectOption | null, conditionIndex: number, isValue2: boolean = false) => {
+      // Reset manual edit flag when using visual query builder
+      setIsManualEdit(false);
+      
       // Create a new conditions array from the where clause conditions array
       const newConditions = [...queryState.whereClause.conditions];
       // Set the new conditions at the condition index to the new value
       newConditions[conditionIndex] = {
         ...newConditions[conditionIndex],
-        value: value,
+        ...(isValue2 ? { value2: value } : { value: value }),
       };
       // Create a new where clause with the new conditions
       const newWhereClause = { conditions: newConditions };
       // Set the where clause
       queryState.setWhereClause(newWhereClause);
-            const newQuery = generateQueryFromState(
+      // Generate a new query from the state
+      const newQuery = generateQueryFromState(
         queryState.selectedTable,
         queryState.selectedColumns,
         queryState.isDistinct,
@@ -554,7 +603,10 @@ export function EditorProvider({ children, schema, error, isMySQL = false }: Edi
 
   // Handle the logical operator select
   const handleLogicalOperatorSelect = useCallback(
-    (value: SelectOption, conditionIndex: number) => {
+    (value: SelectOption | null, conditionIndex: number) => {
+      // Reset manual edit flag when using visual query builder
+      setIsManualEdit(false);
+      
       // Create a new conditions array from the 
       // where clause conditions array
       const newConditions = [...queryState.whereClause.conditions];
@@ -568,7 +620,8 @@ export function EditorProvider({ children, schema, error, isMySQL = false }: Edi
       const newWhereClause = { conditions: newConditions };
       // Set the where clause
       queryState.setWhereClause(newWhereClause);
-            const newQuery = generateQueryFromState(
+      // Generate a new query from the state
+      const newQuery = generateQueryFromState(
         queryState.selectedTable,
         queryState.selectedColumns,
         queryState.isDistinct,
@@ -585,7 +638,10 @@ export function EditorProvider({ children, schema, error, isMySQL = false }: Edi
 
   // Handle the order by column select
   const handleOrderByColumnSelect = useCallback(
-    (value: SelectOption) => {
+    (value: SelectOption | null) => {
+      // Reset manual edit flag when using visual query builder
+      setIsManualEdit(false);
+      
       // Create a new order by clause with the new value and column
       const newOrderByClause = {
         ...queryState.orderByClause,
@@ -612,7 +668,10 @@ export function EditorProvider({ children, schema, error, isMySQL = false }: Edi
 
   // Handle the order by direction select
   const handleOrderByDirectionSelect = useCallback(
-    (value: SelectOption) => {
+    (value: SelectOption | null) => {
+      // Reset manual edit flag when using visual query builder
+      setIsManualEdit(false);
+      
       // Create a new order by clause with the new value and direction
       const newOrderByClause = {
         ...queryState.orderByClause,
@@ -621,7 +680,6 @@ export function EditorProvider({ children, schema, error, isMySQL = false }: Edi
       // Set the order by clause
       queryState.setOrderByClause(newOrderByClause);
       // Generate a new query from the state
-    
       const newQuery = generateQueryFromState(
         queryState.selectedTable,
         queryState.selectedColumns,
@@ -640,7 +698,10 @@ export function EditorProvider({ children, schema, error, isMySQL = false }: Edi
 
   // Handle the limit select
   const handleLimitSelect = useCallback(
-    (value: SelectOption) => {
+    (value: SelectOption | null) => {
+      // Reset manual edit flag when using visual query builder
+      setIsManualEdit(false);
+      
       queryState.setLimit(value);
       // Generate a new query from the state
       const newQuery = generateQueryFromState(
@@ -661,7 +722,10 @@ export function EditorProvider({ children, schema, error, isMySQL = false }: Edi
 
   // Handle the aggregate column select
   const handleAggregateColumnSelect = useCallback(
-    (value: SelectOption, conditionIndex: number) => {
+    (value: SelectOption | null) => {
+      // Reset manual edit flag when using visual query builder
+      setIsManualEdit(false);
+      
       // Create a new condition with the new value and aggregate column
       const newCondition = {
         ...queryState.havingClause.condition,
@@ -691,7 +755,10 @@ export function EditorProvider({ children, schema, error, isMySQL = false }: Edi
   // Handle the having operator select
   const handleHavingOperatorSelect = useCallback(
     // Handle the having operator select
-    (value: SelectOption, conditionIndex: number) => {
+    (value: SelectOption | null) => {
+      // Reset manual edit flag when using visual query builder
+      setIsManualEdit(false);
+      
       // Create a new condition with the new value and operator
       const newCondition = {
         ...queryState.havingClause.condition,
@@ -702,7 +769,7 @@ export function EditorProvider({ children, schema, error, isMySQL = false }: Edi
       // Set the having clause
       queryState.setHavingClause(newHavingClause);
       // Generate a new query from the state
-            const newQuery = generateQueryFromState(
+      const newQuery = generateQueryFromState(
         queryState.selectedTable,
         queryState.selectedColumns,
         queryState.isDistinct,
@@ -721,7 +788,10 @@ export function EditorProvider({ children, schema, error, isMySQL = false }: Edi
   // Handle the having value select
   const handleHavingValueSelect = useCallback(
     // Handle the having value select
-    (value: SelectOption, conditionIndex: number) => {
+    (value: SelectOption | null) => {
+      // Reset manual edit flag when using visual query builder
+      setIsManualEdit(false);
+      
       // Create a new condition with the new value
       const newCondition = {
         ...queryState.havingClause.condition,
@@ -732,7 +802,7 @@ export function EditorProvider({ children, schema, error, isMySQL = false }: Edi
       // Set the having clause
       queryState.setHavingClause(newHavingClause);
       // Generate a new query from the state
-            const newQuery = generateQueryFromState(
+      const newQuery = generateQueryFromState(
         queryState.selectedTable,
         queryState.selectedColumns,
         queryState.isDistinct,
@@ -751,11 +821,16 @@ export function EditorProvider({ children, schema, error, isMySQL = false }: Edi
   // Handle the delete condition
   const onDeleteCondition = useCallback(
     (conditionIndex: number) => {
+      // Reset manual edit flag when using visual query builder
+      setIsManualEdit(false);
+      
       // Create a new conditions array from the where clause conditions array
       const newConditions = queryState.whereClause.conditions.filter(
+        // Filter the conditions by the condition index
         (_, index) => index !== conditionIndex
       );
       // If the new conditions array is empty, push a new condition
+      // with null values
       if (newConditions.length === 0) {
         newConditions.push({
           column: null,
@@ -769,7 +844,7 @@ export function EditorProvider({ children, schema, error, isMySQL = false }: Edi
       // Set the where clause
       queryState.setWhereClause(newWhereClause);
       // Generate a new query from the state
-            const newQuery = generateQueryFromState(
+      const newQuery = generateQueryFromState(
         queryState.selectedTable,
         queryState.selectedColumns,
         queryState.isDistinct,
@@ -783,6 +858,208 @@ export function EditorProvider({ children, schema, error, isMySQL = false }: Edi
       queryState.setQuery(newQuery);
     },
     [queryState, generateQueryFromState]
+  );
+
+  // Join handlers
+  const onJoinTableSelect = useCallback(
+    (value: SelectOption | null, joinIndex: number) => {
+      const newJoinClauses = [...queryState.joinClauses];
+      newJoinClauses[joinIndex] = {
+        ...newJoinClauses[joinIndex],
+        table: value,
+      };
+      queryState.setJoinClauses(newJoinClauses);
+    },
+    [queryState]
+  );
+
+  const onJoinTypeSelect = useCallback(
+    (value: SelectOption | null, joinIndex: number) => {
+      const newJoinClauses = [...queryState.joinClauses];
+      newJoinClauses[joinIndex] = {
+        ...newJoinClauses[joinIndex],
+        joinType: value,
+      };
+      queryState.setJoinClauses(newJoinClauses);
+    },
+    [queryState]
+  );
+
+  const onJoinOnColumn1Select = useCallback(
+    (value: SelectOption | null, joinIndex: number) => {
+      const newJoinClauses = [...queryState.joinClauses];
+      newJoinClauses[joinIndex] = {
+        ...newJoinClauses[joinIndex],
+        onColumn1: value,
+      };
+      queryState.setJoinClauses(newJoinClauses);
+    },
+    [queryState]
+  );
+
+  const onJoinOnColumn2Select = useCallback(
+    (value: SelectOption | null, joinIndex: number) => {
+      const newJoinClauses = [...queryState.joinClauses];
+      newJoinClauses[joinIndex] = {
+        ...newJoinClauses[joinIndex],
+        onColumn2: value,
+      };
+      queryState.setJoinClauses(newJoinClauses);
+    },
+    [queryState]
+  );
+
+  const onAddJoinClause = useCallback(() => {
+    const newJoinClause: JoinClause = {
+      table: null,
+      joinType: { value: "INNER JOIN", label: "INNER JOIN" },
+      onColumn1: null,
+      onColumn2: null,
+    };
+    queryState.setJoinClauses([...queryState.joinClauses, newJoinClause]);
+  }, [queryState]);
+
+  const onRemoveJoinClause = useCallback(
+    (joinIndex: number) => {
+      const newJoinClauses = queryState.joinClauses.filter((_, index) => index !== joinIndex);
+      queryState.setJoinClauses(newJoinClauses);
+    },
+    [queryState]
+  );
+
+  // Union handlers
+  const onUnionTableSelect = useCallback(
+    (value: SelectOption | null, unionIndex: number) => {
+      const newUnionClauses = [...queryState.unionClauses];
+      newUnionClauses[unionIndex] = {
+        ...newUnionClauses[unionIndex],
+        table: value,
+      };
+      queryState.setUnionClauses(newUnionClauses);
+    },
+    [queryState]
+  );
+
+  const onAddUnionClause = useCallback(() => {
+    const newUnionClause: UnionClause = {
+      table: null,
+    };
+    queryState.setUnionClauses([...queryState.unionClauses, newUnionClause]);
+  }, [queryState]);
+
+  const onRemoveUnionClause = useCallback(
+    (unionIndex: number) => {
+      const newUnionClauses = queryState.unionClauses.filter((_, index) => index !== unionIndex);
+      queryState.setUnionClauses(newUnionClauses);
+    },
+    [queryState]
+  );
+
+  // CTE handlers
+  const onCteAliasChange = useCallback(
+    (cteIndex: number, alias: string | null) => {
+      const newCteClauses = [...queryState.cteClauses];
+      newCteClauses[cteIndex] = {
+        ...newCteClauses[cteIndex],
+        alias,
+      };
+      queryState.setCteClauses(newCteClauses);
+    },
+    [queryState]
+  );
+
+  const onCteTableSelect = useCallback(
+    (cteIndex: number, value: SelectOption | null) => {
+      const newCteClauses = [...queryState.cteClauses];
+      newCteClauses[cteIndex] = {
+        ...newCteClauses[cteIndex],
+        fromTable: value,
+      };
+      queryState.setCteClauses(newCteClauses);
+    },
+    [queryState]
+  );
+
+  const onCteColumnSelect = useCallback(
+    (cteIndex: number, value: SelectOption[]) => {
+      const newCteClauses = [...queryState.cteClauses];
+      newCteClauses[cteIndex] = {
+        ...newCteClauses[cteIndex],
+        selectedColumns: value,
+      };
+      queryState.setCteClauses(newCteClauses);
+    },
+    [queryState]
+  );
+
+  const onCteLogicalOperatorSelect = useCallback(
+    (cteIndex: number, value: SelectOption | null) => {
+      const newCteClauses = [...queryState.cteClauses];
+      if (newCteClauses[cteIndex].whereClause.conditions.length > 0) {
+        newCteClauses[cteIndex].whereClause.conditions[0].logicalOperator = value;
+      }
+      queryState.setCteClauses(newCteClauses);
+    },
+    [queryState]
+  );
+
+  const onCteWhereColumnSelect = useCallback(
+    (cteIndex: number, conditionIndex: number, value: SelectOption | null) => {
+      const newCteClauses = [...queryState.cteClauses];
+      if (newCteClauses[cteIndex].whereClause.conditions[conditionIndex]) {
+        newCteClauses[cteIndex].whereClause.conditions[conditionIndex].column = value;
+      }
+      queryState.setCteClauses(newCteClauses);
+    },
+    [queryState]
+  );
+
+  const onCteOperatorSelect = useCallback(
+    (cteIndex: number, conditionIndex: number, value: SelectOption | null) => {
+      const newCteClauses = [...queryState.cteClauses];
+      if (newCteClauses[cteIndex].whereClause.conditions[conditionIndex]) {
+        newCteClauses[cteIndex].whereClause.conditions[conditionIndex].operator = value;
+      }
+      queryState.setCteClauses(newCteClauses);
+    },
+    [queryState]
+  );
+
+  const onCteValueSelect = useCallback(
+    (cteIndex: number, conditionIndex: number, value: SelectOption | null, isValue2: boolean) => {
+      const newCteClauses = [...queryState.cteClauses];
+      if (newCteClauses[cteIndex].whereClause.conditions[conditionIndex]) {
+        if (isValue2) {
+          newCteClauses[cteIndex].whereClause.conditions[conditionIndex].value2 = value;
+        } else {
+          newCteClauses[cteIndex].whereClause.conditions[conditionIndex].value = value;
+        }
+      }
+      queryState.setCteClauses(newCteClauses);
+    },
+    [queryState]
+  );
+
+  const onAddCteClause = useCallback(() => {
+    const newCteClause: CteClause = {
+      alias: null,
+      fromTable: null,
+      selectedColumns: [],
+      whereClause: {
+        conditions: [
+          { column: null, operator: null, value: null, value2: null },
+        ],
+      },
+    };
+    queryState.setCteClauses([...queryState.cteClauses, newCteClause]);
+  }, [queryState]);
+
+  const onRemoveCteClause = useCallback(
+    (cteIndex: number) => {
+      const newCteClauses = queryState.cteClauses.filter((_, index) => index !== cteIndex);
+      queryState.setCteClauses(newCteClauses);
+    },
+    [queryState]
   );
 
   useEffect(() => {
@@ -800,18 +1077,42 @@ export function EditorProvider({ children, schema, error, isMySQL = false }: Edi
         event.preventDefault();
         queryHistory.setShowHistory(!queryHistory.showHistory);
       }
+      // If the ctrl or meta key is pressed and the r key is pressed 
+      // prevent the default behavior and refresh the schema
+      if ((event.ctrlKey || event.metaKey) && event.key === "r") {
+        event.preventDefault();
+        if (refreshSchema) {
+          refreshSchema();
+        }
+      }
     };
     // Add the event listener
     window.addEventListener("keydown", handleKeyDown);
     // Remove the event listener
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [runQuery, queryState.query, queryHistory.showHistory, queryHistory.setShowHistory]);
+  }, [runQuery, queryState.query, queryHistory, refreshSchema]);
 
-  // Create the context value
-  const contextValue: EditorContextType = {
+  // Effect to generate initial query from visual builder state on mount
+  useEffect(() => {
+    // Check if we have visual builder state but no query (or mismatched query)
+    if (queryState.selectedTable && queryState.selectedColumns.length > 0) {
+      const expectedQuery = generateQueryFromState();
+      
+      // If the current query doesn't match what the visual builder should generate,
+      // update it to match the visual builder state
+      if (!queryState.query || queryState.query.trim() === "") {
+        queryState.setQuery(expectedQuery);
+      }
+    }
+  }, [queryState.selectedTable, queryState.selectedColumns, queryState.whereClause, queryState.query, generateQueryFromState, queryState]);
+
+  // Memoized context value to prevent unnecessary re-renders
+  const contextValue: EditorContextType = useMemo(() => ({
     schema,
     error,
     isMySQL,
+    isManualEdit,
+    setIsManualEdit,
     ...queryState,
     ...queryHistory,
     ...queryResults,
@@ -820,6 +1121,7 @@ export function EditorProvider({ children, schema, error, isMySQL = false }: Edi
     ...exportFunctions,
     runQuery,
     logQueryResultAsJson,
+    refreshSchema: refreshSchema || (async () => {}),
     handleQueryChange,
     handleTableSelect,
     handleColumnSelect,
@@ -836,11 +1138,88 @@ export function EditorProvider({ children, schema, error, isMySQL = false }: Edi
     handleHavingOperatorSelect,
     handleHavingValueSelect,
     onDeleteCondition,
+    // Join handlers
+    onJoinTableSelect,
+    onJoinTypeSelect,
+    onJoinOnColumn1Select,
+    onJoinOnColumn2Select,
+    onAddJoinClause,
+    onRemoveJoinClause,
+    // Union handlers
+    onUnionTableSelect,
+    onAddUnionClause,
+    onRemoveUnionClause,
+    // CTE handlers
+    onCteAliasChange,
+    onCteTableSelect,
+    onCteColumnSelect,
+    onCteLogicalOperatorSelect,
+    onCteWhereColumnSelect,
+    onCteOperatorSelect,
+    onCteValueSelect,
+    onAddCteClause,
+    onRemoveCteClause,
     operatorOptions,
     logicalOperatorOptions,
     orderByDirectionOptions,
     limitOptions,
-  };
+  }), [
+    schema,
+  error,
+  isMySQL,
+  isManualEdit,
+  setIsManualEdit,
+  queryState,
+  queryHistory,
+  queryResults,
+  computedValues,
+  queryHandlers,
+  exportFunctions,
+  runQuery,
+  logQueryResultAsJson,
+  refreshSchema,
+  handleQueryChange,
+  handleTableSelect,
+  handleColumnSelect,
+  handleDistinctChange,
+  handleGroupByColumnSelect,
+  handleWhereColumnSelect,
+  handleOperatorSelect,
+  handleValueSelect,
+  handleLogicalOperatorSelect,
+  handleOrderByColumnSelect,
+  handleOrderByDirectionSelect,
+  handleLimitSelect,
+  handleAggregateColumnSelect,
+  handleHavingOperatorSelect,
+  handleHavingValueSelect,
+  onDeleteCondition,
+  // Join handlers
+  onJoinTableSelect,
+  onJoinTypeSelect,
+  onJoinOnColumn1Select,
+  onJoinOnColumn2Select,
+  onAddJoinClause,
+  onRemoveJoinClause,
+  // Union handlers
+  onUnionTableSelect,
+  onAddUnionClause,
+  onRemoveUnionClause,
+  // CTE handlers
+  onCteAliasChange,
+  onCteTableSelect,
+  onCteColumnSelect,
+  onCteLogicalOperatorSelect,
+  onCteWhereColumnSelect,
+  onCteOperatorSelect,
+  onCteValueSelect,
+  onAddCteClause,
+  onRemoveCteClause,
+  operatorOptions,
+  logicalOperatorOptions,
+  orderByDirectionOptions,
+  limitOptions,
+  ]);
 
   return (
     <EditorContext.Provider value={contextValue}>

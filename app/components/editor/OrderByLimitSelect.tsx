@@ -3,7 +3,7 @@
 import { useEditorContext } from "@/app/context/EditorContext";
 import { SingleValue } from "react-select";
 import CreatableSelect from "react-select/creatable";
-import { JoinClause, SelectOption, OrderByClause } from "@/app/types/query";
+import { JoinClause, SelectOption } from "@/app/types/query";
 import { selectStyles } from "@/app/utils/selectStyles";
 import { Label } from "@/components/ui/label"
 
@@ -15,7 +15,6 @@ interface OrderByLimitSelectProps {
 
 export default function OrderByLimitSelect({
   metadataLoading,
-  joinClauses,
 }: OrderByLimitSelectProps) {
   // Get the selected table, table columns, order by clause, limit, handle order by column select, handle order by direction select, and handle limit select from the editor context
   const {
@@ -30,25 +29,17 @@ export default function OrderByLimitSelect({
 
   // Handle the order by column select
   const handleOrderByColumnSelectWrapper = (value: SingleValue<SelectOption>) => {
-    // If the value is not null
-    if (value) {
-      handleOrderByColumnSelect(value);
-    }
+    handleOrderByColumnSelect(value);
   };
 
   // Handle the order by direction select
   const handleOrderByDirectionSelectWrapper = (value: SingleValue<SelectOption>) => {
-    // If the value is not null
-    if (value) {
-      handleOrderByDirectionSelect(value);
-    }
+    handleOrderByDirectionSelect(value);
   };
 
   // Handle the limit select
   const handleLimitSelectWrapper = (value: SingleValue<SelectOption>) => {
-    if (value) {
-      handleLimitSelect(value);
-    }
+    handleLimitSelect(value);
   };
 
   // Create the direction options

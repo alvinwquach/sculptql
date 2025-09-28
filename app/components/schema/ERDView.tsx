@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useCallback } from "react";
 import { TableSchema } from "@/app/types/query";
 import * as d3 from "d3";
 import { Button } from "@/components/ui/button";
@@ -52,7 +52,6 @@ export default function ERDView({ schema }: ERDViewProps) {
   > | null>(null);
   // Create the zoom ref
   const zoomRef = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(null);
-
   // Function to get the node width
   const getNodeWidth = (d: D3Node) => {
     // Create the max label width by the label length and the 12 and the minimum of 800 and the maximum of 500
@@ -60,14 +59,13 @@ export default function ERDView({ schema }: ERDViewProps) {
     // Return the maximum of the max label width and the 500
     return Math.max(maxLabelWidth, 500); 
   };
-
   // Function to get the node height
   const getNodeHeight = (d: D3Node) =>
     // Create the node height by the 60 and the columns length and the inner width and the minimum of 20 and the maximum of 24
     60 + (d.columns?.length || 0) * (window.innerWidth < 640 ? 20 : 24);
 
   // Function to calculate intersection point of a line with a rectangle
-  const getIntersectionPoint = (
+  const getIntersectionPoint = useCallback((
     sourceX: number,
     sourceY: number,
     targetX: number,
@@ -103,7 +101,6 @@ export default function ERDView({ schema }: ERDViewProps) {
       // Return the intersection x and the intersection y
       return { x: intersectionX, y: intersectionY };
     }
-
     // Check intersection with each side of the rectangle
     if (dx !== 0) {
       // Create the slope by the dy and the dx
@@ -112,7 +109,6 @@ export default function ERDView({ schema }: ERDViewProps) {
       const yAtLeft = sourceY + slope * (left - sourceX);
       // Create the y at right by the source y and the slope and the right and the source x
       const yAtRight = sourceY + slope * (right - sourceX);
-
       // If the y at left is greater than or equal to the top and 
       // the y at left is less than or equal to the bottom and 
       // the source x is less than or equal to the left
@@ -128,7 +124,6 @@ export default function ERDView({ schema }: ERDViewProps) {
         intersectionY = yAtRight;
       }
     }
-
     // If the dy is not 0
     if (dy !== 0) {
       // Create the inv slope by the dx and the dy
@@ -137,7 +132,6 @@ export default function ERDView({ schema }: ERDViewProps) {
       const xAtTop = sourceX + invSlope * (top - sourceY);
       // Create the x at bottom by the source X and the inv slope and the bottom and the source y
       const xAtBottom = sourceX + invSlope * (bottom - sourceY);
-      
       // If the x at top is greater than or equal to the left and 
       if (xAtTop >= left && xAtTop <= right && sourceY >= bottom) {
         // Set the intersection x to the x at top
@@ -151,11 +145,9 @@ export default function ERDView({ schema }: ERDViewProps) {
         intersectionY = bottom;
       }
     }
-
     // Return the intersection x and the intersection y
     return { x: intersectionX, y: intersectionY };
-  };
-
+  }, []);
   // Function to fit to view
   const fitToView = () => {
     // If the svg ref current or the svg selection ref current or the zoom ref current is not null
@@ -173,7 +165,6 @@ export default function ERDView({ schema }: ERDViewProps) {
     // Create the y by the bounds y and the dy and the 2
     const y = bounds.y + dy / 2;
     // Create the scale by the width ref current and the dx and the height ref current and the dy and the 1 and the 0.9
-
     const scale =
       Math.min(widthRef.current / dx, heightRef.current / dy, 1) * 0.9;
       const translate = [
@@ -189,11 +180,9 @@ export default function ERDView({ schema }: ERDViewProps) {
         d3.zoomIdentity.translate(translate[0], translate[1]).scale(scale)
       );
   };
-
   useEffect(() => {
     // If the svg ref current or the container ref current or the schema length is 0
     if (!svgRef.current || !containerRef.current || schema.length === 0) return;
-
     // Create the container by the container ref current
     const container = containerRef.current;
     // Set the width ref current to the container client width
@@ -205,7 +194,6 @@ export default function ERDView({ schema }: ERDViewProps) {
     );
     // Clear previous SVG content
     d3.select(svgRef.current).selectAll("*").remove();
-
     // Initialize SVG
     const svg = d3
       // Select the svg ref current
@@ -249,7 +237,6 @@ export default function ERDView({ schema }: ERDViewProps) {
       x: (index % 6) * (window.innerWidth < 640 ? 600 : 900) + 300,
       y: Math.floor(index / 6) * (window.innerWidth < 640 ? 300 : 400) + 200,
     }));
-
     // Create the links by the schema
     const links: D3Link[] = [];
     // Loop through the schema
@@ -267,7 +254,6 @@ export default function ERDView({ schema }: ERDViewProps) {
         }
       });
     });
-
     // Create the simulation by the nodes
     const simulation = d3
       // Force simulation with the nodes
@@ -308,7 +294,6 @@ export default function ERDView({ schema }: ERDViewProps) {
       )
       // Force the alpha decay with the 0.05
       .alphaDecay(0.05);
-
     // Draw links
     const link = g
       // Select the g and the class link
@@ -323,7 +308,7 @@ export default function ERDView({ schema }: ERDViewProps) {
       .attr("class", "link")
       // Lower the g
       .lower();
-
+    // Append the line to the link
     link
       // Append the line
       .append("line")
@@ -337,12 +322,10 @@ export default function ERDView({ schema }: ERDViewProps) {
       .attr("marker-end", "url(#arrow)")
       // Set the stroke opacity to the 0.8
       .attr("stroke-opacity", 0.8);
-
     // Append the title to the link
     link.append("title").text((d: D3Link) => d.label);
-
     svg
-      // Append the defs to the svg
+    // Append the defs to the svg
       .append("defs")
       // Append the marker to the defs
       .append("marker")
@@ -366,7 +349,6 @@ export default function ERDView({ schema }: ERDViewProps) {
       .attr("d", "M0,-5L10,0L0,5")
       // Set the fill to the 22c55e
       .attr("fill", "#22c55e");
-
     // Create the node by the g
       const node = g
       // Select the g and the class node
@@ -410,7 +392,6 @@ export default function ERDView({ schema }: ERDViewProps) {
             d.fy = null;
           })
       );
-
     // Append the rect to the node
     node
       .append("rect")
@@ -430,7 +411,6 @@ export default function ERDView({ schema }: ERDViewProps) {
       .attr("stroke-width", window.innerWidth < 640 ? 1.5 : 2)
       // Set the filter to the drop shadow
       .style("filter", "drop-shadow(0 4px 8px rgba(0, 0, 0, 0.4))");
-
     // Node title with truncation
     node
       // Append the text to the node
@@ -455,8 +435,6 @@ export default function ERDView({ schema }: ERDViewProps) {
       .style("white-space", "nowrap")
       // Set the max width to the get node width and the 24
       .style("max-width", (d) => getNodeWidth(d) - 24);
-
-
       // Append the line to the node
       node
       .append("line")
@@ -473,7 +451,6 @@ export default function ERDView({ schema }: ERDViewProps) {
       // Set the stroke width to the window inner width and the 640 and the 1 and the 1.5
       .attr("stroke-width", window.innerWidth < 640 ? 1 : 1.5);
 
-
     // Append the text to the node
     node.each(function (d) {
       // Select the this
@@ -488,7 +465,6 @@ export default function ERDView({ schema }: ERDViewProps) {
         getNodeWidth(d) * 0.75 + 12,
         getNodeWidth(d) * 0.85 + 12,
       ];
-
       // Loop through the headers
       headers.forEach((header, i) => {
         // Append the text to the group
@@ -519,7 +495,6 @@ export default function ERDView({ schema }: ERDViewProps) {
           );
       });
     });
-
     // Append the text to the node
     node.each(function (d) {
       // Select the this
@@ -534,7 +509,6 @@ export default function ERDView({ schema }: ERDViewProps) {
           .find((t) => t.table_name === d.id)
           // Find the foreign key by the schema and the d id and the column column name
           ?.foreign_keys.find((fk) => fk.column_name === column.column_name);
-
         // Append the text to the group
         group
           .append("text")
@@ -560,8 +534,6 @@ export default function ERDView({ schema }: ERDViewProps) {
           .style("white-space", "nowrap")
           // Set the max width to the get node width and the 0.35 and the 12
           .style("max-width", getNodeWidth(d) * 0.35 - 12);
-
-
         group
           // Append the text to the group
           .append("text")
@@ -583,7 +555,6 @@ export default function ERDView({ schema }: ERDViewProps) {
           .style("white-space", "nowrap")
           // Set the max width to the get node width and the 0.2 and the 12
           .style("max-width", getNodeWidth(d) * 0.2 - 12);
-
         group
           // Append the text to the group
           .append("text")
@@ -605,7 +576,6 @@ export default function ERDView({ schema }: ERDViewProps) {
           .style("white-space", "nowrap")
           // Set the max width to the get node width and the 0.2 and the 12
           .style("max-width", getNodeWidth(d) * 0.2 - 12);
-
         group
           // Append the text to the group
           .append("text")
@@ -652,8 +622,6 @@ export default function ERDView({ schema }: ERDViewProps) {
           .style("max-width", getNodeWidth(d) * 0.15 - 12);
       });
     });
-
-    
     simulation.on("tick", () => {
       link
         // Select the link and the line and the x1  
@@ -743,7 +711,7 @@ export default function ERDView({ schema }: ERDViewProps) {
     return () => {
       simulation.stop();
     };
-  }, [schema]);
+  }, [schema, getIntersectionPoint]);
 
   return (
     <div

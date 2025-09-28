@@ -2,7 +2,7 @@
 
 
 import { useEditorContext } from "@/app/context/EditorContext";
-import { JoinClause, SelectOption, WhereClause } from "@/app/types/query";
+import { JoinClause, SelectOption } from "@/app/types/query";
 import { SingleValue } from "react-select";
 import CreatableSelect from "react-select/creatable";
 import { Button } from "@/components/ui/button";
@@ -10,7 +10,6 @@ import { Trash2 } from "lucide-react";
 import { stripQuotes } from "@/app/utils/sqlCompletion/stripQuotes";
 import { selectStyles } from "@/app/utils/selectStyles";
 import { Label } from "@/components/ui/label"
-import { Input } from "@/components/ui/input";
 
 // Props for the WhereClauseSelect component
 interface WhereClauseSelectProps {
@@ -20,7 +19,6 @@ interface WhereClauseSelectProps {
 
 export default function WhereClauseSelect({
   metadataLoading,
-  joinClauses,
 }: WhereClauseSelectProps) {
   // Get the selected table, table columns, where clause, unique values, operator options, logical operator options, handle logical operator select, handle where column select, handle operator select, handle value select, and on delete condition from the editor context
   const {
@@ -40,30 +38,22 @@ export default function WhereClauseSelect({
 
   // Function to handle type conversion
   const handleWhereColumnSelectWrapper = (value: SingleValue<SelectOption>, conditionIndex: number) => {
-    if (value) {
-      handleWhereColumnSelect(value, conditionIndex);
-    }
+    handleWhereColumnSelect(value, conditionIndex);
   };
 
   // Function to handle type conversion
   const handleOperatorSelectWrapper = (value: SingleValue<SelectOption>, conditionIndex: number) => {
-    if (value) {
-      handleOperatorSelect(value, conditionIndex);
-    }
+    handleOperatorSelect(value, conditionIndex);
   };
 
   // Function to handle type conversion
-  const handleValueSelectWrapper = (value: SingleValue<SelectOption>, conditionIndex: number) => {
-    if (value) {
-      handleValueSelect(value, conditionIndex);
-    }
+  const handleValueSelectWrapper = (value: SingleValue<SelectOption>, conditionIndex: number, isValue2: boolean = false) => {
+    handleValueSelect(value, conditionIndex, isValue2);
   };
 
   // Function to handle type conversion
   const handleLogicalOperatorSelectWrapper = (value: SingleValue<SelectOption>, conditionIndex: number) => {
-    if (value) {
-      handleLogicalOperatorSelect(value, conditionIndex);
-    }
+    handleLogicalOperatorSelect(value, conditionIndex);
   };
 
   return (
@@ -182,7 +172,7 @@ export default function WhereClauseSelect({
                     }`}
                     options={valueOptions}
                     value={condition.value2}
-                    onChange={(value) => handleValueSelectWrapper(value, index)}
+                    onChange={(value) => handleValueSelectWrapper(value, index, true)}
                     placeholder="Value 2"
                     isClearable
                     isDisabled={

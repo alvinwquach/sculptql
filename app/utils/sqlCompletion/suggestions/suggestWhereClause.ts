@@ -236,7 +236,7 @@ export const suggestWhereClause = (
   // If the after where or and regex is true
   if (afterWhereOrAndRegex.test(docText)) {
     // Set the condition index to the condition index
-    const conditionIndex = docText.match(/\b(AND|OR)\b/gi)?.length || 0;
+    // const conditionIndex = docText.match(/\b(AND|OR)\b/gi)?.length || 0;
     // Set the filtered columns to the filtered columns
     const filteredColumns = columns.filter((column) =>
       // If the current word is true
@@ -273,7 +273,7 @@ export const suggestWhereClause = (
             // On where column select the column
             onWhereColumnSelect?.(
               { value: column, label: column },
-              conditionIndex
+              0 // conditionIndex
             );
           },
           detail: isCte ? "CTE column" : "Column name",
@@ -293,7 +293,7 @@ export const suggestWhereClause = (
     // Set the column to the column
     const column = stripQuotes(match[2]);
     // Set the condition index to the condition index
-    const conditionIndex = docText.match(/\b(AND|OR)\b/gi)?.length || 0;
+    // const conditionIndex = docText.match(/\b(AND|OR)\b/gi)?.length || 0;
     // If the columns some the column
     if (
       columns.some((c) => stripQuotes(c).toLowerCase() === column.toLowerCase())
@@ -326,7 +326,7 @@ export const suggestWhereClause = (
             });
             // If the on operator select is not null
             // On operator select the operator
-            onOperatorSelect?.({ value: op, label: op }, conditionIndex);
+            onOperatorSelect?.({ value: op, label: op }, 0); // conditionIndex
           },
           detail: getOperatorDetail(op),
         })),
@@ -345,12 +345,12 @@ export const suggestWhereClause = (
   // If the operator match is true
   if (operatorMatch) {
     // Set the column to the column
-    const [, , column, operator] = operatorMatch;
+    const [, , column] = operatorMatch;
     // Set the stripped column to the stripped column
     const strippedColumn = stripQuotes(column);
     // Set the condition index to the condition index 0 
     // or the length of the doc text match 
-    const conditionIndex = docText.match(/\b(AND|OR)\b/gi)?.length || 0;
+    // const conditionIndex = docText.match(/\b(AND|OR)\b/gi)?.length || 0;
     // Set the value key to the value key selected table and stripped column
     const valueKey = `${stripQuotes(selectedTable!)}.${strippedColumn}`;
     // Set the value options to the value options unique values value key 
@@ -385,7 +385,7 @@ export const suggestWhereClause = (
             // On value select the value
             onValueSelect?.(
               { value: "'value'", label: "'value'" },
-              conditionIndex,
+              0, // conditionIndex
               false
             );
           },
@@ -401,7 +401,7 @@ export const suggestWhereClause = (
             });
             // If the on value select is not null
             // On value select the value
-            onValueSelect?.({ value: "0", label: "0" }, conditionIndex, false);
+            onValueSelect?.({ value: "0", label: "0" }, 0, false); // conditionIndex
           },
           detail: "Numeric value",
         },
@@ -442,7 +442,7 @@ export const suggestWhereClause = (
                   });
                   // If the on value select is not null
                   // On value select the value
-                  onValueSelect?.(opt, conditionIndex, false);
+                  onValueSelect?.(opt, 0, false); // conditionIndex
                 },
                 detail: "Value",
               }))
@@ -461,7 +461,7 @@ export const suggestWhereClause = (
     // Set the column to the column
     const [, , column] = afterBetweenFirstValueRegex.exec(docText)!;
     // Set the condition index to the condition index
-    const conditionIndex = docText.match(/\b(AND|OR)\b/gi)?.length || 0;
+    // const conditionIndex = docText.match(/\b(AND|OR)\b/gi)?.length || 0;
     // If the columns some the stripped column
     if (
       columns.some(
@@ -498,7 +498,7 @@ export const suggestWhereClause = (
     const [, , column] = afterBetweenAndRegex.exec(docText)!;
     // Set the condition index to the condition index 0 
     // or the length of the doc text match 
-    const conditionIndex = docText.match(/\b(AND|OR)\b/gi)?.length || 0;
+    // const conditionIndex = docText.match(/\b(AND|OR)\b/gi)?.length || 0;
     // Set the value key to the value key selected table and stripped column
     const valueKey = `${stripQuotes(selectedTable!)}.${stripQuotes(column)}`;
     // Set the value options to the value options unique values value key 
@@ -537,7 +537,7 @@ export const suggestWhereClause = (
                   });
                   // If the on value select is not null
                   // On value select the value
-                  onValueSelect?.(opt, conditionIndex, true);
+                  onValueSelect?.(opt, 0, true); // conditionIndex
                 },
                 detail: "Second value",
               }))
@@ -557,7 +557,7 @@ export const suggestWhereClause = (
                     // On value select the value
                     onValueSelect?.(
                       { value: "'value'", label: "'value'" },
-                      conditionIndex,
+                      0, // conditionIndex
                       true
                     );
                   },
@@ -579,7 +579,7 @@ export const suggestWhereClause = (
                     // On value select the value
                     onValueSelect?.(
                       { value: "0", label: "0" },
-                      conditionIndex,
+                      0, // conditionIndex
                       true
                     );
                   },
@@ -681,7 +681,7 @@ export const suggestWhereClause = (
   // If the after and or regex is true
   if (afterAndOrRegex.test(docText)) {
     // Set the condition index to the condition index
-    const conditionIndex = (docText.match(/\b(AND|OR)\b/gi)?.length || 0) + 1;
+    // const conditionIndex = (docText.match(/\b(AND|OR)\b/gi)?.length || 0) + 1;
     // Set the filtered columns to the filtered columns
     const filteredColumns = columns.filter((column) =>
       // If the current word is true
@@ -715,7 +715,7 @@ export const suggestWhereClause = (
             // On where column select the column
             onWhereColumnSelect?.(
               { value: column, label: column },
-              conditionIndex
+              0 // conditionIndex
             );
           },
           detail: isCte ? "CTE column" : "Column name",

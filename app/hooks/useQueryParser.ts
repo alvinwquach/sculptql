@@ -637,7 +637,7 @@ export const useQueryParser = () => {
         setLimit(null);
       }
     },
-    [tableNames, tableColumns, isMySQL]
+    [tableNames, tableColumns, isMySQL, setHavingClause, setIsDistinct, setLimit, setOrderByClause, setQuery, setSelectedColumns, setSelectedGroupByColumns, setSelectedTable, setWhereClause]
   );
 
   return {

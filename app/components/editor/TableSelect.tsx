@@ -1,4 +1,4 @@
-import Select, { SingleValue } from "react-select";
+import Select from "react-select";
 import { SelectOption } from "@/app/types/query";
 import { selectStyles } from "../../utils/selectStyles";
 import { useEditorContext } from "@/app/context/EditorContext";
@@ -13,8 +13,9 @@ export default function TableSelect({
   // Get the table names and selected table from the editor context
   const { tableNames, selectedTable, handleTableSelect } = useEditorContext();
 
+
   // Create the table options
-  const tableOptions: SelectOption[] = tableNames.map((name) => ({
+  const tableOptions: SelectOption[] = (tableNames || []).map((name) => ({
     value: name,
     label: name,
   }));

@@ -206,6 +206,7 @@ export const useQueryHandlers = () => {
       orderByClause,
       limit,
       isDistinct,
+      setQuery,
     ]
   );
 
@@ -386,6 +387,7 @@ export const useQueryHandlers = () => {
       orderByClause,
       limit,
       isDistinct,
+      setQuery,
     ]
   );
 
@@ -569,6 +571,7 @@ export const useQueryHandlers = () => {
       isDistinct,
       whereClause,
       havingClause,
+      setQuery,
     ]
   );
 

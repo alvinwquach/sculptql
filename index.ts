@@ -10,7 +10,6 @@ import chalk from "chalk";
 import { config as dotenvConfig } from "dotenv";
 import openUrl from "open";
 import { createServer } from "http";
-import { parse } from "url";
 import next from "next";
 
 dotenvConfig({ path: ".env" });
@@ -142,8 +141,7 @@ async function main() {
 
   await app.prepare();
   const server = createServer((req, res) => {
-    const parsedUrl = parse(req.url!, true);
-    handle(req, res, parsedUrl);
+    handle(req, res);
   });
 
   server.listen(serverPort, () => {
