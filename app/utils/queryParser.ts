@@ -43,10 +43,10 @@ export class EnhancedQueryParser {
   /**
    * Parse query using node-sql-parser
    */
-  private parseQuery(query: string): any {
+  private parseQuery(query: string): unknown {
     try {
       return parser.astify(query);
-    } catch (error) {
+    } catch {
       return null;
     }
   }
@@ -54,41 +54,43 @@ export class EnhancedQueryParser {
   /**
    * Extract columns from AST (handles complex queries)
    */
-  private extractColumnsFromAST(ast: any): SelectOption[] {
+  private extractColumnsFromAST(ast: unknown): SelectOption[] {
     const columns: SelectOption[] = [];
     
     // Handle different AST structures
-    const processColumns = (columnList: any[]) => {
+    const processColumns = (columnList: unknown[]) => {
       for (const col of columnList) {
-        if (col.type === 'column_ref') {
-          const columnName = col.table ? `${col.table}.${col.column}` : col.column;
+        if (col && typeof col === 'object' && 'type' in col && col.type === 'column_ref') {
+          const colRef = col as { type: string; table?: string; column: string };
+          const columnName = colRef.table ? `${colRef.table}.${colRef.column}` : colRef.column;
           columns.push({
             value: columnName,
             label: columnName,
-            targetColumn: col.column,
+            column: colRef.column,
           });
-        } else if (col.type === 'function') {
-          const funcName = col.name?.toUpperCase();
-          const isAggregate = ['COUNT', 'SUM', 'AVG', 'MAX', 'MIN'].includes(funcName);
+        } else if (col && typeof col === 'object' && 'type' in col && col.type === 'function') {
+          const funcCol = col as { type: string; name?: string; args?: { expr?: { type: string; column: string } } };
+          const funcName = funcCol.name?.toUpperCase();
+          const isAggregate = ['COUNT', 'SUM', 'AVG', 'MAX', 'MIN'].includes(funcName || '');
           
-          if (col.args && col.args.expr) {
-            const arg = col.args.expr;
+          if (funcCol.args && funcCol.args.expr) {
+            const arg = funcCol.args.expr;
             const targetColumn = arg.type === 'column_ref' ? arg.column : '';
             
             columns.push({
-              value: col.name,
-              label: col.name,
-              isAggregate,
-              targetColumn,
+              value: funcCol.name || '',
+              label: funcCol.name || '',
+              aggregate: isAggregate,
+              column: targetColumn,
             });
           } else {
             columns.push({
-              value: col.name,
-              label: col.name,
-              isAggregate,
+              value: funcCol.name || '',
+              label: funcCol.name || '',
+              aggregate: isAggregate,
             });
           }
-        } else if (col.type === 'select') {
+        } else if (col && typeof col === 'object' && 'type' in col && col.type === 'select') {
           // Handle subqueries
           const subQueryColumns = this.extractColumnsFromAST(col);
           columns.push(...subQueryColumns);
@@ -97,21 +99,23 @@ export class EnhancedQueryParser {
     };
 
     // Handle main query
-    if (ast.columns) {
-      processColumns(ast.columns);
+    if (ast && typeof ast === 'object' && 'columns' in ast && ast.columns) {
+      processColumns(ast.columns as unknown[]);
     }
 
     // Handle UNION queries
-    if (ast._next) {
-      const unionColumns = this.extractColumnsFromAST(ast._next);
+    if (ast && typeof ast === 'object' && '_next' in ast && ast._next) {
+      const unionColumns = this.extractColumnsFromAST(ast._next as unknown);
       return unionColumns; // UNION queries should have same column structure
     }
 
     // Handle CTEs
-    if (ast.with) {
-      for (const cte of ast.with) {
-        if (cte.stmt && cte.stmt.columns) {
-          processColumns(cte.stmt.columns);
+    if (ast && typeof ast === 'object' && 'with' in ast && ast.with) {
+      const withClause = ast.with as unknown[];
+      for (const cte of withClause) {
+        if (cte && typeof cte === 'object' && 'stmt' in cte && cte.stmt && 
+            typeof cte.stmt === 'object' && 'columns' in cte.stmt && cte.stmt.columns) {
+          processColumns(cte.stmt.columns as unknown[]);
         }
       }
     }
@@ -153,8 +157,8 @@ export class EnhancedQueryParser {
           columns.push({
             value: part,
             label: part,
-            isAggregate,
-            targetColumn: column.replace(/['"]/g, ''),
+            aggregate: isAggregate,
+            column: column.replace(/['"]/g, ''),
           });
           continue;
         }
@@ -162,23 +166,23 @@ export class EnhancedQueryParser {
         // Handle ROUND functions
         const roundMatch = part.match(/^ROUND\s*\(\s*([^,)]+)(?:,\s*(\d+))?\s*\)$/i);
         if (roundMatch) {
-          const [, innerExpr, precision] = roundMatch;
+          const [, innerExpr] = roundMatch;
           const innerAggregate = innerExpr.match(/^(\w+)\s*\(\s*([^)]+)\s*\)$/i);
           
           if (innerAggregate) {
-            const [, func, column] = innerAggregate;
+            const [, , column] = innerAggregate;
             columns.push({
               value: part,
               label: part,
-              isAggregate: true,
-              targetColumn: column.replace(/['"]/g, ''),
+              aggregate: true,
+              column: column.replace(/['"]/g, ''),
             });
           } else {
             // Simple ROUND function
             columns.push({
               value: part,
               label: part,
-              targetColumn: innerExpr.replace(/['"]/g, ''),
+              column: innerExpr.replace(/['"]/g, ''),
             });
           }
           continue;
@@ -192,7 +196,7 @@ export class EnhancedQueryParser {
           columns.push({
             value: part,
             label: `${cleanColumn} AS ${alias}`,
-            targetColumn: cleanColumn,
+            column: cleanColumn,
           });
           continue;
         }
@@ -202,7 +206,7 @@ export class EnhancedQueryParser {
         columns.push({
           value: cleanColumn,
           label: cleanColumn,
-          targetColumn: cleanColumn,
+          column: cleanColumn,
         });
       }
 
@@ -239,27 +243,28 @@ export class EnhancedQueryParser {
   /**
    * Extract table from AST
    */
-  private extractTableFromAST(ast: any): SelectOption | null {
-    if (ast.from) {
-      if (Array.isArray(ast.from)) {
+  private extractTableFromAST(ast: unknown): SelectOption | null {
+    if (ast && typeof ast === 'object' && 'from' in ast && ast.from) {
+      const fromClause = ast.from as unknown;
+      if (Array.isArray(fromClause)) {
         // Handle multiple tables (JOINs)
-        const firstTable = ast.from[0];
-        if (firstTable.table) {
+        const firstTable = fromClause[0];
+        if (firstTable && typeof firstTable === 'object' && 'table' in firstTable && firstTable.table) {
           return {
-            value: firstTable.table,
-            label: firstTable.table,
+            value: firstTable.table as string,
+            label: firstTable.table as string,
           };
         }
-      } else if (ast.from.table) {
+      } else if (fromClause && typeof fromClause === 'object' && 'table' in fromClause && fromClause.table) {
         return {
-          value: ast.from.table,
-          label: ast.from.table,
+          value: fromClause.table as string,
+          label: fromClause.table as string,
         };
       }
     }
 
     // Handle CTEs
-    if (ast.with && ast.with.length > 0) {
+    if (ast && typeof ast === 'object' && 'with' in ast && ast.with && Array.isArray(ast.with) && ast.with.length > 0) {
       // For CTEs, we might want to return the first CTE name or main table
       return null; // CTE handling is complex, skip for now
     }
@@ -313,11 +318,11 @@ export class EnhancedQueryParser {
   /**
    * Extract WHERE clause from AST
    */
-  private extractWhereFromAST(ast: any) {
+  private extractWhereFromAST(ast: unknown) {
     const conditions = [];
     
-    if (ast.where) {
-      const whereConditions = this.processWhereExpression(ast.where);
+    if (ast && typeof ast === 'object' && 'where' in ast && ast.where) {
+      const whereConditions = this.processWhereExpression(ast.where as unknown);
       conditions.push(...whereConditions);
     }
 
@@ -331,31 +336,34 @@ export class EnhancedQueryParser {
   /**
    * Process WHERE expression recursively
    */
-  private processWhereExpression(expr: any): any[] {
+  private processWhereExpression(expr: unknown): unknown[] {
     const conditions = [];
 
-    if (expr.type === 'binary_expr') {
-      if (expr.operator === 'AND' || expr.operator === 'OR') {
-        const leftConditions = this.processWhereExpression(expr.left);
-        const rightConditions = this.processWhereExpression(expr.right);
+    if (expr && typeof expr === 'object' && 'type' in expr && expr.type === 'binary_expr') {
+      const binaryExpr = expr as { type: string; operator: string; left: unknown; right: unknown };
+      if (binaryExpr.operator === 'AND' || binaryExpr.operator === 'OR') {
+        const leftConditions = this.processWhereExpression(binaryExpr.left);
+        const rightConditions = this.processWhereExpression(binaryExpr.right);
         
         // Add logical operator to right conditions
         rightConditions.forEach((cond, index) => {
           if (index === 0 && leftConditions.length > 0) {
-            cond.logicalOperator = { value: expr.operator, label: expr.operator };
+            (cond as { logicalOperator?: { value: string; label: string } }).logicalOperator = { value: binaryExpr.operator, label: binaryExpr.operator };
           }
         });
         
         conditions.push(...leftConditions, ...rightConditions);
       } else {
         // Simple binary expression
-        const column = expr.left.type === 'column_ref' ? expr.left.column : null;
-        const value = expr.right.type === 'string' || expr.right.type === 'number' ? 
-          expr.right.value : null;
+        const leftSide = binaryExpr.left as { type: string; column?: string };
+        const rightSide = binaryExpr.right as { type: string; value?: unknown };
+        const column = leftSide.type === 'column_ref' ? leftSide.column : null;
+        const value = rightSide.type === 'string' || rightSide.type === 'number' ? 
+          rightSide.value : null;
         
         conditions.push({
           column: column ? { value: column, label: column } : null,
-          operator: { value: expr.operator, label: expr.operator },
+          operator: { value: binaryExpr.operator, label: binaryExpr.operator },
           value: value ? { value: value, label: value } : null,
           value2: null,
         });

@@ -1,4 +1,4 @@
-import { Completion, CompletionResult } from "@codemirror/autocomplete";
+import { CompletionResult } from "@codemirror/autocomplete";
 import { EditorView } from "codemirror";
 import { Select } from "node-sql-parser";
 import { SelectOption } from "@/app/types/query";

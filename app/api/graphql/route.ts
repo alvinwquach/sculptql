@@ -234,7 +234,7 @@ class BatchConnectionPool {
 const batchConnectionPool = new BatchConnectionPool();
 
 // Helper function to execute queries with caching and performance tracking
-async function executeQueryWithCache<T extends Record<string, any>>(
+async function executeQueryWithCache<T extends Record<string, unknown>>(
   adapter: DatabaseAdapter,
   query: string,
   params: (string | number)[],
@@ -1179,8 +1179,8 @@ const resolvers = {
         
         // Performance monitoring
         const performanceStart = performance.now();
-        let queryCount = 0;
-        let cacheHits = 0;
+        const queryCount = 0;
+        const cacheHits = 0;
         // Get the database adapter
         const adapter = await getDatabaseAdapter();
         // If the adapter is not found, throw an error
@@ -1364,7 +1364,7 @@ const resolvers = {
                     executeQueryWithCache<{ column_name: string }>(batchAdapter, primaryKeyQuery.query, primaryKeyQuery.params,
                        queryResultCache.generateKey(primaryKeyQuery.query, primaryKeyQuery.params), 300000, 
                        { queryCount, cacheHits }), // 5 min cache
-                    executeQueryWithCache<ForeignKey>(batchAdapter, foreignKeyQuery.query, foreignKeyQuery.params,
+                    executeQueryWithCache<Record<string, unknown>>(batchAdapter, foreignKeyQuery.query, foreignKeyQuery.params,
                        queryResultCache.generateKey(foreignKeyQuery.query, foreignKeyQuery.params), 300000, 
                        { queryCount, cacheHits }), // 5 min cache
                     sampleDataQuery 
@@ -1399,7 +1399,7 @@ const resolvers = {
                     comment: null, 
                     columns,
                     primary_keys: primaryKeys,
-                    foreign_keys: foreignKeyResult.rows,
+                    foreign_keys: foreignKeyResult.rows as unknown as ForeignKey[],
                     values,
                   };
                   // Log the successfully processed table

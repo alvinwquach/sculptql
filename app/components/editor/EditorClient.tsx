@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { MultiValue, SingleValue } from "react-select";
 import { SelectOption, TableSchema } from "../../types/query";
-import { Suspense, memo, useState } from "react";
+import { memo, useState, Suspense } from "react";
 import EditorSkeleton from "./EditorSkeleton";
 
 const LoadingSkeleton = ({ height = "h-10", className = "" }: { height?: string; className?: string }) => (
@@ -56,11 +56,6 @@ const EditorClient = memo(function EditorClient({
   isMySQL = false,
   metadataLoading,
 }: EditorClientProps) {
-  // Show loading skeleton while database is loading
-  if (metadataLoading || !schema || schema.length === 0) {
-    return <EditorSkeleton />;
-  }
-
   // Get the show history, query, selected columns, unique values, table names, table columns, query error, run query, handle table select, handle where column select, handle operator select, handle value select, handle logical operator select, handle group by column select, handle aggregate column select, handle having operator select, handle having value select, and handle query change from the editor context
   const {
     showHistory,
@@ -111,6 +106,11 @@ const EditorClient = memo(function EditorClient({
   } = useEditorContext();
   // State for showing advanced options
   const [showAdvancedOptions, setShowAdvancedOptions] = useState(false);
+
+  // Show loading skeleton while database is loading
+  if (metadataLoading || !schema || schema.length === 0) {
+    return <EditorSkeleton />;
+  }
 
   // Function to handle column select
   const handleColumnSelectWrapper = (value: MultiValue<SelectOption>) => {

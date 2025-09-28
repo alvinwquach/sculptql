@@ -681,7 +681,7 @@ export const suggestWhereClause = (
   // If the after and or regex is true
   if (afterAndOrRegex.test(docText)) {
     // Set the condition index to the condition index
-    const conditionIndex = (docText.match(/\b(AND|OR)\b/gi)?.length || 0) + 1;
+    // const conditionIndex = (docText.match(/\b(AND|OR)\b/gi)?.length || 0) + 1;
     // Set the filtered columns to the filtered columns
     const filteredColumns = columns.filter((column) =>
       // If the current word is true

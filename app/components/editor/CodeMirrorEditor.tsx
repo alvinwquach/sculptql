@@ -29,7 +29,6 @@ import {
 import {
   getLocalStorageItem,
   setLocalStorageItem,
-  removeLocalStorageItem,
 } from "@/app/utils/localStorageUtils";
 
 // Props for the CodeMirrorEditor component
@@ -122,13 +121,19 @@ export default function CodeMirrorEditor({
         setFullScreenEditor(true);
 
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } else if ((containerRef.current as any)?.webkitRequestFullscreen) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (containerRef.current as any).webkitRequestFullscreen();
         setFullScreenEditor(true);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } else if ((containerRef.current as any)?.mozRequestFullScreen) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (containerRef.current as any).mozRequestFullScreen();
         setFullScreenEditor(true);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } else if ((containerRef.current as any)?.msRequestFullscreen) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (containerRef.current as any).msRequestFullscreen();
         setFullScreenEditor(true);
       }
@@ -137,13 +142,19 @@ export default function CodeMirrorEditor({
       if (document.exitFullscreen) {
         document.exitFullscreen();
         setFullScreenEditor(false);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } else if ((document as any).webkitExitFullscreen) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (document as any).webkitExitFullscreen();
         setFullScreenEditor(false);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } else if ((document as any).mozCancelFullScreen) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (document as any).mozCancelFullScreen();
         setFullScreenEditor(false);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } else if ((document as any).msExitFullscreen) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (document as any).msExitFullscreen();
         setFullScreenEditor(false);
       }
@@ -154,8 +165,11 @@ export default function CodeMirrorEditor({
   useEffect(() => {
     const handleFullscreenChange = () => {
       const isFullscreen = !!(document.fullscreenElement || 
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (document as any).webkitFullscreenElement || 
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (document as any).mozFullScreenElement || 
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (document as any).msFullscreenElement);
       setFullScreenEditor(isFullscreen);
     };
@@ -410,7 +424,7 @@ export default function CodeMirrorEditor({
         try {
           const parsedColumns = parseSelectedColumns(newQuery);
           const parsedTable = parseSelectedTable(newQuery);
-          const parsedWhere = parseWhereClause(newQuery);
+          // const parsedWhere = parseWhereClause(newQuery);
           
           // Only update if there are actual changes to prevent unnecessary re-renders
           // and only if we're not in manual edit mode to prevent race conditions
