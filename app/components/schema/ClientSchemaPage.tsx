@@ -14,7 +14,7 @@ import {
 import { TableIcon, Share2Icon } from "lucide-react";
 import { TableSchema } from "@/app/types/query";
 import { filterSchema } from "./FilterSchema";
-import TableView from "./TableView";
+import DatabaseFolderView from "./TableView";
 import ERDView from "./ERDView";
 
 // Props for the ClientSchemaPage component
@@ -109,51 +109,53 @@ const [viewMode, setViewMode] = useState<ViewMode>(initialView);
   };
 
   return (
-    <div className="bg-[#0f172a] p-4 sm:p-6">
+    <div className="w-full">
       {error ? (
-        <Card className="bg-red-900/20 border-red-500/30 shadow-lg">
+        <Card className="bg-red-900/20 border-red-500/30 shadow-lg backdrop-blur-sm">
           <CardContent className="pt-6">
             <p className="text-red-300">{error}</p>
           </CardContent>
         </Card>
       ) : (
-        <div className="max-w-7xl mx-auto">
+        <div className="w-full">
           <TooltipProvider>
             <Tabs
               value={viewMode}
               onValueChange={handleTabChange}
               className="w-full"
             >
-              <TabsList className="bg-slate-800/70 sm:mb-6 grid grid-cols-2 shadow-inner rounded-lg">
+              <TabsList className="bg-slate-800/70 backdrop-blur-sm mb-6 grid grid-cols-2 shadow-inner rounded-lg border border-purple-500/30 bg-gradient-to-r from-slate-800/80 to-slate-700/80">
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <TabsTrigger
                       value="table"
-                      className="data-[state=active]:bg-green-400 data-[state=active]:text-[#111827] text-green-400 flex items-center justify-center rounded-md hover:bg-green-500 hover:text-[#111827] transition-all duration-200"
+                      className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-cyan-500 data-[state=active]:to-purple-500 data-[state=active]:text-white text-cyan-300 flex items-center justify-center rounded-md hover:bg-gradient-to-r hover:from-cyan-500/20 hover:to-purple-500/20 hover:text-cyan-200 transition-all duration-200 font-medium border border-cyan-500/30 hover:border-cyan-400/50 hover:shadow-lg hover:shadow-cyan-500/20"
                     >
-                      <TableIcon className="w-5 h-5" />
+                      <TableIcon className="w-5 h-5 mr-2" />
+                      Table View
                     </TabsTrigger>
                   </TooltipTrigger>
-                  <TooltipContent side="top" className="text-sm">
-                    Table View
+                  <TooltipContent side="top" className="text-sm bg-slate-800 border-purple-500/50 text-cyan-200">
+                    Browse tables in a structured format
                   </TooltipContent>
                 </Tooltip>
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <TabsTrigger
                       value="erd"
-                      className="data-[state=active]:bg-green-400 data-[state=active]:text-[#111827] text-green-400 flex items-center justify-center rounded-md hover:bg-green-500 hover:text-[#111827] transition-all duration-200"
+                      className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-pink-500 data-[state=active]:to-purple-500 data-[state=active]:text-white text-pink-300 flex items-center justify-center rounded-md hover:bg-gradient-to-r hover:from-pink-500/20 hover:to-purple-500/20 hover:text-pink-200 transition-all duration-200 font-medium border border-pink-500/30 hover:border-pink-400/50 hover:shadow-lg hover:shadow-pink-500/20"
                     >
-                      <Share2Icon className="w-5 h-5" />
+                      <Share2Icon className="w-5 h-5 mr-2" />
+                      ERD View
                     </TabsTrigger>
                   </TooltipTrigger>
-                  <TooltipContent side="top" className="text-sm">
-                    ERD View
+                  <TooltipContent side="top" className="text-sm bg-slate-800 border-purple-500/50 text-pink-200">
+                    Visualize table relationships
                   </TooltipContent>
                 </Tooltip>
               </TabsList>
               <TabsContent value="table" className="mt-0">
-                <TableView
+                <DatabaseFolderView
                   schema={filteredSchema}
                   tableSearch={tableSearch}
                   columnSearch={columnSearch}
