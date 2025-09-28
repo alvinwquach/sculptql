@@ -24,7 +24,7 @@ You must specify your database dialect explicitly using the `DB_DIALECT` environ
 - **MySQL** 
 - **Microsoft SQL Server (MSSQL)** 
 - **SQLite** 
-- **Oracle** (Coming Soon)
+- **Oracle**
 
 > ⚠️ There is **no default dialect** — you must specify it explicitly.
 
@@ -130,19 +130,35 @@ npm run dev
 </details> 
 
 <details> 
-<summary><strong>Oracle (Coming Soon)</strong></summary>
+<summary><strong>Oracle</strong></summary>
 
 ```bash
 DB_DIALECT=oracle
 DB_HOST=localhost
 DB_PORT=1521
-DB_DATABASE=mydb
-DB_USER=myuser
-DB_PASSWORD=mypassword
+DB_DATABASE=your_database_name
+DB_USER=your_oracle_user
+DB_PASSWORD=your_oracle_password
 PORT=3000
 ```
 
 **Oracle Setup Notes:**
 - Ensure your Oracle database is running and accessible
+- The user must have SELECT, INSERT, UPDATE, DELETE privileges on the database
+- For schema introspection, the user needs access to USER_TABLES, USER_TAB_COLUMNS, etc.
+- Oracle Instant Client may be required for the oracledb driver
+- The connectString format is: host:port/service_name or host:port:sid
+
+**Quick Oracle Setup:**
+```bash
+# Copy the example configuration
+cp env.oracle.example .env
+
+# Edit with your Oracle credentials
+nano .env
+
+# Start the application
+npm run dev
+```
 
 </details> 

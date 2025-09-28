@@ -17,10 +17,10 @@ export const needsQuotes = (
       return false;
     }
     // If the column data type is 
-    // a string, text, varchar, char, or enum, return true 
+    // a string, text, varchar, char, enum, or Oracle-specific types, return true 
     if (
       columnDataType &&
-      ["string", "text", "varchar", "char", "enum"].includes(
+      ["string", "text", "varchar", "char", "enum", "varchar2", "nvarchar2", "clob", "nclob", "char", "nchar"].includes(
         columnDataType.toLowerCase()
       )
     ) {
@@ -36,7 +36,7 @@ export const needsQuotes = (
   // If the id is a function with parentheses, return false
   if (/\w+\s*\(.*\)/.test(id)) return false;
   // If the id is a aggregate function, return false
-  if (/^(COUNT|SUM|AVG|MAX|MIN|ROUND)\s*\(.*\)$/i.test(id)) return false;
+  if (/^(COUNT|SUM|AVG|MAX|MIN|ROUND|STDDEV|VARIANCE|LISTAGG|WM_CONCAT|COLLECT|PIVOT|UNPIVOT)\s*\(.*\)$/i.test(id)) return false;
 
   // Create the reserved keywords
   const reservedKeywords = [
@@ -60,6 +60,21 @@ export const needsQuotes = (
     "RIGHT",
     "CROSS",
     "ON",
+    // Oracle-specific keywords
+    "ROWNUM",
+    "ROWID",
+    "DUAL",
+    "SYSDATE",
+    "SYSTIMESTAMP",
+    "USER",
+    "LEVEL",
+    "CONNECT",
+    "START",
+    "PRIOR",
+    "NOCYCLE",
+    "NOCACHE",
+    "ORDER",
+    "SIBLINGS",
   ];
 
   // Return true if the id is not a valid identifier 
