@@ -136,7 +136,12 @@ async function main() {
   );
 
   const dev = process.env.NODE_ENV !== "production";
-  const app = next({ dev });
+  // Create the next app
+  // with the current working directory
+  const app = next({ 
+    dev,
+    dir: process.cwd()
+  });
   const handle = app.getRequestHandler();
 
   await app.prepare();
