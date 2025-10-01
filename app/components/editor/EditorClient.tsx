@@ -283,9 +283,9 @@ const EditorClient = memo(function EditorClient({
   };
 
   return (
-    <div className="flex flex-col bg-gradient-to-br from-[#0f0f23] via-[#1e1b4b] to-[#312e81] text-white min-h-screen">
+    <div className="flex flex-col bg-gradient-to-br from-[#0a0a0f] via-[#1a0a2e] to-[#16003b] text-white min-h-screen">
       <ToastContainer />
-      <div className="flex-shrink-0 border-b border-purple-500/30 bg-gradient-to-r from-[#0f0f23] via-[#1e1b4b] to-[#312e81] px-2 sm:px-4 py-2 sm:py-3 shadow-[0_0_25px_rgba(139,92,246,0.2)]">
+      <div className="flex-shrink-0 border-b border-pink-500/20 bg-gradient-to-r from-gray-900/90 via-purple-900/90 to-gray-900/90 backdrop-blur-md px-3 sm:px-5 py-3 shadow-2xl shadow-purple-500/20">
         <EditorControls
           showHistory={showHistory}
           onToggleHistory={() => setShowHistory(!showHistory)}
@@ -299,11 +299,11 @@ const EditorClient = memo(function EditorClient({
         }`}
       >
         <div
-          className={`hidden sm:block sm:w-80 md:w-96 lg:w-[26rem] xl:w-[30rem] 2xl:w-[34rem] flex-shrink-0 border-r border-purple-500/30 bg-gradient-to-b from-[#0f0f23] to-[#1e1b4b] overflow-y-auto shadow-[0_0_20px_rgba(139,92,246,0.15)] scroll-smooth ${
+          className={`hidden sm:block sm:w-80 md:w-96 lg:w-[26rem] xl:w-[30rem] 2xl:w-[34rem] flex-shrink-0 border-r border-purple-500/20 bg-gradient-to-b from-gray-900/50 via-purple-900/30 to-gray-900/50 backdrop-blur-md overflow-y-auto shadow-[5px_0_30px_rgba(139,92,246,0.15)] scroll-smooth ${
             showHistory ? "hidden" : ""
           }`}
         >
-          <div className="p-2 sm:p-4 space-y-0">
+          <div className="p-3 sm:p-5 space-y-0">
             {error ? (
               <p className="text-red-400">{error}</p>
             ) : (
@@ -622,13 +622,13 @@ const EditorClient = memo(function EditorClient({
             </div>
           </div>
         </div>
-        <div className="flex flex-1 flex-col min-w-0 overflow-hidden bg-gradient-to-br from-[#0f0f23] to-[#1e1b4b]">
+        <div className="flex flex-1 flex-col min-w-0 max-h-[calc(100vh-4rem)] overflow-hidden bg-gradient-to-br from-[#0f0f23] to-[#1e1b4b]">
           <ResizablePane
-            initialSize={45}
-            minSize={20}
-            maxSize={75}
+            initialSize={50}
+            minSize={30}
+            maxSize={70}
             direction="vertical"
-            className="p-2 sm:p-3 md:p-4 min-h-[180px] sm:min-h-[220px] md:min-h-[280px] overflow-hidden"
+            className="p-2 sm:p-3 md:p-4 min-h-[200px] max-h-[50vh] overflow-hidden"
           >
             <div className="h-full w-full rounded-2xl overflow-hidden border-2 border-purple-500/30 shadow-[0_0_30px_rgba(139,92,246,0.15)]">
               <CodeMirrorEditor
@@ -657,11 +657,11 @@ const EditorClient = memo(function EditorClient({
             </div>
           </ResizablePane>
           <ResizablePane
-            initialSize={55}
-            minSize={25}
-            maxSize={80}
+            initialSize={50}
+            minSize={30}
+            maxSize={70}
             direction="vertical"
-            className="p-2 sm:p-3 md:p-4 min-h-[180px] sm:min-h-[220px] md:min-h-[300px] overflow-hidden"
+            className="p-2 sm:p-3 md:p-4 min-h-[200px] max-h-[50vh] overflow-hidden"
           >
             <div className="h-full w-full rounded-2xl overflow-hidden border-2 border-purple-500/30 shadow-[0_0_30px_rgba(139,92,246,0.15)] bg-gradient-to-br from-[#0f0f23] to-[#1e1b4b]">
               <ResultsPane error={queryError ?? ""} loading={false} />
@@ -699,82 +699,84 @@ const EditorControls = memo(function EditorControls({
     useEditorContext();
 
   return (
-    <div className="flex items-center justify-between">
-      <div className="flex items-center gap-2 sm:gap-3">
+    <div className="flex items-center justify-between backdrop-blur-sm bg-gradient-to-r from-gray-900/80 via-purple-900/80 to-gray-900/80">
+      <div className="flex items-center gap-2 sm:gap-4">
         <Button
           variant="ghost"
           size="sm"
           onClick={onToggleMobileSidebar}
-          className="sm:hidden flex items-center p-2 text-purple-300 hover:text-purple-100 hover:bg-purple-500/20 transition-all duration-200 border border-purple-500/30 hover:border-purple-400/60 hover:shadow-[0_0_15px_rgba(139,92,246,0.3)]"
+          className="sm:hidden p-2.5 rounded-xl bg-purple-500/10 text-purple-300 hover:text-white hover:bg-purple-500/30 transition-all duration-200 border border-purple-500/30 hover:border-purple-400 hover:shadow-lg hover:shadow-purple-500/50"
           aria-label="Toggle query builder"
         >
           <Menu className="w-5 h-5" />
         </Button>
-        <h1 className="text-sm sm:text-lg lg:text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-purple-400">
-          SQL EDITOR
-        </h1>
-        <span className="hidden md:inline text-xs sm:text-sm text-cyan-300/80 font-mono tracking-wider">
-          [SYNTHWAVE MODE]
-        </span>
+        <div className="flex items-center gap-3">
+          <h1 className="text-base sm:text-xl lg:text-2xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-purple-400 to-pink-400 drop-shadow-[0_0_10px_rgba(139,92,246,0.5)]">
+            SculptQL
+          </h1>
+          <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-purple-500/10 border border-purple-500/30">
+            <div className="w-1.5 h-1.5 bg-cyan-400 rounded-full animate-pulse shadow-[0_0_8px_rgba(6,182,212,0.8)]"></div>
+            <span className="text-xs font-semibold text-cyan-300">EDITOR</span>
+          </div>
+        </div>
         {loading && (
-          <div className="flex items-center gap-2 text-xs text-yellow-400">
-            <div className="w-2 h-2 bg-yellow-400 rounded-full animate-pulse"></div>
-            <span className="font-mono hidden sm:inline">
-              LOADING DATABASE...
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-yellow-500/10 border border-yellow-500/30">
+            <div className="w-2 h-2 bg-yellow-400 rounded-full animate-pulse shadow-[0_0_8px_rgba(250,204,21,0.8)]"></div>
+            <span className="text-xs font-mono text-yellow-300 hidden sm:inline">
+              Loading...
             </span>
-            <span className="font-mono sm:hidden">LOADING...</span>
           </div>
         )}
       </div>
-      <div className="flex items-center gap-1 sm:gap-2 lg:gap-3">
+      <div className="flex items-center gap-1.5 sm:gap-2">
         <Button
           variant="ghost"
           size="sm"
           onClick={logQueryResultAsJson}
           disabled={loading}
-          className="hidden md:flex items-center px-2 sm:px-3 py-1 sm:py-2 text-purple-300 hover:text-purple-100 hover:bg-purple-500/20 transition-all duration-200 border border-purple-500/30 hover:border-purple-400/60 hover:shadow-[0_0_15px_rgba(139,92,246,0.3)] text-xs sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+          className="hidden md:flex items-center gap-2 px-3 py-2 rounded-xl bg-purple-500/10 text-purple-300 hover:text-white hover:bg-purple-500/30 transition-all duration-200 border border-purple-500/30 hover:border-purple-400 hover:shadow-lg hover:shadow-purple-500/50 text-xs font-semibold disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-purple-500/10"
           aria-label="Log query result as JSON"
         >
-          <Braces className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
-          <span className="hidden lg:inline">Log JSON</span>
+          <Braces className="w-3.5 h-3.5" />
+          <span className="hidden lg:inline">JSON</span>
         </Button>
         <Button
           variant="ghost"
           size="sm"
           onClick={exposeQueryResultsToConsole}
           disabled={loading}
-          className="hidden md:flex items-center px-2 sm:px-3 py-1 sm:py-2 text-green-300 hover:text-green-100 hover:bg-green-500/20 transition-all duration-200 border border-green-500/30 hover:border-green-400/60 hover:shadow-[0_0_15px_rgba(34,197,94,0.3)] text-xs sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+          className="hidden md:flex items-center gap-2 px-3 py-2 rounded-xl bg-green-500/10 text-green-300 hover:text-white hover:bg-green-500/30 transition-all duration-200 border border-green-500/30 hover:border-green-400 hover:shadow-lg hover:shadow-green-500/50 text-xs font-semibold disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-green-500/10"
           aria-label="Expose query results to console for filtering"
         >
-          <Database className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
-          <span className="hidden lg:inline">Console Filter</span>
+          <Database className="w-3.5 h-3.5" />
+          <span className="hidden lg:inline">Console</span>
         </Button>
         <Button
           variant="ghost"
           size="sm"
           onClick={onToggleHistory}
           disabled={loading}
-          className="flex items-center px-2 sm:px-3 py-1 sm:py-2 text-cyan-300 hover:text-cyan-100 hover:bg-cyan-500/20 transition-all duration-200 border border-cyan-500/30 hover:border-cyan-400/60 hover:shadow-[0_0_15px_rgba(6,182,212,0.3)] text-xs sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+          className="flex items-center gap-2 px-3 py-2 rounded-xl bg-cyan-500/10 text-cyan-300 hover:text-white hover:bg-cyan-500/30 transition-all duration-200 border border-cyan-500/30 hover:border-cyan-400 hover:shadow-lg hover:shadow-cyan-500/50 text-xs font-semibold disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-cyan-500/10"
           aria-label="Toggle query history"
         >
-          <LucideHistory className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
-          <span className="hidden lg:inline">
-            {showHistory ? "Hide" : "Show"} History
+          <LucideHistory className="w-3.5 h-3.5" />
+          <span className="hidden sm:inline">
+            {showHistory ? "Hide" : "History"}
           </span>
         </Button>
         <Button
           onClick={() => runQuery(query)}
           disabled={loading}
-          className="flex items-center px-2 sm:px-4 lg:px-6 py-1 sm:py-2 bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-400 hover:to-purple-500 text-white rounded-lg font-bold transition-all duration-300 shadow-[0_0_20px_rgba(244,114,182,0.4)] hover:shadow-[0_0_30px_rgba(244,114,182,0.6)] border border-pink-400/30 text-xs sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+          className="flex items-center gap-2 px-4 sm:px-6 py-2.5 bg-gradient-to-r from-pink-500 via-purple-600 to-pink-500 hover:from-pink-400 hover:via-purple-500 hover:to-pink-400 text-white rounded-xl font-bold transition-all duration-300 shadow-lg shadow-pink-500/50 hover:shadow-xl hover:shadow-pink-500/70 border border-pink-400/40 text-xs sm:text-sm disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:shadow-pink-500/50 hover:scale-105 active:scale-95"
           aria-label="Run query"
         >
-          <LucidePlay className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+          <LucidePlay className="w-4 h-4" fill="currentColor" />
           <span className="hidden sm:inline font-mono tracking-wider">
-            EXECUTE
+            RUN QUERY
           </span>
           <span className="sm:hidden font-mono">RUN</span>
-          <kbd className="hidden xl:inline ml-2 sm:ml-3 px-1 sm:px-2 py-0.5 sm:py-1 text-xs bg-black/40 rounded border border-white/20 font-mono">
-            {navigator.platform.includes("Mac") ? "⌘+ENTER" : "CTRL+ENTER"}
+          <kbd className="hidden lg:inline ml-2 px-2 py-1 text-[10px] bg-black/30 rounded border border-white/20 font-mono">
+            {navigator.platform.includes("Mac") ? "⌘↵" : "Ctrl+↵"}
           </kbd>
         </Button>
       </div>
@@ -798,49 +800,72 @@ const CollapsibleSection = memo(function CollapsibleSection({
   children: React.ReactNode;
 }) {
   const colorClasses = {
-    pink: "text-pink-400 bg-pink-400 shadow-[0_0_8px_rgba(244,114,182,0.6)]",
-    purple:
-      "text-purple-400 bg-purple-400 shadow-[0_0_8px_rgba(139,92,246,0.6)]",
-    cyan: "text-cyan-400 bg-cyan-400 shadow-[0_0_8px_rgba(6,182,212,0.6)]",
+    pink: {
+      text: "text-pink-400",
+      bg: "bg-pink-500/10",
+      border: "border-pink-500/30",
+      hoverBg: "hover:bg-pink-500/20",
+      hoverBorder: "hover:border-pink-400/50",
+      shadow: "shadow-[0_0_10px_rgba(244,114,182,0.3)]",
+      hoverShadow: "hover:shadow-[0_0_15px_rgba(244,114,182,0.5)]",
+      dot: "bg-pink-400 shadow-[0_0_8px_rgba(244,114,182,0.8)]",
+    },
+    purple: {
+      text: "text-purple-400",
+      bg: "bg-purple-500/10",
+      border: "border-purple-500/30",
+      hoverBg: "hover:bg-purple-500/20",
+      hoverBorder: "hover:border-purple-400/50",
+      shadow: "shadow-[0_0_10px_rgba(139,92,246,0.3)]",
+      hoverShadow: "hover:shadow-[0_0_15px_rgba(139,92,246,0.5)]",
+      dot: "bg-purple-400 shadow-[0_0_8px_rgba(139,92,246,0.8)]",
+    },
+    cyan: {
+      text: "text-cyan-400",
+      bg: "bg-cyan-500/10",
+      border: "border-cyan-500/30",
+      hoverBg: "hover:bg-cyan-500/20",
+      hoverBorder: "hover:border-cyan-400/50",
+      shadow: "shadow-[0_0_10px_rgba(6,182,212,0.3)]",
+      hoverShadow: "hover:shadow-[0_0_15px_rgba(6,182,212,0.5)]",
+      dot: "bg-cyan-400 shadow-[0_0_8px_rgba(6,182,212,0.8)]",
+    },
   };
 
+  const colors = colorClasses[color as keyof typeof colorClasses] || colorClasses.purple;
+
   return (
-    <div className="space-y-3 pb-4 border-b border-purple-500/20">
+    <div className={`mb-4 rounded-xl border ${colors.border} ${colors.bg} ${isExpanded ? colors.shadow : ''} transition-all duration-300 overflow-hidden backdrop-blur-sm`}>
       <Button
         onClick={onToggle}
-        className="w-full hover:bg-purple-500/10 rounded-lg transition-all duration-200"
+        className={`w-full ${colors.hoverBg} ${colors.hoverBorder} ${colors.hoverShadow} rounded-xl transition-all duration-300 p-0 border-none`}
       >
-        <div className="flex items-center justify-between w-full p-2">
-          <div className="flex items-center gap-2">
-            <div
-              className={`w-2 h-2 rounded-full flex-shrink-0 ${colorClasses[
-                color as keyof typeof colorClasses
-              ]
-                ?.split(" ")
-                .slice(1)
-                .join(" ")}`}
-            />
+        <div className="flex items-center justify-between w-full px-4 py-3">
+          <div className="flex items-center gap-3 flex-1">
+            <div className={`w-2 h-2 rounded-full ${colors.dot} animate-pulse`} />
+            <div className="text-left flex-1">
+              <h3 className={`text-sm font-bold uppercase tracking-wider ${colors.text}`}>
+                {title}
+              </h3>
+              <p className="text-xs text-slate-400 mt-0.5 font-normal normal-case tracking-normal">
+                {description}
+              </p>
+            </div>
           </div>
-          <div className="flex-1 ml-2">
-            <h3
-              className={`text-sm font-bold uppercase tracking-wider ${
-                colorClasses[color as keyof typeof colorClasses]?.split(" ")[0]
-              }`}
-            >
-              {title}
-            </h3>
-            <p className="text-xs text-slate-400 mt-1">{description}</p>
-          </div>
-          <div className="ml-auto">
+          <div className="ml-3 flex-shrink-0">
             {isExpanded ? (
-              <ChevronUp className="w-4 h-4 text-purple-400 group-hover:text-purple-300 transition-colors" />
+              <ChevronUp className={`w-4 h-4 ${colors.text} transition-transform duration-300`} />
             ) : (
-              <ChevronDown className="w-4 h-4 text-purple-400 group-hover:text-purple-300 transition-colors" />
+              <ChevronDown className={`w-4 h-4 ${colors.text} transition-transform duration-300`} />
             )}
           </div>
         </div>
       </Button>
-      {isExpanded && <div className="px-2">{children}</div>}
+      {isExpanded && (
+        <div className="px-4 pb-4 pt-2 animate-in fade-in slide-in-from-top-2 duration-300">
+          {children}
+        </div>
+      )}
     </div>
   );
 });
