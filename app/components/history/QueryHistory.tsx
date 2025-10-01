@@ -6,11 +6,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Trash2, Pin, Bookmark, Tag, Search, Play, Pencil } from "lucide-react";
 
-// Props for the QueryHistory component
-interface QueryHistoryProps {}
-
-export default function QueryHistory({
-}: QueryHistoryProps) {
+export default function QueryHistory({}) {
   // Get the query history, pinned queries, bookmarked queries, labeled queries, clear history, load query from history, run query, add pinned query, remove pinned query, add bookmarked query, remove bookmarked query, add labeled query, edit labeled query, and remove labeled query from the editor context
   const {
     queryHistory,
@@ -29,12 +25,12 @@ export default function QueryHistory({
     removeLabeledQuery,
   } = useEditorContext();
 
-  // Create the label input 
+  // Create the label input
   const [labelInput, setLabelInput] = useState<string>("");
   // Create the labeling query
-  const [labelingQuery, setLabelingQuery] = useState<string | null>(null); 
+  const [labelingQuery, setLabelingQuery] = useState<string | null>(null);
 
-  // Create the editing query 
+  // Create the editing query
   const [editingQuery, setEditingQuery] = useState<string | null>(null);
   // Create the search term
   const [searchTerm, setSearchTerm] = useState<string>("");
@@ -170,12 +166,14 @@ export default function QueryHistory({
     () =>
       // Filter the labeled queries to include the search term
       labeledQueries.filter((item) => {
-        // Find the history item by the history item id and the query 
-        const historyItem = queryHistory.find((h) => h.id === item.historyItemId);
+        // Find the history item by the history item id and the query
+        const historyItem = queryHistory.find(
+          (h) => h.id === item.historyItemId
+        );
         return (
-            // If the label includes the search term or the history item query includes the search term
+          // If the label includes the search term or the history item query includes the search term
           item.label.toLowerCase().includes(searchTerm.toLowerCase()) ||
-           // If the history item query includes the search term 
+          // If the history item query includes the search term
           (historyItem?.query
             .toLowerCase()
             .includes(searchTerm.toLowerCase()) ??
@@ -192,8 +190,8 @@ export default function QueryHistory({
       // Filter the history to include the search term
       queryHistory.filter((item) =>
         // If the query includes the search term
-      item.query.toLowerCase().includes(searchTerm.toLowerCase())
-    ),
+        item.query.toLowerCase().includes(searchTerm.toLowerCase())
+      ),
     // Return the filtered history
     [queryHistory, searchTerm]
   );
@@ -284,7 +282,11 @@ export default function QueryHistory({
                     className="text-yellow-400 hover:text-yellow-300 hover:bg-yellow-500/10 px-2 py-1 text-xs transition-all duration-200"
                     title="Unpin"
                   >
-                    <Pin className="w-3 h-3 mr-1" fill="currentColor" strokeWidth={0} />
+                    <Pin
+                      className="w-3 h-3 mr-1"
+                      fill="currentColor"
+                      strokeWidth={0}
+                    />
                     Unpin
                   </Button>
                 </div>
@@ -345,7 +347,11 @@ export default function QueryHistory({
                       className="text-blue-400 hover:text-blue-300 hover:bg-blue-500/10 px-2 py-1 text-xs transition-all duration-200"
                       title="Remove Bookmark"
                     >
-                      <Bookmark className="w-3 h-3 mr-1" fill="currentColor" strokeWidth={0} />
+                      <Bookmark
+                        className="w-3 h-3 mr-1"
+                        fill="currentColor"
+                        strokeWidth={0}
+                      />
                       Remove
                     </Button>
                   </div>
@@ -366,7 +372,7 @@ export default function QueryHistory({
                 const historyItem = queryHistory.find(
                   (h) => h.id === item.historyItemId
                 );
-                if (!historyItem) return null; 
+                if (!historyItem) return null;
                 return (
                   <div
                     key={`labeled-${item.id}`}
@@ -430,7 +436,9 @@ export default function QueryHistory({
                         }
                       >
                         <Pencil className="w-3 h-3 mr-1" />
-                        {editingQuery === item.historyItemId ? "Cancel" : "Edit"}
+                        {editingQuery === item.historyItemId
+                          ? "Cancel"
+                          : "Edit"}
                       </Button>
                       <Button
                         variant="ghost"
@@ -459,7 +467,9 @@ export default function QueryHistory({
               Showing up to 200 recent queries
             </p>
             {filteredHistory.length === 0 ? (
-              <p className="text-xs text-purple-300/60 py-2">No queries found</p>
+              <p className="text-xs text-purple-300/60 py-2">
+                No queries found
+              </p>
             ) : (
               filteredHistory.map((item) => (
                 <div
@@ -520,7 +530,9 @@ export default function QueryHistory({
                             : 2
                         }
                       />
-                      {pinnedQueries.some((pin) => pin.id === item.id) ? "Unpin" : "Pin"}
+                      {pinnedQueries.some((pin) => pin.id === item.id)
+                        ? "Unpin"
+                        : "Pin"}
                     </Button>
                     <Button
                       variant="ghost"
@@ -557,7 +569,9 @@ export default function QueryHistory({
                             : 2
                         }
                       />
-                      {bookmarkedQueries.some((bm) => bm.id === item.id) ? "Remove" : "Bookmark"}
+                      {bookmarkedQueries.some((bm) => bm.id === item.id)
+                        ? "Remove"
+                        : "Bookmark"}
                     </Button>
                     {!labeledQueries.some(
                       (labeledQuery) => labeledQuery.historyItemId === item.id
