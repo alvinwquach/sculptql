@@ -1144,7 +1144,7 @@ export function EditorProvider({ children, schema, error, isMySQL = false, refre
       const newUnionClauses = [...queryState.unionClauses];
       newUnionClauses[unionIndex] = {
         ...newUnionClauses[unionIndex],
-        unionType: value,
+        unionType: value ?? undefined,
       };
       queryState.setUnionClauses(newUnionClauses);
       const newQuery = generateQueryFromState(
