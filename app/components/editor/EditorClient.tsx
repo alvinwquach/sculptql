@@ -25,6 +25,7 @@ import WhereClauseSelect from "./WhereClauseSelect";
 import OrderByLimitSelect from "./OrderByLimitSelect";
 import GroupBySelect from "./GroupBySelect";
 import HavingSelect from "./HavingSelect";
+import JoinSelect from "./JoinSelect";
 import CodeMirrorEditor from "./CodeMirrorEditor";
 import QueryHistory from "../history/QueryHistory";
 import ResultsPane from "./ResultsPane";
@@ -72,6 +73,14 @@ const EditorClient = memo(function EditorClient({
     handleHavingOperatorSelect,
     handleHavingValueSelect,
     handleQueryChange,
+    // Join handlers
+    joinClauses,
+    onJoinTableSelect,
+    onJoinTypeSelect,
+    onJoinOnColumn1Select,
+    onJoinOnColumn2Select,
+    onAddJoinClause,
+    onRemoveJoinClause,
   } = useEditorContext();
 
   const [showConnectionPrompt, setShowConnectionPrompt] = useState(false);
@@ -82,6 +91,7 @@ const EditorClient = memo(function EditorClient({
     queryBuilder: true,
     filters: true,
     grouping: true,
+    advanced: true,
   });
 
   const toggleSection = (section: keyof typeof sectionsExpanded) => {
@@ -313,7 +323,7 @@ const EditorClient = memo(function EditorClient({
                 >
                   <WhereClauseSelect
                     metadataLoading={metadataLoading}
-                    joinClauses={[]}
+                    joinClauses={joinClauses}
                   />
                 </CollapsibleSection>
                 <CollapsibleSection
@@ -326,44 +336,46 @@ const EditorClient = memo(function EditorClient({
                   <div className="space-y-3">
                     <GroupBySelect
                       metadataLoading={metadataLoading}
-                      joinClauses={[]}
+                      joinClauses={joinClauses}
                     />
                     <HavingSelect
                       metadataLoading={metadataLoading}
-                      joinClauses={[]}
+                      joinClauses={joinClauses}
                       isMySQL={isMySQL}
                     />
                     <OrderByLimitSelect
                       metadataLoading={metadataLoading}
-                      joinClauses={[]}
+                      joinClauses={joinClauses}
                     />
                   </div>
                 </CollapsibleSection>
-                <div className="pt-4 pb-2 border-t border-purple-500/20">
-                  <div className="px-2">
-                    <p className="text-xs font-semibold text-purple-400/60 uppercase tracking-wider mb-3">
-                      Coming Soon
-                    </p>
-                    <div className="space-y-2">
-                      {[
-                        "Joins",
-                        "Unions",
-                        "CTEs (WITH)",
-                        "CASE Expressions",
-                      ].map((feature) => (
-                        <div
-                          key={feature}
-                          className="flex items-center gap-2 px-3 py-2 rounded-lg bg-purple-500/5 border border-purple-500/10 opacity-50"
-                        >
-                          <div className="w-1.5 h-1.5 bg-purple-500/40 rounded-full"></div>
-                          <span className="text-xs text-purple-300/60">
-                            {feature}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
+                <CollapsibleSection
+                  title="Advanced"
+                  description="Joins, unions, and complex operations"
+                  color="purple"
+                  isExpanded={sectionsExpanded.advanced}
+                  onToggle={() => toggleSection("advanced")}
+                  count={
+                    joinClauses.length > 0 ? joinClauses.length : undefined
+                  }
+                >
+                  <div className="space-y-3">
+                    <JoinSelect
+                      selectedTable={selectedTable}
+                      tableNames={tableNames}
+                      tableColumns={tableColumns}
+                      joinClauses={joinClauses}
+                      schema={schema}
+                      onJoinTableSelect={onJoinTableSelect}
+                      onJoinTypeSelect={onJoinTypeSelect}
+                      onJoinOnColumn1Select={onJoinOnColumn1Select}
+                      onJoinOnColumn2Select={onJoinOnColumn2Select}
+                      onAddJoinClause={onAddJoinClause}
+                      onRemoveJoinClause={onRemoveJoinClause}
+                      metadataLoading={metadataLoading}
+                    />
                   </div>
-                </div>
+                </CollapsibleSection>
               </>
             )}
           </div>
@@ -441,7 +453,7 @@ const EditorClient = memo(function EditorClient({
                   >
                     <WhereClauseSelect
                       metadataLoading={metadataLoading}
-                      joinClauses={[]}
+                      joinClauses={joinClauses}
                     />
                   </CollapsibleSection>
                   <CollapsibleSection
@@ -454,46 +466,46 @@ const EditorClient = memo(function EditorClient({
                     <div className="space-y-3">
                       <GroupBySelect
                         metadataLoading={metadataLoading}
-                        joinClauses={[]}
+                        joinClauses={joinClauses}
                       />
                       <HavingSelect
                         metadataLoading={metadataLoading}
-                        joinClauses={[]}
+                        joinClauses={joinClauses}
                         isMySQL={isMySQL}
                       />
                       <OrderByLimitSelect
                         metadataLoading={metadataLoading}
-                        joinClauses={[]}
+                        joinClauses={joinClauses}
                       />
                     </div>
                   </CollapsibleSection>
-                  <div className="pt-4 pb-2 border-t border-purple-500/20">
-                    <div className="px-2">
-                      <p className="text-xs font-semibold text-purple-400/60 uppercase tracking-wider mb-3">
-                        Coming Soon
-                      </p>
-                      <div className="space-y-2">
-                        {[
-                          "Joins",
-                          "Unions",
-                          "CTEs (WITH)",
-                          "CASE Expressions",
-                          "Window Functions",
-                          "Subqueries",
-                        ].map((feature) => (
-                          <div
-                            key={feature}
-                            className="flex items-center gap-2 px-3 py-2 rounded-lg bg-purple-500/5 border border-purple-500/10 opacity-50"
-                          >
-                            <div className="w-1.5 h-1.5 bg-purple-500/40 rounded-full"></div>
-                            <span className="text-xs text-purple-300/60">
-                              {feature}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
+                  <CollapsibleSection
+                    title="Advanced"
+                    description="Joins, unions, and complex operations"
+                    color="purple"
+                    isExpanded={sectionsExpanded.advanced}
+                    onToggle={() => toggleSection("advanced")}
+                    count={
+                      joinClauses.length > 0 ? joinClauses.length : undefined
+                    }
+                  >
+                    <div className="space-y-3">
+                      <JoinSelect
+                        selectedTable={selectedTable}
+                        tableNames={tableNames}
+                        tableColumns={tableColumns}
+                        joinClauses={joinClauses}
+                        schema={schema}
+                        onJoinTableSelect={onJoinTableSelect}
+                        onJoinTypeSelect={onJoinTypeSelect}
+                        onJoinOnColumn1Select={onJoinOnColumn1Select}
+                        onJoinOnColumn2Select={onJoinOnColumn2Select}
+                        onAddJoinClause={onAddJoinClause}
+                        onRemoveJoinClause={onRemoveJoinClause}
+                        metadataLoading={metadataLoading}
+                      />
                     </div>
-                  </div>
+                  </CollapsibleSection>
                 </>
               )}
             </div>
