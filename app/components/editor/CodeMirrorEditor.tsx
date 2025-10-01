@@ -448,7 +448,7 @@ export default function CodeMirrorEditor({
           fontSize: "clamp(14px, 2.5vw, 16px)",
           height: "100%",
           border: "none",
-          borderRadius: "0px",
+          borderRadius: "16px",
           background: "#0a0a0f",
           position: "relative",
           overflow: "hidden",
