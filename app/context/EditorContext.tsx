@@ -60,13 +60,17 @@ interface EditorContextType extends QueryState, QueryHistoryState, QueryResultsS
   onRemoveUnionClause: (unionIndex: number) => void;
   onCteAliasChange: (cteIndex: number, alias: string | null) => void;
   onCteTableSelect: (cteIndex: number, value: SelectOption | null) => void;
-  onCteColumnSelect: (cteIndex: number, value: SelectOption[]) => void;
+  onCteColumnSelect: (cteIndex: number, value: readonly SelectOption[]) => void;
   onCteLogicalOperatorSelect: (cteIndex: number, value: SelectOption | null) => void;
   onCteWhereColumnSelect: (cteIndex: number, conditionIndex: number, value: SelectOption | null) => void;
   onCteOperatorSelect: (cteIndex: number, conditionIndex: number, value: SelectOption | null) => void;
   onCteValueSelect: (cteIndex: number, conditionIndex: number, value: SelectOption | null, isValue2: boolean) => void;
   onAddCteClause: () => void;
   onRemoveCteClause: (cteIndex: number) => void;
+  onCteGroupBySelect: (cteIndex: number, value: readonly SelectOption[]) => void;
+  onCteHavingAggregateSelect: (cteIndex: number, conditionIndex: number, value: SelectOption | null) => void;
+  onCteHavingOperatorSelect: (cteIndex: number, conditionIndex: number, value: SelectOption | null) => void;
+  onCteHavingValueSelect: (cteIndex: number, conditionIndex: number, value: SelectOption | null) => void;
   onCaseColumnSelect: (value: SelectOption | null, conditionIndex: number) => void;
   onCaseOperatorSelect: (value: SelectOption | null, conditionIndex: number) => void;
   onCaseValueSelect: (value: SelectOption | null, conditionIndex: number) => void;
@@ -328,13 +332,98 @@ export function EditorProvider({ children, schema, error, isMySQL = false, refre
     limit = queryState.limit,
     joinClauses = queryState.joinClauses,
     unionClauses = queryState.unionClauses,
-    caseClause = queryState.caseClause
+    caseClause = queryState.caseClause,
+    cteClauses = queryState.cteClauses
   ) => {
     // If the selected table is not null
     if (!selectedTable) {
       // Return an empty string
       return "";
     }
+
+    // Build WITH clause (CTEs) if any exist
+    let withClause = "";
+    if (cteClauses && cteClauses.length > 0) {
+      const validCtes = cteClauses.filter(cte => cte.alias && cte.fromTable);
+      if (validCtes.length > 0) {
+        withClause = "WITH ";
+        withClause += validCtes.map((cte, index) => {
+          const cteColumns = cte.selectedColumns.length > 0 && !cte.selectedColumns.some(col => col.value === "*")
+            ? cte.selectedColumns.map(col => col.value).join(", ")
+            : "*";
+
+          let cteQuery = `${cte.alias} AS (SELECT ${cteColumns} FROM ${cte.fromTable!.value}`;
+
+          // Add WHERE clause for CTE if conditions exist
+          const validCteWhere = cte.whereClause.conditions.filter(cond =>
+            cond.column && cond.operator && (cond.value || cond.operator.value === "IS NULL" || cond.operator.value === "IS NOT NULL")
+          );
+
+          if (validCteWhere.length > 0) {
+            const cteWhereConditions = validCteWhere.map((cond, idx) => {
+              const colName = cond.column!.value;
+              const logicalOp = idx > 0 ? (cond.logicalOperator?.value || "AND") : "";
+              const op = cond.operator!.value;
+
+              if (op === "IS NULL" || op === "IS NOT NULL") {
+                return `${logicalOp} ${colName} ${op}`.trim();
+              }
+
+              if (op === "BETWEEN" && cond.value && cond.value2) {
+                const value1 = typeof cond.value.value === 'string' && !cond.value.value.match(/^['"]/)
+                  ? `'${cond.value.value}'` : cond.value.value;
+                const value2 = typeof cond.value2.value === 'string' && !cond.value2.value.match(/^['"]/)
+                  ? `'${cond.value2.value}'` : cond.value2.value;
+                return `${logicalOp} ${colName} BETWEEN ${value1} AND ${value2}`.trim();
+              }
+
+              if (cond.value) {
+                const value = typeof cond.value.value === 'string' && !cond.value.value.match(/^['"]/)
+                  ? `'${cond.value.value}'` : cond.value.value;
+                return `${logicalOp} ${colName} ${op} ${value}`.trim();
+              }
+
+              return `${logicalOp} ${colName} ${op}`.trim();
+            });
+
+            if (cteWhereConditions.length > 0) {
+              cteQuery += ` WHERE ${cteWhereConditions.join(" ")}`;
+            }
+          }
+
+          // Add GROUP BY clause for CTE if columns exist
+          if (cte.groupByColumns && cte.groupByColumns.length > 0) {
+            const groupByColumns = cte.groupByColumns.map(col => col.value).join(", ");
+            cteQuery += ` GROUP BY ${groupByColumns}`;
+
+            // Add HAVING clause for CTE if conditions exist
+            const validHaving = cte.havingClause.conditions.filter(cond =>
+              cond.aggregateColumn && cond.operator && cond.value
+            );
+
+            if (validHaving.length > 0) {
+              const havingConditions = validHaving.map(cond => {
+                const aggregate = cond.aggregateColumn!.value;
+                const op = cond.operator!.value;
+                const value = typeof cond.value!.value === 'string' && !cond.value!.value.match(/^['"]/)
+                  ? `'${cond.value!.value}'`
+                  : cond.value!.value;
+                return `${aggregate} ${op} ${value}`;
+              });
+
+              if (havingConditions.length > 0) {
+                cteQuery += ` HAVING ${havingConditions.join(" AND ")}`;
+              }
+            }
+          }
+
+          cteQuery += ")";
+          return cteQuery;
+        }).join(", ");
+        withClause += " ";
+      }
+    }
+
     // Get the table name
     const tableName = selectedTable.value;
     // Get the columns string
@@ -402,8 +491,8 @@ export function EditorProvider({ children, schema, error, isMySQL = false, refre
       finalColumnsString = caseStatement;
     }
 
-    // Get the query string with the distinct and columns string and table name
-    let query = `SELECT ${isDistinct ? "DISTINCT " : ""}${finalColumnsString} FROM ${tableName}`;
+    // Get the query string with WITH clause, distinct, columns, and table name
+    let query = `${withClause}SELECT ${isDistinct ? "DISTINCT " : ""}${finalColumnsString} FROM ${tableName}`;
 
     // Add JOIN clauses
     if (joinClauses && joinClauses.length > 0) {
@@ -1295,11 +1384,11 @@ export function EditorProvider({ children, schema, error, isMySQL = false, refre
   );
 
   const onCteColumnSelect = useCallback(
-    (cteIndex: number, value: SelectOption[]) => {
+    (cteIndex: number, value: readonly SelectOption[]) => {
       const newCteClauses = [...queryState.cteClauses];
       newCteClauses[cteIndex] = {
         ...newCteClauses[cteIndex],
-        selectedColumns: value,
+        selectedColumns: [...value],
       };
       queryState.setCteClauses(newCteClauses);
     },
@@ -1364,6 +1453,12 @@ export function EditorProvider({ children, schema, error, isMySQL = false, refre
           { column: null, operator: null, value: null, value2: null },
         ],
       },
+      groupByColumns: [],
+      havingClause: {
+        conditions: [
+          { aggregateColumn: null, operator: null, value: null, logicalOperator: null },
+        ],
+      },
     };
     queryState.setCteClauses([...queryState.cteClauses, newCteClause]);
   }, [queryState]);
@@ -1371,6 +1466,51 @@ export function EditorProvider({ children, schema, error, isMySQL = false, refre
   const onRemoveCteClause = useCallback(
     (cteIndex: number) => {
       const newCteClauses = queryState.cteClauses.filter((_, index) => index !== cteIndex);
+      queryState.setCteClauses(newCteClauses);
+    },
+    [queryState]
+  );
+
+  const onCteGroupBySelect = useCallback(
+    (cteIndex: number, value: readonly SelectOption[]) => {
+      const newCteClauses = [...queryState.cteClauses];
+      newCteClauses[cteIndex] = {
+        ...newCteClauses[cteIndex],
+        groupByColumns: [...value],
+      };
+      queryState.setCteClauses(newCteClauses);
+    },
+    [queryState]
+  );
+
+  const onCteHavingAggregateSelect = useCallback(
+    (cteIndex: number, conditionIndex: number, value: SelectOption | null) => {
+      const newCteClauses = [...queryState.cteClauses];
+      if (newCteClauses[cteIndex].havingClause.conditions[conditionIndex]) {
+        newCteClauses[cteIndex].havingClause.conditions[conditionIndex].aggregateColumn = value;
+      }
+      queryState.setCteClauses(newCteClauses);
+    },
+    [queryState]
+  );
+
+  const onCteHavingOperatorSelect = useCallback(
+    (cteIndex: number, conditionIndex: number, value: SelectOption | null) => {
+      const newCteClauses = [...queryState.cteClauses];
+      if (newCteClauses[cteIndex].havingClause.conditions[conditionIndex]) {
+        newCteClauses[cteIndex].havingClause.conditions[conditionIndex].operator = value;
+      }
+      queryState.setCteClauses(newCteClauses);
+    },
+    [queryState]
+  );
+
+  const onCteHavingValueSelect = useCallback(
+    (cteIndex: number, conditionIndex: number, value: SelectOption | null) => {
+      const newCteClauses = [...queryState.cteClauses];
+      if (newCteClauses[cteIndex].havingClause.conditions[conditionIndex]) {
+        newCteClauses[cteIndex].havingClause.conditions[conditionIndex].value = value;
+      }
       queryState.setCteClauses(newCteClauses);
     },
     [queryState]
@@ -1587,6 +1727,10 @@ export function EditorProvider({ children, schema, error, isMySQL = false, refre
     onCteValueSelect,
     onAddCteClause,
     onRemoveCteClause,
+    onCteGroupBySelect,
+    onCteHavingAggregateSelect,
+    onCteHavingOperatorSelect,
+    onCteHavingValueSelect,
     onCaseColumnSelect,
     onCaseOperatorSelect,
     onCaseValueSelect,
@@ -1650,6 +1794,10 @@ export function EditorProvider({ children, schema, error, isMySQL = false, refre
   onCteValueSelect,
   onAddCteClause,
   onRemoveCteClause,
+  onCteGroupBySelect,
+  onCteHavingAggregateSelect,
+  onCteHavingOperatorSelect,
+  onCteHavingValueSelect,
   onCaseColumnSelect,
   onCaseOperatorSelect,
   onCaseValueSelect,
