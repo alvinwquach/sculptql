@@ -297,6 +297,7 @@ export interface QueryState {
   queryError: string | null;
   joinClauses: JoinClause[];
   unionClauses: UnionClause[];
+  caseClause: CaseClause;
 }
 
 // Interface for the union clause

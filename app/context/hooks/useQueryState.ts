@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { SelectOption, WhereClause, OrderByClause, HavingClause, JoinClause, UnionClause, CteClause } from "@/app/types/query";
+import { SelectOption, WhereClause, OrderByClause, HavingClause, JoinClause, UnionClause, CteClause, CaseClause } from "@/app/types/query";
 
 // Interface for the query state
 export interface QueryState {
@@ -29,6 +29,8 @@ export interface QueryState {
   setUnionClauses: (clauses: UnionClause[]) => void;
   cteClauses: CteClause[];
   setCteClauses: (clauses: CteClause[]) => void;
+  caseClause: CaseClause;
+  setCaseClause: (clause: CaseClause) => void;
 }
 
 export function useQueryState(): QueryState {
@@ -98,6 +100,12 @@ export function useQueryState(): QueryState {
   const [unionClauses, setUnionClauses] = useState<UnionClause[]>([]);
   // State for the CTE clauses
   const [cteClauses, setCteClauses] = useState<CteClause[]>([]);
+  // State for the CASE clause
+  const [caseClause, setCaseClause] = useState<CaseClause>({
+    conditions: [],
+    elseValue: null,
+    alias: null,
+  });
 
   // Persist query state to localStorage
   useEffect(() => {
@@ -159,5 +167,7 @@ export function useQueryState(): QueryState {
     setUnionClauses,
     cteClauses,
     setCteClauses,
+    caseClause,
+    setCaseClause,
   };
 }

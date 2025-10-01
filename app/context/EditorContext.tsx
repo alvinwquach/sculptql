@@ -48,19 +48,16 @@ interface EditorContextType extends QueryState, QueryHistoryState, QueryResultsS
   handleHavingOperatorSelect: (value: SelectOption | null, conditionIndex: number) => void;
   handleHavingValueSelect: (value: SelectOption | null, conditionIndex: number) => void;
   onDeleteCondition: (conditionIndex: number) => void;
-  // Join handlers
   onJoinTableSelect: (value: SelectOption | null, joinIndex: number) => void;
   onJoinTypeSelect: (value: SelectOption | null, joinIndex: number) => void;
   onJoinOnColumn1Select: (value: SelectOption | null, joinIndex: number) => void;
   onJoinOnColumn2Select: (value: SelectOption | null, joinIndex: number) => void;
   onAddJoinClause: () => void;
   onRemoveJoinClause: (joinIndex: number) => void;
-  // Union handlers
   onUnionTableSelect: (value: SelectOption | null, unionIndex: number) => void;
   onUnionTypeSelect: (value: SelectOption | null, unionIndex: number) => void;
   onAddUnionClause: () => void;
   onRemoveUnionClause: (unionIndex: number) => void;
-  // CTE handlers
   onCteAliasChange: (cteIndex: number, alias: string | null) => void;
   onCteTableSelect: (cteIndex: number, value: SelectOption | null) => void;
   onCteColumnSelect: (cteIndex: number, value: SelectOption[]) => void;
@@ -70,6 +67,14 @@ interface EditorContextType extends QueryState, QueryHistoryState, QueryResultsS
   onCteValueSelect: (cteIndex: number, conditionIndex: number, value: SelectOption | null, isValue2: boolean) => void;
   onAddCteClause: () => void;
   onRemoveCteClause: (cteIndex: number) => void;
+  onCaseColumnSelect: (value: SelectOption | null, conditionIndex: number) => void;
+  onCaseOperatorSelect: (value: SelectOption | null, conditionIndex: number) => void;
+  onCaseValueSelect: (value: SelectOption | null, conditionIndex: number) => void;
+  onCaseResultSelect: (value: SelectOption | null, conditionIndex: number) => void;
+  onElseResultSelect: (value: SelectOption | null) => void;
+  onCaseAliasChange: (alias: string | null) => void;
+  onAddCaseCondition: () => void;
+  onRemoveCaseCondition: (conditionIndex: number) => void;
   operatorOptions: SelectOption[];
   logicalOperatorOptions: SelectOption[];
   orderByDirectionOptions: SelectOption[];
@@ -322,7 +327,8 @@ export function EditorProvider({ children, schema, error, isMySQL = false, refre
     orderByClause = queryState.orderByClause,
     limit = queryState.limit,
     joinClauses = queryState.joinClauses,
-    unionClauses = queryState.unionClauses
+    unionClauses = queryState.unionClauses,
+    caseClause = queryState.caseClause
   ) => {
     // If the selected table is not null
     if (!selectedTable) {
@@ -345,8 +351,59 @@ export function EditorProvider({ children, schema, error, isMySQL = false, refre
             return col.alias ? `${colValue} AS '${col.alias}'` : colValue;
           })
           .join(", ");
+
+    let caseStatement = "";
+    if (caseClause && caseClause.conditions.length > 0) {
+      const validCaseConditions = caseClause.conditions.filter(
+        (cond) => cond.column && cond.operator && cond.result
+      );
+
+      if (validCaseConditions.length > 0) {
+        caseStatement = "CASE";
+        validCaseConditions.forEach((cond) => {
+          const colName = cond.column!.value;
+          const operator = cond.operator!.value;
+          const result = cond.result!.value;
+
+          const formattedResult = typeof result === 'string' && !result.match(/^['"]/)
+            ? `'${result}'`
+            : result;
+
+          if (operator === "IS NULL" || operator === "IS NOT NULL") {
+            caseStatement += ` WHEN ${colName} ${operator} THEN ${formattedResult}`;
+          } else if (cond.value) {
+            // Format the value
+            const value = typeof cond.value.value === 'string' && !cond.value.value.match(/^['"]/)
+              ? `'${cond.value.value}'`
+              : cond.value.value;
+            caseStatement += ` WHEN ${colName} ${operator} ${value} THEN ${formattedResult}`;
+          }
+        });
+
+        if (caseClause.elseValue) {
+          const elseVal = typeof caseClause.elseValue.value === 'string' && !caseClause.elseValue.value.match(/^['"]/)
+            ? `'${caseClause.elseValue.value}'`
+            : caseClause.elseValue.value;
+          caseStatement += ` ELSE ${elseVal}`;
+        }
+
+        caseStatement += " END";
+
+        if (caseClause.alias) {
+          caseStatement += ` AS '${caseClause.alias}'`;
+        }
+      }
+    }
+
+    let finalColumnsString = columnsString;
+    if (caseStatement && columnsString !== "*") {
+      finalColumnsString = `${columnsString}, ${caseStatement}`;
+    } else if (caseStatement && columnsString === "*") {
+      finalColumnsString = caseStatement;
+    }
+
     // Get the query string with the distinct and columns string and table name
-    let query = `SELECT ${isDistinct ? "DISTINCT " : ""}${columnsString} FROM ${tableName}`;
+    let query = `SELECT ${isDistinct ? "DISTINCT " : ""}${finalColumnsString} FROM ${tableName}`;
 
     // Add JOIN clauses
     if (joinClauses && joinClauses.length > 0) {
@@ -1319,6 +1376,120 @@ export function EditorProvider({ children, schema, error, isMySQL = false, refre
     [queryState]
   );
 
+  const onCaseColumnSelect = useCallback(
+    (value: SelectOption | null, conditionIndex: number) => {
+      setIsManualEdit(false);
+      const newConditions = [...queryState.caseClause.conditions];
+      newConditions[conditionIndex] = {
+        ...newConditions[conditionIndex],
+        column: value,
+      };
+      queryState.setCaseClause({
+        ...queryState.caseClause,
+        conditions: newConditions,
+      });
+    },
+    [queryState]
+  );
+
+  const onCaseOperatorSelect = useCallback(
+    (value: SelectOption | null, conditionIndex: number) => {
+      setIsManualEdit(false);
+      const newConditions = [...queryState.caseClause.conditions];
+      newConditions[conditionIndex] = {
+        ...newConditions[conditionIndex],
+        operator: value,
+      };
+      queryState.setCaseClause({
+        ...queryState.caseClause,
+        conditions: newConditions,
+      });
+    },
+    [queryState]
+  );
+
+  const onCaseValueSelect = useCallback(
+    (value: SelectOption | null, conditionIndex: number) => {
+      setIsManualEdit(false);
+      const newConditions = [...queryState.caseClause.conditions];
+      newConditions[conditionIndex] = {
+        ...newConditions[conditionIndex],
+        value: value,
+      };
+      queryState.setCaseClause({
+        ...queryState.caseClause,
+        conditions: newConditions,
+      });
+    },
+    [queryState]
+  );
+
+  const onCaseResultSelect = useCallback(
+    (value: SelectOption | null, conditionIndex: number) => {
+      setIsManualEdit(false);
+      const newConditions = [...queryState.caseClause.conditions];
+      newConditions[conditionIndex] = {
+        ...newConditions[conditionIndex],
+        result: value,
+      };
+      queryState.setCaseClause({
+        ...queryState.caseClause,
+        conditions: newConditions,
+      });
+    },
+    [queryState]
+  );
+
+  const onElseResultSelect = useCallback(
+    (value: SelectOption | null) => {
+      setIsManualEdit(false);
+      queryState.setCaseClause({
+        ...queryState.caseClause,
+        elseValue: value,
+      });
+    },
+    [queryState]
+  );
+
+  const onCaseAliasChange = useCallback(
+    (alias: string | null) => {
+      setIsManualEdit(false);
+      queryState.setCaseClause({
+        ...queryState.caseClause,
+        alias,
+      });
+    },
+    [queryState]
+  );
+
+  const onAddCaseCondition = useCallback(() => {
+    setIsManualEdit(false);
+    const newCondition = {
+      column: null,
+      operator: null,
+      value: null,
+      result: null,
+    };
+    queryState.setCaseClause({
+      ...queryState.caseClause,
+      conditions: [...queryState.caseClause.conditions, newCondition],
+    });
+  }, [queryState]);
+
+  const onRemoveCaseCondition = useCallback(
+    (conditionIndex: number) => {
+      setIsManualEdit(false);
+      const newConditions = queryState.caseClause.conditions.filter(
+        (_, index) => index !== conditionIndex
+      );
+      queryState.setCaseClause({
+        ...queryState.caseClause,
+        conditions: newConditions,
+      });
+    },
+    [queryState]
+  );
+
   useEffect(() => {
     // Handle the key down
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -1397,19 +1568,16 @@ export function EditorProvider({ children, schema, error, isMySQL = false, refre
     handleHavingOperatorSelect,
     handleHavingValueSelect,
     onDeleteCondition,
-    // Join handlers
     onJoinTableSelect,
     onJoinTypeSelect,
     onJoinOnColumn1Select,
     onJoinOnColumn2Select,
     onAddJoinClause,
     onRemoveJoinClause,
-    // Union handlers
     onUnionTableSelect,
     onUnionTypeSelect,
     onAddUnionClause,
     onRemoveUnionClause,
-    // CTE handlers
     onCteAliasChange,
     onCteTableSelect,
     onCteColumnSelect,
@@ -1419,6 +1587,14 @@ export function EditorProvider({ children, schema, error, isMySQL = false, refre
     onCteValueSelect,
     onAddCteClause,
     onRemoveCteClause,
+    onCaseColumnSelect,
+    onCaseOperatorSelect,
+    onCaseValueSelect,
+    onCaseResultSelect,
+    onElseResultSelect,
+    onCaseAliasChange,
+    onAddCaseCondition,
+    onRemoveCaseCondition,
     operatorOptions,
     logicalOperatorOptions,
     orderByDirectionOptions,
@@ -1455,19 +1631,16 @@ export function EditorProvider({ children, schema, error, isMySQL = false, refre
   handleHavingOperatorSelect,
   handleHavingValueSelect,
   onDeleteCondition,
-  // Join handlers
   onJoinTableSelect,
   onJoinTypeSelect,
   onJoinOnColumn1Select,
   onJoinOnColumn2Select,
   onAddJoinClause,
   onRemoveJoinClause,
-  // Union handlers
   onUnionTableSelect,
   onUnionTypeSelect,
   onAddUnionClause,
   onRemoveUnionClause,
-  // CTE handlers
   onCteAliasChange,
   onCteTableSelect,
   onCteColumnSelect,
@@ -1477,6 +1650,14 @@ export function EditorProvider({ children, schema, error, isMySQL = false, refre
   onCteValueSelect,
   onAddCteClause,
   onRemoveCteClause,
+  onCaseColumnSelect,
+  onCaseOperatorSelect,
+  onCaseValueSelect,
+  onCaseResultSelect,
+  onElseResultSelect,
+  onCaseAliasChange,
+  onAddCaseCondition,
+  onRemoveCaseCondition,
   operatorOptions,
   logicalOperatorOptions,
   orderByDirectionOptions,

@@ -27,6 +27,7 @@ import GroupBySelect from "./GroupBySelect";
 import HavingSelect from "./HavingSelect";
 import JoinSelect from "./JoinSelect";
 import UnionSelect from "./UnionSelect";
+import CaseSelect from "./CaseSelect";
 import CodeMirrorEditor from "./CodeMirrorEditor";
 import QueryHistory from "../history/QueryHistory";
 import ResultsPane from "./ResultsPane";
@@ -87,6 +88,16 @@ const EditorClient = memo(function EditorClient({
     onUnionTypeSelect,
     onAddUnionClause,
     onRemoveUnionClause,
+    caseClause,
+    onCaseColumnSelect,
+    onCaseOperatorSelect,
+    onCaseValueSelect,
+    onCaseResultSelect,
+    onElseResultSelect,
+    onCaseAliasChange,
+    onAddCaseCondition,
+    onRemoveCaseCondition,
+    operatorOptions,
   } = useEditorContext();
   const [showConnectionPrompt, setShowConnectionPrompt] = useState(false);
   const [showMobileSidebar, setShowMobileSidebar] = useState(false);
@@ -306,6 +317,23 @@ const EditorClient = memo(function EditorClient({
                       metadataLoading={metadataLoading}
                       isMySQL={isMySQL}
                     />
+                    <CaseSelect
+                      selectedTable={selectedTable}
+                      tableColumns={tableColumns}
+                      caseClause={caseClause}
+                      uniqueValues={uniqueValues}
+                      joinClauses={joinClauses}
+                      operatorOptions={operatorOptions}
+                      onCaseColumnSelect={onCaseColumnSelect}
+                      onCaseOperatorSelect={onCaseOperatorSelect}
+                      onCaseValueSelect={onCaseValueSelect}
+                      onCaseResultSelect={onCaseResultSelect}
+                      onElseResultSelect={onElseResultSelect}
+                      onCaseAliasChange={onCaseAliasChange}
+                      onAddCaseCondition={onAddCaseCondition}
+                      onRemoveCaseCondition={onRemoveCaseCondition}
+                      metadataLoading={metadataLoading}
+                    />
                   </div>
                 </CollapsibleSection>
                 <CollapsibleSection
@@ -437,6 +465,23 @@ const EditorClient = memo(function EditorClient({
                       <ColumnSelect
                         metadataLoading={metadataLoading}
                         isMySQL={isMySQL}
+                      />
+                      <CaseSelect
+                        selectedTable={selectedTable}
+                        tableColumns={tableColumns}
+                        caseClause={caseClause}
+                        uniqueValues={uniqueValues}
+                        joinClauses={joinClauses}
+                        operatorOptions={operatorOptions}
+                        onCaseColumnSelect={onCaseColumnSelect}
+                        onCaseOperatorSelect={onCaseOperatorSelect}
+                        onCaseValueSelect={onCaseValueSelect}
+                        onCaseResultSelect={onCaseResultSelect}
+                        onElseResultSelect={onElseResultSelect}
+                        onCaseAliasChange={onCaseAliasChange}
+                        onAddCaseCondition={onAddCaseCondition}
+                        onRemoveCaseCondition={onRemoveCaseCondition}
+                        metadataLoading={metadataLoading}
                       />
                     </div>
                   </CollapsibleSection>
