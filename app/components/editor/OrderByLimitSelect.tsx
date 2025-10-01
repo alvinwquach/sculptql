@@ -59,16 +59,19 @@ export default function OrderByLimitSelect({
   ];
 
   return (
-    <div className="space-y-2">
-      <div className="flex flex-col gap-1">
-        <div className="text-xs text-white text-opacity-80 font-semibold">
-          Order By
-        </div>
+    <div className="space-y-3">
+      <div className="flex items-center gap-2">
+        <div className="w-1.5 h-1.5 bg-emerald-400 rounded-full shadow-[0_0_6px_rgba(16,185,129,0.6)]"></div>
+        <Label className="text-xs font-semibold text-emerald-400 uppercase tracking-wider">
+          Order By & Limit
+        </Label>
+      </div>
+      <div className="space-y-2">
         <div className="flex gap-2 items-center">
-          <div className="flex flex-col gap-1 w-full">
+          <div className="flex flex-col gap-1.5 w-full">
             <Label
               htmlFor="order-by-column"
-              className="text-xs text-[#f8f9fa]"
+              className="text-xs text-slate-300"
             >
               Column
             </Label>
@@ -114,8 +117,8 @@ export default function OrderByLimitSelect({
               className="min-w-0 w-full"
             />
           </div>
-          <div className="flex flex-col gap-1 w-full">
-            <Label htmlFor="limit-select" className="text-xs text-[#f8f9fa]">
+          <div className="flex flex-col gap-1.5 w-full">
+            <Label htmlFor="limit-select" className="text-xs text-slate-300">
               Limit
             </Label>
             <CreatableSelect

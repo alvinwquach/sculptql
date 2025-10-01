@@ -121,7 +121,6 @@ const EditorClient = memo(function EditorClient({
           <EditorControls
             showHistory={showHistory}
             onToggleHistory={() => setShowHistory(!showHistory)}
-            showMobileSidebar={false}
             onToggleMobileSidebar={() => {}}
             loading={false}
           />
@@ -162,7 +161,6 @@ const EditorClient = memo(function EditorClient({
           <EditorControls
             showHistory={showHistory}
             onToggleHistory={() => setShowHistory(!showHistory)}
-            showMobileSidebar={false}
             onToggleMobileSidebar={() => {}}
             loading={false}
           />
@@ -263,12 +261,10 @@ const EditorClient = memo(function EditorClient({
         <EditorControls
           showHistory={showHistory}
           onToggleHistory={() => setShowHistory(!showHistory)}
-          showMobileSidebar={showMobileSidebar}
           onToggleMobileSidebar={() => setShowMobileSidebar(!showMobileSidebar)}
           loading={metadataLoading}
         />
       </div>
-
       <div
         className={`flex flex-1 w-full min-w-0 overflow-hidden transition-all duration-300 ${
           showHistory ? "ml-0 sm:ml-72 md:ml-80 lg:ml-96 xl:ml-[28rem]" : ""
@@ -303,11 +299,6 @@ const EditorClient = memo(function EditorClient({
                   color="purple"
                   isExpanded={sectionsExpanded.queryBuilder}
                   onToggle={() => toggleSection("queryBuilder")}
-                  count={
-                    selectedColumns.length > 0
-                      ? selectedColumns.length
-                      : undefined
-                  }
                 >
                   <div className="space-y-3">
                     <TableSelect metadataLoading={metadataLoading} />
@@ -358,11 +349,6 @@ const EditorClient = memo(function EditorClient({
                   color="purple"
                   isExpanded={sectionsExpanded.advanced}
                   onToggle={() => toggleSection("advanced")}
-                  count={
-                    joinClauses.length + unionClauses.length > 0
-                      ? joinClauses.length + unionClauses.length
-                      : undefined
-                  }
                 >
                   <div className="space-y-3">
                     <JoinSelect
@@ -445,11 +431,6 @@ const EditorClient = memo(function EditorClient({
                     color="purple"
                     isExpanded={sectionsExpanded.queryBuilder}
                     onToggle={() => toggleSection("queryBuilder")}
-                    count={
-                      selectedColumns.length > 0
-                        ? selectedColumns.length
-                        : undefined
-                    }
                   >
                     <div className="space-y-3">
                       <TableSelect metadataLoading={metadataLoading} />
@@ -500,11 +481,6 @@ const EditorClient = memo(function EditorClient({
                     color="purple"
                     isExpanded={sectionsExpanded.advanced}
                     onToggle={() => toggleSection("advanced")}
-                    count={
-                      joinClauses.length + unionClauses.length > 0
-                        ? joinClauses.length + unionClauses.length
-                        : undefined
-                    }
                   >
                     <div className="space-y-3">
                       <JoinSelect
@@ -538,7 +514,6 @@ const EditorClient = memo(function EditorClient({
             </div>
           </div>
         </div>
-
         <div className="flex flex-1 flex-col min-w-0 overflow-hidden bg-gradient-to-br from-[#0f0f23] to-[#1e1b4b]">
           <ResizablePane
             initialSize={45}
@@ -602,13 +577,11 @@ const EditorClient = memo(function EditorClient({
 const EditorControls = memo(function EditorControls({
   showHistory,
   onToggleHistory,
-  showMobileSidebar,
   onToggleMobileSidebar,
   loading = false,
 }: {
   showHistory: boolean;
   onToggleHistory: () => void;
-  showMobileSidebar: boolean;
   onToggleMobileSidebar: () => void;
   loading?: boolean;
 }) {
@@ -629,7 +602,6 @@ const EditorControls = memo(function EditorControls({
         >
           <Menu className="w-5 h-5" />
         </Button>
-
         <h1 className="text-sm sm:text-lg lg:text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-purple-400">
           SQL EDITOR
         </h1>
@@ -709,7 +681,6 @@ const CollapsibleSection = memo(function CollapsibleSection({
   isExpanded,
   onToggle,
   children,
-  count,
 }: {
   title: string;
   description: string;
@@ -717,7 +688,6 @@ const CollapsibleSection = memo(function CollapsibleSection({
   isExpanded: boolean;
   onToggle: () => void;
   children: React.ReactNode;
-  count?: number;
 }) {
   const colorClasses = {
     pink: "text-pink-400 bg-pink-400 shadow-[0_0_8px_rgba(244,114,182,0.6)]",
@@ -730,48 +700,42 @@ const CollapsibleSection = memo(function CollapsibleSection({
     <div className="space-y-3 pb-4 border-b border-purple-500/20">
       <Button
         onClick={onToggle}
-        className="w-full group hover:bg-purple-500/10 rounded-lg p-2 transition-all duration-200"
+        className="w-full hover:bg-purple-500/10 rounded-lg transition-all duration-200"
       >
-        <div className="flex items-center justify-between">
-          <div className="flex items-start gap-2">
+        <div className="flex items-center justify-between w-full p-2">
+          <div className="flex items-center gap-2">
             <div
-              className={`w-2 h-2 rounded-full flex-shrink-0 mt-1.5 ${colorClasses[
+              className={`w-2 h-2 rounded-full flex-shrink-0 ${colorClasses[
                 color as keyof typeof colorClasses
               ]
                 ?.split(" ")
                 .slice(1)
                 .join(" ")}`}
-            ></div>
-            <div className="text-left">
-              <div className="flex items-center gap-2">
-                <h3
-                  className={`text-sm font-bold uppercase tracking-wider ${
-                    colorClasses[color as keyof typeof colorClasses]?.split(
-                      " "
-                    )[0]
-                  }`}
-                >
-                  {title}
-                </h3>
-                {count !== undefined && count > 0 && (
-                  <span className="px-1.5 py-0.5 text-xs font-bold bg-purple-500/30 text-purple-300 rounded">
-                    {count}
-                  </span>
-                )}
-              </div>
-              <p className="text-xs text-slate-400 mt-0.5">{description}</p>
-            </div>
+            />
           </div>
-          {isExpanded ? (
-            <ChevronUp className="w-4 h-4 text-purple-400 flex-shrink-0 group-hover:text-purple-300" />
-          ) : (
-            <ChevronDown className="w-4 h-4 text-purple-400 flex-shrink-0 group-hover:text-purple-300" />
-          )}
+          <div className="flex-1 ml-2">
+            <h3
+              className={`text-sm font-bold uppercase tracking-wider ${
+                colorClasses[color as keyof typeof colorClasses]?.split(" ")[0]
+              }`}
+            >
+              {title}
+            </h3>
+            <p className="text-xs text-slate-400 mt-1">{description}</p>
+          </div>
+          <div className="ml-auto">
+            {isExpanded ? (
+              <ChevronUp className="w-4 h-4 text-purple-400 group-hover:text-purple-300 transition-colors" />
+            ) : (
+              <ChevronDown className="w-4 h-4 text-purple-400 group-hover:text-purple-300 transition-colors" />
+            )}
+          </div>
         </div>
       </Button>
       {isExpanded && <div className="px-2">{children}</div>}
     </div>
   );
 });
+
 
 export default EditorClient;
