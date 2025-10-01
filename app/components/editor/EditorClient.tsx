@@ -622,13 +622,13 @@ const EditorClient = memo(function EditorClient({
             </div>
           </div>
         </div>
-        <div className="flex flex-1 flex-col min-w-0 overflow-hidden bg-gradient-to-br from-[#0f0f23] to-[#1e1b4b]">
+        <div className="flex flex-1 flex-col min-w-0 max-h-[calc(100vh-4rem)] overflow-hidden bg-gradient-to-br from-[#0f0f23] to-[#1e1b4b]">
           <ResizablePane
-            initialSize={45}
-            minSize={20}
-            maxSize={75}
+            initialSize={50}
+            minSize={30}
+            maxSize={70}
             direction="vertical"
-            className="p-2 sm:p-3 md:p-4 min-h-[180px] sm:min-h-[220px] md:min-h-[280px] overflow-hidden"
+            className="p-2 sm:p-3 md:p-4 min-h-[200px] max-h-[50vh] overflow-hidden"
           >
             <div className="h-full w-full rounded-2xl overflow-hidden border-2 border-purple-500/30 shadow-[0_0_30px_rgba(139,92,246,0.15)]">
               <CodeMirrorEditor
@@ -657,11 +657,11 @@ const EditorClient = memo(function EditorClient({
             </div>
           </ResizablePane>
           <ResizablePane
-            initialSize={55}
-            minSize={25}
-            maxSize={80}
+            initialSize={50}
+            minSize={30}
+            maxSize={70}
             direction="vertical"
-            className="p-2 sm:p-3 md:p-4 min-h-[180px] sm:min-h-[220px] md:min-h-[300px] overflow-hidden"
+            className="p-2 sm:p-3 md:p-4 min-h-[200px] max-h-[50vh] overflow-hidden"
           >
             <div className="h-full w-full rounded-2xl overflow-hidden border-2 border-purple-500/30 shadow-[0_0_30px_rgba(139,92,246,0.15)] bg-gradient-to-br from-[#0f0f23] to-[#1e1b4b]">
               <ResultsPane error={queryError ?? ""} loading={false} />
