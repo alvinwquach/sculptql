@@ -115,8 +115,6 @@ export async function generateSqlFromNaturalLanguage({
     const isVercelEnvironment = !!process.env.OPENAI_API_KEY;
 
     if (isVercelEnvironment) {
-      console.log("[AI] Using OpenAI directly (Vercel environment)");
-
       const openai = new OpenAI({
         apiKey: process.env.OPENAI_API_KEY,
         timeout: 30000,
@@ -138,20 +136,24 @@ Important guidelines:
 - Use appropriate JOINs for related tables
 - Apply proper WHERE clauses for filtering
 - Use correct aggregation functions when needed
+- Use UNION to combine results from multiple queries (UNION removes duplicates, UNION ALL keeps them)
+- Use HAVING to filter grouped results with aggregate conditions (e.g., HAVING COUNT(*) > 5)
+- Use CASE statements for conditional logic (e.g., CASE WHEN status = 'premium' THEN 'VIP' ELSE 'Standard' END)
+- Use WITH clauses (CTEs) for complex queries or when you need to reference the same subquery multiple times
 - Ensure the query is valid for ${dialect} syntax
 - Do not include comments unless specifically requested
 
 SQL Query:`;
 
       const completion = await openai.chat.completions.create({
-        model: "gpt-3.5-turbo",
+        model: "gpt-4o-mini",
         messages: [
           {
             role: "user",
             content: prompt,
           },
         ],
-        max_tokens: 500,
+        max_tokens: 800,
         temperature: 0.1,
       });
 
