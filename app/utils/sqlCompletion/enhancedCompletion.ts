@@ -39,29 +39,29 @@ export class EnhancedSQLCompletion {
       const textBeforeCursor = docText.slice(0, pos).trim();
       
       // Determine completion context quickly
-      const context = this.getCompletionContext(textBeforeCursor, pos, null);
+      const context = this.getCompletionContext(textBeforeCursor);
       
       switch (context.type) {
         case 'select':
-          return this.getSelectCompletion(currentWord, pos, word, context);
+          return this.getSelectCompletion(currentWord, pos, word);
         case 'from':
-          return this.getFromCompletion(currentWord, pos, word, context);
+          return this.getFromCompletion(currentWord, pos, word);
         case 'after_from':
-          return this.getAfterFromCompletion(currentWord, pos, word, context);
+          return this.getAfterFromCompletion(currentWord, pos, word);
         case 'where':
-          return this.getWhereCompletion(currentWord, pos, word, context);
+          return this.getWhereCompletion(currentWord, pos, word);
         case 'join':
-          return this.getJoinCompletion(currentWord, pos, word, context);
+          return this.getJoinCompletion(currentWord, pos, word);
         case 'union':
-          return this.getUnionCompletion(currentWord, pos, word, context);
+          return this.getUnionCompletion(currentWord, pos, word);
         case 'with':
-          return this.getWithCompletion(currentWord, pos, word, context);
+          return this.getWithCompletion(currentWord, pos, word);
         case 'group_by':
-          return this.getGroupByCompletion(currentWord, pos, word, context);
+          return this.getGroupByCompletion(currentWord, pos, word);
         case 'order_by':
-          return this.getOrderByCompletion(currentWord, pos, word, context);
+          return this.getOrderByCompletion(currentWord, pos, word);
         case 'having':
-          return this.getHavingCompletion(currentWord, pos, word, context);
+          return this.getHavingCompletion(currentWord, pos, word);
         default:
           return this.getKeywordCompletion(currentWord, pos, word);
       }
@@ -77,7 +77,7 @@ export class EnhancedSQLCompletion {
   private parseQuery(query: string): unknown {
     try {
       return parser.astify(query);
-    } catch (error) {
+    } catch {
       return null;
     }
   }
@@ -85,7 +85,7 @@ export class EnhancedSQLCompletion {
   /**
    * Determine the completion context based on cursor position
    */
-  private getCompletionContext(textBeforeCursor: string, pos: number, ast: unknown): { type: string; [key: string]: boolean | string } {
+  private getCompletionContext(textBeforeCursor: string): { type: string; [key: string]: boolean | string } {
     
     // Check for CTE context
     if (/\bWITH\s+\w*\s*AS\s*\(\s*SELECT\b/i.test(textBeforeCursor)) {
@@ -146,8 +146,7 @@ export class EnhancedSQLCompletion {
   private getSelectCompletion(
     currentWord: string,
     pos: number,
-    word: { from: number } | null,
-    context: { type: string; [key: string]: boolean | string }
+    word: { from: number } | null
   ): CompletionResult | null {
     const options = [];
     
@@ -164,7 +163,7 @@ export class EnhancedSQLCompletion {
     options.push(...aggregateFunctions);
     
     // Add available columns
-    const availableColumns = this.getAvailableColumns(context);
+    const availableColumns = this.getAvailableColumns();
     options.push(...availableColumns.map(col => ({
       label: col,
       type: 'field',
@@ -186,8 +185,7 @@ export class EnhancedSQLCompletion {
   private getFromCompletion(
     currentWord: string,
     pos: number,
-    word: { from: number } | null,
-    context: { type: string; [key: string]: boolean | string }
+    word: { from: number } | null
   ): CompletionResult | null {
     const filteredTables = this.tableNames.filter(table =>
       currentWord ? this.stripQuotes(table).toLowerCase().startsWith(this.stripQuotes(currentWord).toLowerCase()) : true
@@ -212,8 +210,7 @@ export class EnhancedSQLCompletion {
   private getAfterFromCompletion(
     currentWord: string,
     pos: number,
-    word: { from: number } | null,
-    context: { type: string; [key: string]: boolean | string }
+    word: { from: number } | null
   ): CompletionResult | null {
     const options = [];
     
@@ -252,8 +249,7 @@ export class EnhancedSQLCompletion {
   private getWhereCompletion(
     currentWord: string,
     pos: number,
-    word: { from: number } | null,
-    context: { type: string; [key: string]: boolean | string }
+    word: { from: number } | null
   ): CompletionResult | null {
     const options = [];
     
@@ -283,7 +279,7 @@ export class EnhancedSQLCompletion {
     options.push(...logicalOperators);
     
     // Add available columns
-    const availableColumns = this.getAvailableColumns(context);
+    const availableColumns = this.getAvailableColumns();
     options.push(...availableColumns.map(col => ({
       label: col,
       type: 'field',
@@ -305,8 +301,7 @@ export class EnhancedSQLCompletion {
   private getJoinCompletion(
     currentWord: string,
     pos: number,
-    word: { from: number } | null,
-    context: { type: string; [key: string]: boolean | string }
+    word: { from: number } | null
   ): CompletionResult | null {
     const options = [];
     
@@ -346,8 +341,7 @@ export class EnhancedSQLCompletion {
   private getUnionCompletion(
     currentWord: string,
     pos: number,
-    word: { from: number } | null,
-    context: { type: string; [key: string]: boolean | string }
+    word: { from: number } | null
   ): CompletionResult | null {
     const options = [
       { label: 'UNION', apply: 'UNION ', detail: 'Union (removes duplicates)' },
@@ -368,8 +362,7 @@ export class EnhancedSQLCompletion {
   private getWithCompletion(
     currentWord: string,
     pos: number,
-    word: { from: number } | null,
-    context: { type: string; [key: string]: boolean | string }
+    word: { from: number } | null
   ): CompletionResult | null {
     const options = [
       { label: 'WITH', apply: 'WITH ', detail: 'Common Table Expression' },
@@ -390,11 +383,10 @@ export class EnhancedSQLCompletion {
   private getGroupByCompletion(
     currentWord: string,
     pos: number,
-    word: { from: number } | null,
-    context: { type: string; [key: string]: boolean | string }
+    word: { from: number } | null
   ): CompletionResult | null {
-    const availableColumns = this.getAvailableColumns(context);
-    
+    const availableColumns = this.getAvailableColumns();
+
     return {
       from: word ? word.from : pos,
       options: availableColumns.map(col => ({
@@ -414,8 +406,7 @@ export class EnhancedSQLCompletion {
   private getHavingCompletion(
     currentWord: string,
     pos: number,
-    word: { from: number } | null,
-    context: { type: string; [key: string]: boolean | string }
+    word: { from: number } | null
   ): CompletionResult | null {
     const options = [];
     
@@ -456,8 +447,7 @@ export class EnhancedSQLCompletion {
   private getOrderByCompletion(
     currentWord: string,
     pos: number,
-    word: { from: number } | null,
-    context: { type: string; [key: string]: boolean | string }
+    word: { from: number } | null
   ): CompletionResult | null {
     const options = [];
     
@@ -470,7 +460,7 @@ export class EnhancedSQLCompletion {
     options.push(...directions);
     
     // Add available columns
-    const availableColumns = this.getAvailableColumns(context);
+    const availableColumns = this.getAvailableColumns();
     options.push(...availableColumns.map(col => ({
       label: col,
       type: 'field',
@@ -568,7 +558,7 @@ export class EnhancedSQLCompletion {
   /**
    * Get text before cursor position for context analysis
    */
-  private getTextBeforeCursor(_pos: number): string {
+  private getTextBeforeCursor(): string {
     // This would need to be passed from the completion context
     // For now, return empty string - this should be enhanced
     return '';
@@ -577,7 +567,7 @@ export class EnhancedSQLCompletion {
   /**
    * Get available columns based on context
    */
-  private getAvailableColumns(_context: { type: string; [key: string]: boolean | string }): string[] {
+  private getAvailableColumns(): string[] {
     const columns = [];
     
     // Add columns from all tables for now

@@ -17,6 +17,7 @@ import { syntaxHighlighting, defaultHighlightStyle } from "@codemirror/language"
 import { Database as DatabaseType } from "@/app/types/query";
 import AutocompleteSimulation from "@/app/components/landing/AutocompleteSimulation";
 import VisualQueryBuilder from "@/app/components/landing/VisualQueryBuilder";
+import NaturalLanguageDemo from "@/app/components/landing/NaturalLanguageDemo";
 import {
   Database,
   BarChart2,
@@ -28,6 +29,7 @@ import {
   LucideGithub,
   Copy,
   Check,
+  Sparkles,
 } from "lucide-react";
 import Link from "next/link";
 import { Input } from "@/components/ui/input";
@@ -37,7 +39,6 @@ import { Button } from "@/components/ui/button";
 gsap.registerPlugin(ScrollTrigger, ScrambleTextPlugin, MotionPathPlugin);
 
 type LineDiv = HTMLDivElement & { orig?: string };
-
 
 export default function Home() {
   const typewriterRef = useRef<HTMLButtonElement>(null);
@@ -51,135 +52,147 @@ export default function Home() {
   const [copied, setCopied] = useState(false);
 
   // Custom theme matching CodeMirrorEditor.tsx
-  const customTheme = EditorView.theme({
-    "&": {
-      backgroundColor: "#0a0a0f",
-      color: "#e0e6ed",
-      fontSize: "clamp(14px, 2.5vw, 16px)",
-      height: "100%",
-      border: "2px solid transparent",
-      borderRadius: "16px",
-      background: "linear-gradient(#0a0a0f, #0a0a0f) padding-box, linear-gradient(135deg, #8b5cf6, #f472b6, #10b981, #fbbf24) border-box",
-      boxShadow: "0 0 40px rgba(139, 92, 246, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.1)",
-      position: "relative",
-      overflow: "hidden",
+  const customTheme = EditorView.theme(
+    {
+      "&": {
+        backgroundColor: "#0a0a0f",
+        color: "#e0e6ed",
+        fontSize: "clamp(14px, 2.5vw, 16px)",
+        height: "100%",
+        border: "2px solid transparent",
+        borderRadius: "16px",
+        background:
+          "linear-gradient(#0a0a0f, #0a0a0f) padding-box, linear-gradient(135deg, #8b5cf6, #f472b6, #10b981, #fbbf24) border-box",
+        boxShadow:
+          "0 0 40px rgba(139, 92, 246, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.1)",
+        position: "relative",
+        overflow: "hidden",
+      },
+      "&::before": {
+        content: '""',
+        position: "absolute",
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        background:
+          "linear-gradient(135deg, rgba(139, 92, 246, 0.05), rgba(244, 114, 182, 0.05), rgba(16, 185, 129, 0.05))",
+        pointerEvents: "none",
+        zIndex: 0,
+      },
+      ".cm-content": {
+        caretColor: "#f472b6",
+        padding: "1rem",
+        minHeight: "auto",
+        fontFamily:
+          "'JetBrains Mono', 'Fira Code', 'SF Mono', 'Monaco', 'Cascadia Code', monospace",
+        lineHeight: "1.7",
+        position: "relative",
+        zIndex: 1,
+        background: "transparent",
+      },
+      ".cm-line": {
+        backgroundColor: "transparent",
+        fontFamily:
+          "'JetBrains Mono', 'Fira Code', 'SF Mono', 'Monaco', 'Cascadia Code', monospace",
+      },
+      ".cm-keyword": {
+        color: "#f472b6 !important",
+        fontWeight: "700",
+        textShadow: "0 0 12px rgba(244, 114, 182, 0.6)",
+        background: "linear-gradient(135deg, #f472b6, #ec4899)",
+        WebkitBackgroundClip: "text",
+        WebkitTextFillColor: "transparent",
+      },
+      ".cm-operator": {
+        color: "#8b5cf6 !important",
+        fontWeight: "600",
+        textShadow: "0 0 8px rgba(139, 92, 246, 0.5)",
+      },
+      ".cm-variableName": {
+        color: "#fbbf24 !important",
+        textShadow: "0 0 10px rgba(251, 191, 36, 0.5)",
+        fontWeight: "600",
+      },
+      ".cm-string": {
+        color: "#10b981",
+        textShadow: "0 0 8px rgba(16, 185, 129, 0.4)",
+        fontWeight: "500",
+      },
+      ".cm-comment": {
+        color: "#6b7280",
+        fontStyle: "italic",
+        opacity: 0.8,
+      },
+      ".cm-attribute": {
+        color: "#f472b6",
+        fontWeight: "600",
+      },
+      ".cm-property": {
+        color: "#10b981",
+        fontWeight: "600",
+      },
+      ".cm-atom": {
+        color: "#f472b6",
+        fontWeight: "600",
+      },
+      ".cm-number": {
+        color: "#f59e0b",
+        fontWeight: "700",
+        textShadow: "0 0 6px rgba(245, 158, 11, 0.4)",
+      },
+      ".cm-def": {
+        color: "#fbbf24",
+        fontWeight: "600",
+      },
+      ".cm-variable-2": {
+        color: "#8b5cf6",
+        fontWeight: "600",
+      },
+      ".cm-tag": {
+        color: "#8b5cf6",
+        fontWeight: "600",
+      },
+      "&.cm-focused .cm-cursor": {
+        borderLeftColor: "#f472b6",
+        borderLeftWidth: "3px",
+        boxShadow:
+          "0 0 20px rgba(244, 114, 182, 0.8), 0 0 40px rgba(244, 114, 182, 0.4)",
+        animation: "pulse 2s infinite",
+      },
+      "&.cm-focused .cm-selectionBackground, ::selection": {
+        backgroundColor: "rgba(244, 114, 182, 0.25)",
+        border: "1px solid rgba(244, 114, 182, 0.5)",
+        borderRadius: "4px",
+      },
+      ".cm-gutters": {
+        backgroundColor: "#1a1a2e",
+        color: "#8b5cf6",
+        border: "none",
+        fontFamily:
+          "'JetBrains Mono', 'Fira Code', 'SF Mono', 'Monaco', 'Cascadia Code', monospace",
+        background: "linear-gradient(180deg, #1a1a2e 0%, #16213e 100%)",
+        boxShadow:
+          "2px 0 15px rgba(0, 0, 0, 0.4), inset -1px 0 0 rgba(139, 92, 246, 0.2)",
+      },
+      ".cm-gutter": {
+        background: "transparent",
+        border: "none",
+        fontFamily:
+          "'JetBrains Mono', 'Fira Code', 'SF Mono', 'Monaco', 'Cascadia Code', monospace",
+      },
+      ".cm-lineNumbers": {
+        color: "#8b5cf6",
+        textShadow: "0 0 5px rgba(139, 92, 246, 0.4)",
+      },
+      ".cm-active-line": {
+        backgroundColor: "rgba(139, 92, 246, 0.1)",
+        boxShadow: "0 0 20px rgba(139, 92, 246, 0.2)",
+        borderLeft: "3px solid #8b5cf6",
+      },
     },
-    "&::before": {
-      content: '""',
-      position: "absolute",
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      background: "linear-gradient(135deg, rgba(139, 92, 246, 0.05), rgba(244, 114, 182, 0.05), rgba(16, 185, 129, 0.05))",
-      pointerEvents: "none",
-      zIndex: 0,
-    },
-    ".cm-content": {
-      caretColor: "#f472b6",
-      padding: "1rem",
-      minHeight: "auto",
-      fontFamily: "'JetBrains Mono', 'Fira Code', 'SF Mono', 'Monaco', 'Cascadia Code', monospace",
-      lineHeight: "1.7",
-      position: "relative",
-      zIndex: 1,
-      background: "transparent",
-    },
-    ".cm-line": { 
-      backgroundColor: "transparent",
-      fontFamily: "'JetBrains Mono', 'Fira Code', 'SF Mono', 'Monaco', 'Cascadia Code', monospace",
-    },
-    ".cm-keyword": { 
-      color: "#f472b6 !important",
-      fontWeight: "700",
-      textShadow: "0 0 12px rgba(244, 114, 182, 0.6)",
-      background: "linear-gradient(135deg, #f472b6, #ec4899)",
-      WebkitBackgroundClip: "text",
-      WebkitTextFillColor: "transparent",
-    },
-    ".cm-operator": { 
-      color: "#8b5cf6 !important",
-      fontWeight: "600",
-      textShadow: "0 0 8px rgba(139, 92, 246, 0.5)",
-    },
-    ".cm-variableName": { 
-      color: "#fbbf24 !important",
-      textShadow: "0 0 10px rgba(251, 191, 36, 0.5)",
-      fontWeight: "600",
-    },
-    ".cm-string": { 
-      color: "#10b981",
-      textShadow: "0 0 8px rgba(16, 185, 129, 0.4)",
-      fontWeight: "500",
-    },
-    ".cm-comment": { 
-      color: "#6b7280",
-      fontStyle: "italic",
-      opacity: 0.8,
-    },
-    ".cm-attribute": { 
-      color: "#f472b6",
-      fontWeight: "600",
-    },
-    ".cm-property": { 
-      color: "#10b981",
-      fontWeight: "600",
-    },
-    ".cm-atom": { 
-      color: "#f472b6",
-      fontWeight: "600",
-    },
-    ".cm-number": { 
-      color: "#f59e0b",
-      fontWeight: "700",
-      textShadow: "0 0 6px rgba(245, 158, 11, 0.4)",
-    },
-    ".cm-def": { 
-      color: "#fbbf24",
-      fontWeight: "600",
-    },
-    ".cm-variable-2": { 
-      color: "#8b5cf6",
-      fontWeight: "600",
-    },
-    ".cm-tag": { 
-      color: "#8b5cf6",
-      fontWeight: "600",
-    },
-    "&.cm-focused .cm-cursor": { 
-      borderLeftColor: "#f472b6",
-      borderLeftWidth: "3px",
-      boxShadow: "0 0 20px rgba(244, 114, 182, 0.8), 0 0 40px rgba(244, 114, 182, 0.4)",
-      animation: "pulse 2s infinite",
-    },
-    "&.cm-focused .cm-selectionBackground, ::selection": {
-      backgroundColor: "rgba(244, 114, 182, 0.25)",
-      border: "1px solid rgba(244, 114, 182, 0.5)",
-      borderRadius: "4px",
-    },
-    ".cm-gutters": {
-      backgroundColor: "#1a1a2e",
-      color: "#8b5cf6",
-      border: "none",
-      fontFamily: "'JetBrains Mono', 'Fira Code', 'SF Mono', 'Monaco', 'Cascadia Code', monospace",
-      background: "linear-gradient(180deg, #1a1a2e 0%, #16213e 100%)",
-      boxShadow: "2px 0 15px rgba(0, 0, 0, 0.4), inset -1px 0 0 rgba(139, 92, 246, 0.2)",
-    },
-    ".cm-gutter": { 
-      background: "transparent", 
-      border: "none",
-      fontFamily: "'JetBrains Mono', 'Fira Code', 'SF Mono', 'Monaco', 'Cascadia Code', monospace",
-    },
-    ".cm-lineNumbers": {
-      color: "#8b5cf6",
-      textShadow: "0 0 5px rgba(139, 92, 246, 0.4)",
-    },
-    ".cm-active-line": { 
-      backgroundColor: "rgba(139, 92, 246, 0.1)",
-      boxShadow: "0 0 20px rgba(139, 92, 246, 0.2)",
-      borderLeft: "3px solid #8b5cf6",
-    },
-  }, { dark: true });
+    { dark: true }
+  );
 
   const handleCopy = async () => {
     try {
@@ -191,25 +204,36 @@ export default function Home() {
     }
   };
 
-  const sqlLines = useMemo(() => [
-    "SELECT ranger_name, color, power_level",
-    "FROM power_rangers",
-    "WHERE team = 'Mighty Morphin'",
-    "ORDER BY power_level DESC;",
-  ], []);
+  const sqlLines = useMemo(
+    () => [
+      "SELECT ranger_name, color, power_level",
+      "FROM power_rangers",
+      "WHERE team = 'Mighty Morphin'",
+      "ORDER BY power_level DESC;",
+    ],
+    []
+  );
 
-  const tooltips = useMemo(() => [
-    "Select these columns: ranger_name, color, power_level",
-    "From the table: power_rangers",
-    "Filter rows where team equals 'Mighty Morphin'",
-    "Sort results by power_level descending",
-  ], []);
+  const tooltips = useMemo(
+    () => [
+      "Select these columns: ranger_name, color, power_level",
+      "From the table: power_rangers",
+      "Filter rows where team equals 'Mighty Morphin'",
+      "Sort results by power_level descending",
+    ],
+    []
+  );
 
   const overviewItems = [
     {
       icon: Lightbulb,
       title: "GUI Autocomplete",
       desc: "Build SQL queries effortlessly with a visual, context-aware autocomplete system.",
+    },
+    {
+      icon: Sparkles,
+      title: "AI Natural Language",
+      desc: "Write queries in plain English and let AI convert them to perfect SQL automatically.",
     },
     {
       icon: Table2,
@@ -333,7 +357,7 @@ ORDER BY count DESC;`,
       duration: 20,
       repeat: -1,
       yoyo: true,
-      ease: "sine.inOut"
+      ease: "sine.inOut",
     });
 
     // Animate the background blur
@@ -344,7 +368,7 @@ ORDER BY count DESC;`,
       duration: 25,
       repeat: -1,
       yoyo: true,
-      ease: "sine.inOut"
+      ease: "sine.inOut",
     });
 
     // Animate the background blur
@@ -355,7 +379,7 @@ ORDER BY count DESC;`,
       duration: 30,
       repeat: -1,
       yoyo: true,
-      ease: "sine.inOut"
+      ease: "sine.inOut",
     });
 
     // Animate the text lines
@@ -418,7 +442,6 @@ ORDER BY count DESC;`,
       );
     });
 
-
     if (overviewRef.current) {
       // Animate the features
       gsap.fromTo(
@@ -441,7 +464,8 @@ ORDER BY count DESC;`,
 
     // Editor is static by default, only animates on scroll
     if (editorRef.current) {
-      gsap.fromTo(editorRef.current, 
+      gsap.fromTo(
+        editorRef.current,
         {
           opacity: 0,
           scale: 0.95,
@@ -521,6 +545,12 @@ ORDER BY count DESC;`,
               Features
             </a>
             <a
+              href="#ai-natural-language"
+              className="text-pink-200 hover:text-pink-400 transition-colors"
+            >
+              AI Queries
+            </a>
+            <a
               href="#query-builder"
               className="text-pink-200 hover:text-pink-400 transition-colors"
             >
@@ -590,12 +620,15 @@ ORDER BY count DESC;`,
               </div>
             </div>
             <div className="relative">
-              <AutocompleteSimulation height="300px" className="w-full sm:h-[400px]" />
+              <AutocompleteSimulation
+                height="300px"
+                className="w-full sm:h-[400px]"
+              />
             </div>
           </div>
         </div>
       </section>
-      <section className="py-12 px-4 sm:px-8 lg:px-16 bg-[#111827]">
+      <section className="py-20 px-4 sm:px-8 lg:px-16 bg-[#111827]">
         <div className="text-left font-mono text-base sm:text-lg mb-8 max-w-3xl mx-auto">
           {sqlLines.map((line, idx) => (
             <div
@@ -612,42 +645,29 @@ ORDER BY count DESC;`,
         </div>
       </section>
       <section
-        id="features"
-        className="py-20 px-4 sm:px-8 lg:px-16 bg-gradient-to-br from-gray-800/50 to-purple-900/30"
+        id="ai-natural-language"
+        className="py-20 px-4 sm:px-8 lg:px-16 bg-gradient-to-br from-purple-900/30 to-pink-900/20"
       >
         <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
-              Everything you need to build better SQL
-            </h2>
-            <p className="text-xl text-pink-100 max-w-3xl mx-auto">
-              Powerful features designed to make SQL development faster, safer,
-              and more intuitive.
-            </p>
-          </div>
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {overviewItems.map((item, i) => (
-              <div
-                key={i}
-                ref={(el) => {
-                  if (el) featureRefs.current[i] = el;
-                }}
-                className="bg-gradient-to-br from-gray-800/80 to-purple-800/40 p-8 rounded-xl shadow-lg hover:shadow-2xl hover:shadow-pink-500/25 transition-all duration-300 border border-pink-500/30 hover:border-pink-400/50"
-              >
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="p-2 bg-pink-500/20 rounded-lg">
-                    <item.icon className="w-6 h-6 text-pink-400" />
-                  </div>
-                  <h3 className="text-xl font-semibold text-pink-400">
-                    {item.title}
-                  </h3>
-                </div>
-                <p className="text-pink-100">{item.desc}</p>
-              </div>
-            ))}
-          </div>
+          <NaturalLanguageDemo className="max-w-6xl mx-auto" />
         </div>
       </section>
+      {/* <section className="py-12 px-4 sm:px-8 lg:px-16 bg-[#111827]">
+        <div className="text-left font-mono text-base sm:text-lg mb-8 max-w-3xl mx-auto">
+          {sqlLines.map((line, idx) => (
+            <div
+              key={idx}
+              ref={addLineRef}
+              className="relative group cursor-pointer py-1"
+            >
+              <span className="block">{line}</span>
+              <div className="absolute left-full ml-4 px-3 py-1 rounded-md bg-slate-900 text-slate-200 text-sm opacity-0 group-hover:opacity-100 w-64 transition-all">
+                {tooltips[idx]}
+              </div>
+            </div>
+          ))}
+        </div>
+      </section> */}
       <section
         id="query-builder"
         className="py-20 px-4 sm:px-8 lg:px-16 bg-gradient-to-br from-cyan-900/20 to-pink-900/20"
@@ -743,8 +763,10 @@ ORDER BY count DESC;`,
                 minHeight: "500px",
                 minWidth: "100%",
                 border: "2px solid transparent",
-                background: "linear-gradient(#0f0f23, #0f0f23) padding-box, linear-gradient(135deg, #8b5cf6, #f472b6, #10b981, #fbbf24) border-box",
-                boxShadow: "0 0 40px rgba(139, 92, 246, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.1)",
+                background:
+                  "linear-gradient(#0f0f23, #0f0f23) padding-box, linear-gradient(135deg, #8b5cf6, #f472b6, #10b981, #fbbf24) border-box",
+                boxShadow:
+                  "0 0 40px rgba(139, 92, 246, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.1)",
                 borderRadius: "0px",
               }}
             >
@@ -778,29 +800,29 @@ ORDER BY count DESC;`,
                   </Button>
                 ))}
               </div>
-                <CodeMirror
-                  value={queries[activeTab].code}
-                  height="450px"
-                  width="100%"
-                  extensions={[
-                    sql(),
-                    customTheme,
-                    syntaxHighlighting(defaultHighlightStyle, { fallback: true })
-                  ]}
-                  editable={false}
-                  basicSetup={{
-                    lineNumbers: true,
-                    foldGutter: true,
-                    dropCursor: false,
-                    allowMultipleSelections: false,
-                    indentOnInput: false,
-                    bracketMatching: true,
-                    closeBrackets: false,
-                    autocompletion: false,
-                    highlightSelectionMatches: false,
-                    searchKeymap: false,
-                  }}
-                />
+              <CodeMirror
+                value={queries[activeTab].code}
+                height="450px"
+                width="100%"
+                extensions={[
+                  sql(),
+                  customTheme,
+                  syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
+                ]}
+                editable={false}
+                basicSetup={{
+                  lineNumbers: true,
+                  foldGutter: true,
+                  dropCursor: false,
+                  allowMultipleSelections: false,
+                  indentOnInput: false,
+                  bracketMatching: true,
+                  closeBrackets: false,
+                  autocompletion: false,
+                  highlightSelectionMatches: false,
+                  searchKeymap: false,
+                }}
+              />
             </div>
           </div>
         </div>

@@ -12,6 +12,8 @@ import * as mssql from "mssql";
 import { open, Database as SqliteDatabase } from "sqlite";
 import * as sqlite3 from "sqlite3";
 import oracledb, { Pool as OraclePool } from "oracledb";
+import { generateSqlFromNaturalLanguage } from "@/app/lib/llm/openai";
+import { ApiTableSchema } from "@/app/types/query";
 
 // Interface for the schema cache entry
 interface SchemaCacheEntry {
@@ -539,9 +541,9 @@ async function createDatabasePool(): Promise<DatabasePool> {
       max: commonPoolSettings.max,
       min: commonPoolSettings.min,
       idleTimeoutMillis: commonPoolSettings.idleTimeoutMillis,
-      connectionTimeoutMillis: 5000, 
-      query_timeout: 10000,
-      statement_timeout: 10000,
+      connectionTimeoutMillis: 10000, // Increased for better reliability
+      query_timeout: 60000, // Increased to 60 seconds for schema operations
+      statement_timeout: 60000, // Increased to 60 seconds for schema operations
       application_name: "sculptql-api",
       keepAlive: true,
       keepAliveInitialDelayMillis: 10000,
@@ -1279,17 +1281,51 @@ const typeDefs = /* GraphQL */ `
   type Query {
     schema(tableSearch: String, columnSearch: String, limit: Int, includeSampleData: Boolean = false): [Table!]!
     schemaVersion: SchemaVersion!
+    dialect: String!
   }
 
-  # Root mutation type
+  # Input types for mutations
+  input ColumnSchemaInput {
+    column_name: String!
+    data_type: String!
+    is_nullable: String!
+    is_primary_key: Boolean!
+  }
+
+  input ForeignKeySchemaInput {
+    column_name: String!
+    referenced_table: String!
+    referenced_column: String!
+    constraint_name: String!
+  }
+
+  input TableSchemaInput {
+    table_name: String!
+    columns: [ColumnSchemaInput!]!
+    primary_keys: [String!]
+    foreign_keys: [ForeignKeySchemaInput!]!
+  }
+
+  type GenerateSqlResult {
+    sql: String!
+  }
+
   type Mutation {
     runQuery(query: String!): QueryResult!
+    generateSqlFromNaturalLanguage(
+      naturalLanguage: String!
+      schema: [TableSchemaInput!]!
+      dialect: String
+    ): GenerateSqlResult!
     invalidateSchemaCache: Boolean!
   }
 `;
 
 const resolvers = {
   Query: {
+    dialect: async (): Promise<string> => {
+      return dialect;
+    },
     schema: async (
       _: unknown,
       { tableSearch = "", columnSearch = "", limit, includeSampleData = false }: SchemaArgs
@@ -1409,15 +1445,18 @@ const resolvers = {
             }
             
             // Process sample data if needed
-            const sampleDataPromises = includeSampleData ? 
+            const sampleDataPromises = includeSampleData ?
               tableNames.map(async (tableName) => {
                 const { query: sampleQuery, params: sampleParams } = SqlQueries.getSampleDataQuery(dialect, tableName, limit);
+                console.log(`Fetching sample data for table: ${tableName}`);
+                console.log(`Sample query: ${sampleQuery}`);
                 const sampleResult = await executeQueryWithCache<Record<string, unknown>>(
                   adapter, sampleQuery, sampleParams,
                   queryResultCache.generateKey(sampleQuery, sampleParams), 60000
                 );
+                console.log(`Sample data for ${tableName}:`, sampleResult.rows.length, 'rows');
                 return { tableName, values: sampleResult.rows };
-              }) : 
+              }) :
               tableNames.map(tableName => ({ tableName, values: [] }));
             
             const sampleDataResults = await Promise.all(sampleDataPromises);
@@ -1433,6 +1472,7 @@ const resolvers = {
                 continue;
               }
               
+              const tableValues = sampleDataMap.get(table.table_name) || [];
               const tableResult: Table = {
                 table_catalog: table.table_catalog,
                 table_schema: table.table_schema,
@@ -1442,9 +1482,14 @@ const resolvers = {
                 columns: tableData.columns,
                 primary_keys: tableData.primaryKeys,
                 foreign_keys: tableData.foreignKeys,
-                values: sampleDataMap.get(table.table_name) || []
+                values: tableValues
               };
-              
+
+              console.log(`Table ${table.table_name} sample data:`, tableValues.length, 'rows');
+              if (tableValues.length > 0) {
+                console.log(`Sample row:`, tableValues[0]);
+              }
+
               schema.push(tableResult);
               console.log(`Successfully processed table: ${table.table_name} with ${tableData.columns.length} columns`);
             }
@@ -1646,6 +1691,49 @@ const resolvers = {
     },
   },
   Mutation: {
+    generateSqlFromNaturalLanguage: async (
+      _: unknown,
+      { naturalLanguage, schema, dialect }: {
+        naturalLanguage: string;
+        schema: ApiTableSchema[];
+        dialect?: string;
+      }
+    ): Promise<{ sql: string }> => {
+      try {
+        // If the natural language is not null and the natural language is not empty, throw an error
+        if (!naturalLanguage?.trim()) {
+          throw new Error('Natural language query is required');
+        }
+
+        // If the schema is not null and the schema length is 0, throw an error
+        if (!schema || schema.length === 0) {
+          throw new Error('Database schema is required');
+        }
+
+        // Schema is already processed and in correct format
+
+        // Log the generating sql from natural language
+        console.log(`Generating SQL from natural language: "${naturalLanguage}"`);
+        // Log the using dialect
+        console.log(`Using dialect: ${dialect || 'postgres'}`);
+
+        // Generate the sql from natural language
+        const generatedSql = await generateSqlFromNaturalLanguage({
+          naturalLanguage,
+          schema,
+          dialect: dialect || 'postgres'
+        });
+        // Log the generated sql
+        console.log(`Generated SQL: ${generatedSql}`);
+        // Return the generated sql
+        return { sql: generatedSql };
+      } catch (error) {
+        // Log the error generating sql from natural language
+        console.error('Error generating SQL from natural language:', error);
+        // Throw the error
+        throw new Error(`Failed to generate SQL: ${(error as Error).message}`);
+      }
+    },
     runQuery: async (
       _: unknown,
       { query }: { query: string }

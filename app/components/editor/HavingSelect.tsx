@@ -4,7 +4,6 @@ import { useEditorContext } from "@/app/context/EditorContext";
 import { JoinClause, SelectOption } from "@/app/types/query";
 import { SingleValue } from "react-select";
 import CreatableSelect from "react-select/creatable";
-import { stripQuotes } from "@/app/utils/sqlCompletion/stripQuotes";
 import { selectStyles } from "@/app/utils/selectStyles";
 import { Label } from "@/components/ui/label"
 

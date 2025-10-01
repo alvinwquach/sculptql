@@ -1,9 +1,11 @@
-import { TableSchema } from "@/app/types/query";
+import { TableSchema, ApiTableSchema, SchemaContext } from "@/app/types/query";
 
 interface SchemaCacheEntry {
   schema: TableSchema[];
   timestamp: number;
   includeSampleData: boolean;
+  apiSchema?: ApiTableSchema[];
+  schemaContext?: SchemaContext;
 }
 
 // Class for the schema cache manager
@@ -15,15 +17,15 @@ class SchemaCacheManager {
   private readonly CACHE_DURATION = 5 * 60 * 1000; 
 
   // Private generate key method
-  private generateKey(tableSearch?: string, columnSearch?: string): string {
+  private generateKey(tableSearch?: string, columnSearch?: string, includeSampleData?: boolean): string {
     // Return the schema key
-    return `schema-${tableSearch || ''}-${columnSearch || ''}`;
+    return `schema-${tableSearch || ''}-${columnSearch || ''}-${includeSampleData || false}`;
   }
 
   // Get method for the schema cache
   get(tableSearch?: string, columnSearch?: string, includeSampleData?: boolean): TableSchema[] | null {
     // Generate the key
-    const key = this.generateKey(tableSearch, columnSearch);
+    const key = this.generateKey(tableSearch, columnSearch, includeSampleData);
     // Get the entry from the cache
     const entry = this.cache.get(key);
     // If the entry is not found, return null
@@ -49,13 +51,13 @@ class SchemaCacheManager {
 
   // Set method for the schema cache
   set(
-    schema: TableSchema[], 
-    tableSearch?: string, 
-    columnSearch?: string, 
+    schema: TableSchema[],
+    tableSearch?: string,
+    columnSearch?: string,
     includeSampleData: boolean = false
   ): void {
     // Generate the key
-    const key = this.generateKey(tableSearch, columnSearch);
+    const key = this.generateKey(tableSearch, columnSearch, includeSampleData);
     // Set the entry in the cache
     this.cache.set(key, {
       schema,
@@ -149,4 +151,95 @@ export function areSchemasCompatible(schema1: TableSchema[], schema2: TableSchem
   }
   // Return true
   return true;
+}
+
+// Schema transformation utilities
+
+/**
+ * Convert internal TableSchema format to API format for GraphQL communication
+ */
+export function transformToApiSchema(schema: TableSchema[]): ApiTableSchema[] {
+  return schema.map(table => ({
+    table_name: table.table_name,
+    columns: table.columns.map(col => ({
+      column_name: col.column_name,
+      data_type: col.data_type,
+      is_nullable: col.is_nullable,
+      is_primary_key: col.is_primary_key,
+    })),
+    primary_keys: table.primary_keys,
+    foreign_keys: table.foreign_keys,
+  }));
+}
+
+/**
+ * Convert TableSchema to AI-optimized SchemaContext format
+ */
+export function transformToSchemaContext(schema: TableSchema[]): SchemaContext {
+  return {
+    tables: schema.map(table => ({
+      name: table.table_name,
+      columns: table.columns.map(col => ({
+        name: col.column_name,
+        type: col.data_type,
+        nullable: col.is_nullable === 'YES',
+        primaryKey: col.is_primary_key,
+      })),
+      relationships: table.foreign_keys.map(fk => ({
+        fromColumn: fk.column_name,
+        toTable: fk.referenced_table,
+        toColumn: fk.referenced_column,
+      })),
+    })),
+  };
+}
+
+/**
+ * Get cached API schema or transform and cache it
+ */
+export function getCachedApiSchema(
+  schema: TableSchema[],
+  cache: SchemaCacheManager
+): ApiTableSchema[] {
+  const cacheKey = 'api-schema';
+  let cached = cache.get(cacheKey) as SchemaCacheEntry | null;
+
+  if (!cached?.apiSchema) {
+    const apiSchema = transformToApiSchema(schema);
+    // Update cache with processed data
+    const entry: SchemaCacheEntry = {
+      schema,
+      timestamp: Date.now(),
+      includeSampleData: false,
+      apiSchema,
+    };
+    // Note: We can't directly set here, but the caller should handle caching
+  }
+
+  return cached?.apiSchema || transformToApiSchema(schema);
+}
+
+/**
+ * Get cached schema context or transform and cache it
+ */
+export function getCachedSchemaContext(
+  schema: TableSchema[],
+  cache: SchemaCacheManager
+): SchemaContext {
+  const cacheKey = 'schema-context';
+  let cached = cache.get(cacheKey) as SchemaCacheEntry | null;
+
+  if (!cached?.schemaContext) {
+    const schemaContext = transformToSchemaContext(schema);
+    // Update cache with processed data
+    const entry: SchemaCacheEntry = {
+      schema,
+      timestamp: Date.now(),
+      includeSampleData: false,
+      schemaContext,
+    };
+    // Note: We can't directly set here, but the caller should handle caching
+  }
+
+  return cached?.schemaContext || transformToSchemaContext(schema);
 }

@@ -7,12 +7,9 @@ import { Button } from "@/components/ui/button";
 import { Trash2, Pin, Bookmark, Tag, Search, Play, Pencil } from "lucide-react";
 
 // Props for the QueryHistory component
-interface QueryHistoryProps {
-  showHistory: boolean;
-}
+interface QueryHistoryProps {}
 
 export default function QueryHistory({
-  showHistory,
 }: QueryHistoryProps) {
   // Get the query history, pinned queries, bookmarked queries, labeled queries, clear history, load query from history, run query, add pinned query, remove pinned query, add bookmarked query, remove bookmarked query, add labeled query, edit labeled query, and remove labeled query from the editor context
   const {

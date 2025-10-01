@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import { useApolloCachePersistence } from "@/app/hooks/useApolloCachePersistence";
 import { useSchemaVersioning } from "@/app/hooks/useSchemaVersioning";
 import { TableSchema } from "@/app/types/query";
-import { schemaCache, areSchemasCompatible } from "@/app/utils/schemaCache";
+import { schemaCache } from "@/app/utils/schemaCache";
 
 /**
  * Unified schema loading hook that ensures consistent caching across all pages
@@ -23,14 +23,9 @@ export function useUnifiedSchema(options: {
     columnSearch,
     limit = 100,
   } = options;
-
-  // Enable cache persistence
   useApolloCachePersistence();
-  
-  // Enable automatic schema versioning and cache invalidation
   useSchemaVersioning();
 
-  // Use Apollo query for schema with proper caching
   const { data, loading, error, refetch } = useQuery<{ schema: TableSchema[] }>(GET_SCHEMA, {
     variables: {
       includeSampleData,
@@ -38,20 +33,17 @@ export function useUnifiedSchema(options: {
       tableSearch: tableSearch || undefined,
       columnSearch: columnSearch || undefined,
     },
-    fetchPolicy: "cache-first", // This ensures we use cache if available
+    fetchPolicy: "cache-first"
     errorPolicy: "all",
     notifyOnNetworkStatusChange: false,
-    // Use a consistent cache key regardless of includeSampleData
     context: {
-      // This helps with cache consistency across different query variants
-      cacheKey: `schema-${limit}-${tableSearch || ''}-${columnSearch || ''}`,
+      cacheKey: `schema-${limit}-${tableSearch || ''}-${columnSearch || ''}-${includeSampleData}`,
     },
   });
 
   const [schema, setSchema] = useState<TableSchema[]>([]);
   const [schemaError, setSchemaError] = useState<string | null>(null);
 
-  // Initialize schema from cache if available and check version
   useEffect(() => {
     const cachedSchema = schemaCache.findCompatible(tableSearch, columnSearch, includeSampleData);
     if (cachedSchema && cachedSchema.length > 0) {
@@ -61,10 +53,8 @@ export function useUnifiedSchema(options: {
     }
   }, [tableSearch, columnSearch, includeSampleData]);
 
-  // Update schema when Apollo query completes
   useEffect(() => {
     if (data?.schema && data.schema.length > 0) {
-      // Cache the schema
       schemaCache.set(data.schema, tableSearch, columnSearch, includeSampleData);
       setSchema(data.schema);
       setSchemaError(null);
