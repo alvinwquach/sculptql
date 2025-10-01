@@ -202,7 +202,7 @@ export function getCachedApiSchema(
   cache: SchemaCacheManager
 ): ApiTableSchema[] {
   const cacheKey = 'api-schema';
-  let cached = cache.get(cacheKey) as SchemaCacheEntry | null;
+  const cached = cache.get(cacheKey) as SchemaCacheEntry | null;
 
   if (!cached?.apiSchema) {
     const apiSchema = transformToApiSchema(schema);

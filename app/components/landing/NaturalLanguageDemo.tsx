@@ -75,6 +75,14 @@ export default function NaturalLanguageDemo({
     },
   ];
 
+  // Function to start the 5-second interval for cycling examples
+  const startInterval = () => {
+    if (intervalRef.current) clearInterval(intervalRef.current);
+    intervalRef.current = setInterval(() => {
+      animateExampleTransition();
+    }, 5000); // 5 seconds
+  };
+
   useEffect(() => {
     const tl = gsap.timeline();
 
@@ -152,15 +160,7 @@ export default function NaturalLanguageDemo({
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
-  }, []);
-
-  // Function to start the 5-second interval for cycling examples
-  const startInterval = () => {
-    if (intervalRef.current) clearInterval(intervalRef.current);
-    intervalRef.current = setInterval(() => {
-      animateExampleTransition();
-    }, 5000); // 5 seconds
-  };
+  }, [startInterval]);
 
   // Function to animate the transition between examples
   const animateExampleTransition = () => {
@@ -563,12 +563,12 @@ export default function NaturalLanguageDemo({
                     <Database className="w-4 h-4" />
                     SQL Query:
                   </p>
-                  <pre
-                    ref={sqlQueryRef}
-                    className="text-cyan-300 text-sm font-mono whitespace-pre-wrap overflow-x-auto"
+                  <p
+                    ref={naturalLanguageRef}
+                    className="text-pink-200 text-sm italic"
                   >
-                    {examples[currentExample].sql}
-                  </pre>
+                    "{examples[currentExample].natural}"
+                  </p>
                 </div>
                 <div className="bg-gray-900/80 rounded-lg p-4 border border-gray-700/50">
                   <p className="text-yellow-300 font-medium text-sm mb-2 flex items-center gap-2">
@@ -586,7 +586,7 @@ export default function NaturalLanguageDemo({
         <div className="text-center mt-8">
           <p className="text-sm text-pink-200">
             Powered by advanced AI to understand context and table
-            relationships,
+            relationships.
             {/* and generate optimized SQL queries */}
           </p>
         </div>
