@@ -153,93 +153,76 @@ export function areSchemasCompatible(schema1: TableSchema[], schema2: TableSchem
   return true;
 }
 
-// Schema transformation utilities
 
 /**
  * Convert internal TableSchema format to API format for GraphQL communication
  */
-export function transformToApiSchema(schema: TableSchema[]): ApiTableSchema[] {
-  return schema.map(table => ({
-    table_name: table.table_name,
-    columns: table.columns.map(col => ({
-      column_name: col.column_name,
-      data_type: col.data_type,
-      is_nullable: col.is_nullable,
-      is_primary_key: col.is_primary_key,
-    })),
-    primary_keys: table.primary_keys,
-    foreign_keys: table.foreign_keys,
-  }));
-}
+ export function transformToApiSchema(schema: TableSchema[]): ApiTableSchema[] {
+   return schema.map((table) => ({
+     table_name: table.table_name,
+     columns: table.columns.map((col) => ({
+       column_name: col.column_name,
+       data_type: col.data_type,
+       is_nullable: col.is_nullable,
+       is_primary_key: col.is_primary_key ?? false,
+     })),
+     primary_keys: table.primary_keys,
+     foreign_keys: table.foreign_keys,
+   }));
+ }
+ /**
+  * Convert TableSchema to AI-optimized SchemaContext format
+  */
+ export function transformToSchemaContext(
+   schema: TableSchema[]
+ ): SchemaContext {
+   return {
+     tables: schema.map((table) => ({
+       name: table.table_name,
+       columns: table.columns.map((col) => ({
+         name: col.column_name,
+         type: col.data_type,
+         nullable: col.is_nullable === "YES",
+         primaryKey: col.is_primary_key ?? false,
+       })),
+       relationships: table.foreign_keys.map((fk) => ({
+         fromColumn: fk.column_name,
+         toTable: fk.referenced_table,
+         toColumn: fk.referenced_column,
+       })),
+     })),
+   };
+ }
 
-/**
- * Convert TableSchema to AI-optimized SchemaContext format
- */
-export function transformToSchemaContext(schema: TableSchema[]): SchemaContext {
-  return {
-    tables: schema.map(table => ({
-      name: table.table_name,
-      columns: table.columns.map(col => ({
-        name: col.column_name,
-        type: col.data_type,
-        nullable: col.is_nullable === 'YES',
-        primaryKey: col.is_primary_key,
-      })),
-      relationships: table.foreign_keys.map(fk => ({
-        fromColumn: fk.column_name,
-        toTable: fk.referenced_table,
-        toColumn: fk.referenced_column,
-      })),
-    })),
-  };
-}
+ /**
+  * Get cached API schema or transform and cache it
+  */
 
-/**
- * Get cached API schema or transform and cache it
- */
-export function getCachedApiSchema(
-  schema: TableSchema[],
-  cache: SchemaCacheManager
-): ApiTableSchema[] {
-  const cacheKey = 'api-schema';
-  const cached = cache.get(cacheKey) as SchemaCacheEntry | null;
+ export function getCachedApiSchema(
+   schema: TableSchema[],
+   cache: SchemaCacheManager
+ ): ApiTableSchema[] {
+   const cacheKey = "api-schema";
+   const cached = cache.get(cacheKey) as SchemaCacheEntry | null;
 
-  if (!cached?.apiSchema) {
-    const apiSchema = transformToApiSchema(schema);
-    // Update cache with processed data
-    const entry: SchemaCacheEntry = {
-      schema,
-      timestamp: Date.now(),
-      includeSampleData: false,
-      apiSchema,
-    };
-    // Note: We can't directly set here, but the caller should handle caching
-  }
+   if (!cached?.apiSchema) {
+   }
 
-  return cached?.apiSchema || transformToApiSchema(schema);
-}
+   return cached?.apiSchema || transformToApiSchema(schema);
+ }
 
-/**
- * Get cached schema context or transform and cache it
- */
-export function getCachedSchemaContext(
-  schema: TableSchema[],
-  cache: SchemaCacheManager
-): SchemaContext {
-  const cacheKey = 'schema-context';
-  let cached = cache.get(cacheKey) as SchemaCacheEntry | null;
+ /**
+  * Get cached schema context or transform and cache it
+  */
+ export function getCachedSchemaContext(
+   schema: TableSchema[],
+   cache: SchemaCacheManager
+ ): SchemaContext {
+   const cacheKey = "schema-context";
+   const cached = cache.get(cacheKey) as SchemaCacheEntry | null;
 
-  if (!cached?.schemaContext) {
-    const schemaContext = transformToSchemaContext(schema);
-    // Update cache with processed data
-    const entry: SchemaCacheEntry = {
-      schema,
-      timestamp: Date.now(),
-      includeSampleData: false,
-      schemaContext,
-    };
-    // Note: We can't directly set here, but the caller should handle caching
-  }
+   if (!cached?.schemaContext) {
+   }
 
-  return cached?.schemaContext || transformToSchemaContext(schema);
-}
+   return cached?.schemaContext || transformToSchemaContext(schema);
+ }
