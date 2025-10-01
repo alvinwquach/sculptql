@@ -26,6 +26,7 @@ import OrderByLimitSelect from "./OrderByLimitSelect";
 import GroupBySelect from "./GroupBySelect";
 import HavingSelect from "./HavingSelect";
 import JoinSelect from "./JoinSelect";
+import UnionSelect from "./UnionSelect";
 import CodeMirrorEditor from "./CodeMirrorEditor";
 import QueryHistory from "../history/QueryHistory";
 import ResultsPane from "./ResultsPane";
@@ -81,11 +82,14 @@ const EditorClient = memo(function EditorClient({
     onJoinOnColumn2Select,
     onAddJoinClause,
     onRemoveJoinClause,
+    unionClauses,
+    onUnionTableSelect,
+    onUnionTypeSelect,
+    onAddUnionClause,
+    onRemoveUnionClause,
   } = useEditorContext();
-
   const [showConnectionPrompt, setShowConnectionPrompt] = useState(false);
   const [showMobileSidebar, setShowMobileSidebar] = useState(false);
-
   const [sectionsExpanded, setSectionsExpanded] = useState({
     naturalLanguage: true,
     queryBuilder: true,
@@ -211,7 +215,6 @@ const EditorClient = memo(function EditorClient({
     handleOperatorSelect(value, conditionIndex);
   };
 
-  // Function to handle value select
   const handleValueSelectWrapper = (
     value: SingleValue<SelectOption>,
     conditionIndex: number
@@ -356,7 +359,9 @@ const EditorClient = memo(function EditorClient({
                   isExpanded={sectionsExpanded.advanced}
                   onToggle={() => toggleSection("advanced")}
                   count={
-                    joinClauses.length > 0 ? joinClauses.length : undefined
+                    joinClauses.length + unionClauses.length > 0
+                      ? joinClauses.length + unionClauses.length
+                      : undefined
                   }
                 >
                   <div className="space-y-3">
@@ -372,6 +377,16 @@ const EditorClient = memo(function EditorClient({
                       onJoinOnColumn2Select={onJoinOnColumn2Select}
                       onAddJoinClause={onAddJoinClause}
                       onRemoveJoinClause={onRemoveJoinClause}
+                      metadataLoading={metadataLoading}
+                    />
+                    <UnionSelect
+                      selectedTable={selectedTable}
+                      tableNames={tableNames}
+                      unionClauses={unionClauses}
+                      onUnionTableSelect={onUnionTableSelect}
+                      onUnionTypeSelect={onUnionTypeSelect}
+                      onAddUnionClause={onAddUnionClause}
+                      onRemoveUnionClause={onRemoveUnionClause}
                       metadataLoading={metadataLoading}
                     />
                   </div>
@@ -486,7 +501,9 @@ const EditorClient = memo(function EditorClient({
                     isExpanded={sectionsExpanded.advanced}
                     onToggle={() => toggleSection("advanced")}
                     count={
-                      joinClauses.length > 0 ? joinClauses.length : undefined
+                      joinClauses.length + unionClauses.length > 0
+                        ? joinClauses.length + unionClauses.length
+                        : undefined
                     }
                   >
                     <div className="space-y-3">
@@ -502,6 +519,16 @@ const EditorClient = memo(function EditorClient({
                         onJoinOnColumn2Select={onJoinOnColumn2Select}
                         onAddJoinClause={onAddJoinClause}
                         onRemoveJoinClause={onRemoveJoinClause}
+                        metadataLoading={metadataLoading}
+                      />
+                      <UnionSelect
+                        selectedTable={selectedTable}
+                        tableNames={tableNames}
+                        unionClauses={unionClauses}
+                        onUnionTableSelect={onUnionTableSelect}
+                        onUnionTypeSelect={onUnionTypeSelect}
+                        onAddUnionClause={onAddUnionClause}
+                        onRemoveUnionClause={onRemoveUnionClause}
                         metadataLoading={metadataLoading}
                       />
                     </div>
@@ -701,7 +728,7 @@ const CollapsibleSection = memo(function CollapsibleSection({
 
   return (
     <div className="space-y-3 pb-4 border-b border-purple-500/20">
-      <button
+      <Button
         onClick={onToggle}
         className="w-full group hover:bg-purple-500/10 rounded-lg p-2 transition-all duration-200"
       >
@@ -741,7 +768,7 @@ const CollapsibleSection = memo(function CollapsibleSection({
             <ChevronDown className="w-4 h-4 text-purple-400 flex-shrink-0 group-hover:text-purple-300" />
           )}
         </div>
-      </button>
+      </Button>
       {isExpanded && <div className="px-2">{children}</div>}
     </div>
   );
