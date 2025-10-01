@@ -167,7 +167,12 @@ export function areSchemasCompatible(schema1: TableSchema[], schema2: TableSchem
        is_primary_key: col.is_primary_key ?? false,
      })),
      primary_keys: table.primary_keys,
-     foreign_keys: table.foreign_keys,
+     foreign_keys: table.foreign_keys.map((fk) => ({
+       column_name: fk.column_name,
+       referenced_table: fk.referenced_table,
+       referenced_column: fk.referenced_column,
+       constraint_name: fk.constraint_name,
+     })),
    }));
  }
  /**

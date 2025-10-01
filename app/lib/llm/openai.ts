@@ -39,25 +39,92 @@ function validateSqlFormat(sql: string): string | null {
   return null;
 }
 
+async function callVercelAiEndpoint({
+  naturalLanguage,
+  schema,
+  dialect = "postgres",
+}: GenerateSqlInput): Promise<string> {
+  const vercelApiUrl =
+    process.env.VERCEL_API_URL || process.env.NEXT_PUBLIC_VERCEL_API_URL;
+
+  if (!vercelApiUrl) {
+    console.warn("No Vercel API URL configured, returning mock SQL");
+    return generateMockSql(naturalLanguage, schema);
+  }
+
+  const graphqlEndpoint = `${vercelApiUrl}/api/graphql`;
+
+  console.log(`[AI] Calling Vercel endpoint: ${graphqlEndpoint}`);
+
+  const mutation = `
+    mutation GenerateSQL($naturalLanguage: String!, $schema: [TableSchemaInput!]!, $dialect: String) {
+      generateSqlFromNaturalLanguage(
+        naturalLanguage: $naturalLanguage
+        schema: $schema
+        dialect: $dialect
+      ) {
+        sql
+      }
+    }
+  `;
+
+  const variables = {
+    naturalLanguage,
+    schema,
+    dialect,
+  };
+
+  const response = await fetch(graphqlEndpoint, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      query: mutation,
+      variables,
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(
+      `Vercel API error: ${response.status} ${response.statusText}`
+    );
+  }
+
+  const result = await response.json();
+
+  if (result.errors) {
+    throw new Error(`GraphQL error: ${JSON.stringify(result.errors)}`);
+  }
+
+  const generatedSql = result.data?.generateSqlFromNaturalLanguage?.sql;
+
+  if (!generatedSql) {
+    throw new Error("No SQL generated from Vercel API");
+  }
+
+  return generatedSql;
+}
+
 export async function generateSqlFromNaturalLanguage({
   naturalLanguage,
   schema,
   dialect = "postgres",
 }: GenerateSqlInput): Promise<string> {
   try {
-    if (!process.env.OPENAI_API_KEY) {
-      console.warn("No OpenAI API key provided, returning mock SQL");
-      return generateMockSql(naturalLanguage, schema);
-    }
+    const isVercelEnvironment = !!process.env.OPENAI_API_KEY;
 
-    const openai = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY,
-      timeout: 30000,
-    });
+    if (isVercelEnvironment) {
+      console.log("[AI] Using OpenAI directly (Vercel environment)");
 
-    const schemaContext = transformToSchemaContext(schema);
+      const openai = new OpenAI({
+        apiKey: process.env.OPENAI_API_KEY,
+        timeout: 30000,
+      });
 
-    const prompt = `You are an expert SQL developer. Given the following database schema and natural language request, generate a precise SQL query.
+      const schemaContext = transformToSchemaContext(schema);
+
+      const prompt = `You are an expert SQL developer. Given the following database schema and natural language request, generate a precise SQL query.
 
 Database Schema:
 ${createOptimizedSchemaPrompt(schemaContext)}
@@ -76,33 +143,36 @@ Important guidelines:
 
 SQL Query:`;
 
-    const completion = await openai.chat.completions.create({
-      model: "gpt-3.5-turbo",
-      messages: [
-        {
-          role: "user",
-          content: prompt,
-        },
-      ],
-      max_tokens: 500,
-      temperature: 0.1,
-    });
+      const completion = await openai.chat.completions.create({
+        model: "gpt-3.5-turbo",
+        messages: [
+          {
+            role: "user",
+            content: prompt,
+          },
+        ],
+        max_tokens: 500,
+        temperature: 0.1,
+      });
 
-    const generatedSql = completion.choices[0]?.message?.content?.trim();
+      const generatedSql = completion.choices[0]?.message?.content?.trim();
 
-    if (!generatedSql) {
-      throw new Error("No SQL generated from OpenAI");
+      if (!generatedSql) {
+        throw new Error("No SQL generated from OpenAI");
+      }
+
+      const validationError = validateSqlFormat(generatedSql);
+      if (validationError) {
+        throw new Error(validationError);
+      }
+
+      return generatedSql;
+    } else {
+      console.log("[AI] Using Vercel GraphQL endpoint (CLI environment)");
+      return await callVercelAiEndpoint({ naturalLanguage, schema, dialect });
     }
-
-    const validationError = validateSqlFormat(generatedSql);
-    if (validationError) {
-      throw new Error(validationError);
-    }
-
-    return generatedSql;
   } catch (error) {
     console.error("OpenAI SQL generation error:", error);
-
     return generateMockSql(naturalLanguage, schema);
   }
 }
