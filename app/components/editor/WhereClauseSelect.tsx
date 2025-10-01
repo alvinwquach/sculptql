@@ -72,10 +72,15 @@ export default function WhereClauseSelect({
             : [];
 
         return (
-          <div key={index} className="flex flex-col gap-1">
-            <div className="text-xs text-white text-opacity-80 font-semibold">
-              Where
-            </div>
+          <div key={index} className="flex flex-col gap-2">
+            {index === 0 && (
+              <div className="flex items-center gap-2 mb-1">
+                <div className="w-1.5 h-1.5 bg-pink-400 rounded-full shadow-[0_0_6px_rgba(244,114,182,0.6)]"></div>
+                <Label className="text-xs font-semibold text-pink-400 uppercase tracking-wider">
+                  Where Conditions
+                </Label>
+              </div>
+            )}
             <div className="flex gap-2 items-center">
               <div className="flex flex-col gap-1 w-full">
                 <Label

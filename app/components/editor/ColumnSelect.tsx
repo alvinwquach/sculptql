@@ -231,30 +231,42 @@ export default function ColumnSelect({
       ? "Columns"
       : "Column";
 
+  // Handle alias change
+  const handleAliasChange = (columnValue: string, alias: string) => {
+    // Update the column with the new alias
+    const updatedColumns = selectedColumns.map((col) =>
+      col.value === columnValue ? { ...col, alias: alias || undefined } : col
+    );
+    handleColumnSelect(updatedColumns);
+  };
+
   return (
-    <div className="flex flex-col gap-1">
-      <div className="flex items-center gap-2 mb-2">
-        <Label
-          htmlFor="column-selector"
-          id="column-label"
-          className="text-xs text-[#f8f9fa]"
-        >
-          {label}
-        </Label>
-        <div className="flex items-center gap-2 ml-2">
+    <div className="flex flex-col gap-2">
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div className="flex items-center gap-2">
+          <div className="w-1.5 h-1.5 bg-purple-400 rounded-full shadow-[0_0_6px_rgba(139,92,246,0.6)]"></div>
+          <Label
+            htmlFor="column-selector"
+            id="column-label"
+            className="text-xs font-semibold text-purple-400 uppercase tracking-wider"
+          >
+            {label}
+          </Label>
+        </div>
+        <div className="flex items-center gap-2">
           <Checkbox
             id="distinct-checkbox"
             aria-labelledby="distinct-checkbox-label"
             checked={isDistinct}
             onCheckedChange={handleDistinctChange}
-            className="border-[#f8f9fa] data-[state=checked]:bg-[#3b82f6] data-[state=checked]:border-[#3b82f6]"
+            className="border-pink-400/50 data-[state=checked]:bg-gradient-to-br data-[state=checked]:from-purple-500 data-[state=checked]:to-pink-500 data-[state=checked]:border-pink-400"
           />
           <Label
             htmlFor="distinct-checkbox"
             id="distinct-checkbox-label"
-            className="text-xs text-[#f8f9fa] cursor-pointer"
+            className="text-xs text-slate-300 cursor-pointer hover:text-pink-300 transition-colors"
           >
-            Distinct (Unique Values)
+            Distinct
           </Label>
         </div>
       </div>
@@ -273,6 +285,28 @@ export default function ColumnSelect({
         styles={selectStyles}
         className="min-w-0 w-full"
       />
+      {selectedColumns.length > 0 && selectedColumns[0].value !== "*" && (
+        <div className="mt-3 p-3 rounded-xl bg-gradient-to-br from-[#0f0f23] to-[#1e1b4b] border border-purple-500/30">
+          <div className="flex items-center gap-2 mb-3">
+            <div className="w-1.5 h-1.5 bg-pink-400 rounded-full shadow-[0_0_6px_rgba(244,114,182,0.6)]"></div>
+            <Label className="text-xs font-semibold text-pink-400 uppercase tracking-wider">Column Aliases (Optional)</Label>
+          </div>
+          <div className="flex flex-col gap-2">
+            {selectedColumns.map((col) => (
+              <div key={col.value} className="flex items-center gap-2 group">
+                <Label className="text-xs text-slate-400 min-w-[120px] font-mono group-hover:text-purple-300 transition-colors">{col.label}:</Label>
+                <input
+                  type="text"
+                  value={col.alias || ""}
+                  onChange={(e) => handleAliasChange(col.value, e.target.value)}
+                  placeholder="Enter alias (e.g., 'Title')"
+                  className="flex-1 px-3 py-1.5 text-xs bg-[#0f0f23] border border-purple-500/30 rounded-lg text-white placeholder-slate-500 font-mono transition-all duration-200 focus:outline-none focus:border-purple-500 focus:shadow-[0_0_15px_rgba(139,92,246,0.3)]"
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

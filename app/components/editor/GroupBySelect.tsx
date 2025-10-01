@@ -34,13 +34,13 @@ export default function GroupBySelect({
     : [];
 
   return (
-    <div className="flex flex-col gap-1">
-      <div className="text-xs text-white text-opacity-80 font-semibold">
-        Group By
+    <div className="flex flex-col gap-2">
+      <div className="flex items-center gap-2">
+        <div className="w-1.5 h-1.5 bg-cyan-400 rounded-full shadow-[0_0_6px_rgba(6,182,212,0.6)]"></div>
+        <Label htmlFor="group-by-selector" className="text-xs font-semibold text-cyan-400 uppercase tracking-wider">
+          Group By Columns
+        </Label>
       </div>
-      <Label htmlFor="group-by-selector" className="text-xs text-[#f8f9fa] mb-1">
-        Columns
-      </Label>
       <CreatableSelect
         inputId="group-by-selector"
         instanceId="group-by-selector"

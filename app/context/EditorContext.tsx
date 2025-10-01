@@ -340,7 +340,10 @@ export function EditorProvider({ children, schema, error, isMySQL = false, refre
         // Map the selected columns to the value and aggregate
         // Join the selected columns with a comma
         selectedColumns
-          .map((col) => col.aggregate ? col.value : col.value)
+          .map((col) => {
+            const colValue = col.aggregate ? col.value : col.value;
+            return col.alias ? `${colValue} AS '${col.alias}'` : colValue;
+          })
           .join(", ");
     // Get the query string with the distinct and columns string and table name
     let query = `SELECT ${isDistinct ? "DISTINCT " : ""}${columnsString} FROM ${tableName}`;

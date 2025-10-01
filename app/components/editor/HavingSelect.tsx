@@ -157,16 +157,19 @@ export default function HavingSelect({
     : [];
 
   return (
-    <div className="space-y-2">
-      <div className="flex flex-col gap-1">
-        <div className="text-xs text-white text-opacity-80 font-semibold">
-          Having
-        </div>
+    <div className="space-y-3">
+      <div className="flex items-center gap-2">
+        <div className="w-1.5 h-1.5 bg-amber-400 rounded-full shadow-[0_0_6px_rgba(251,191,36,0.6)]"></div>
+        <Label className="text-xs font-semibold text-amber-400 uppercase tracking-wider">
+          Having Condition
+        </Label>
+      </div>
+      <div className="space-y-2">
         <div className="flex gap-2 items-center">
-          <div className="flex flex-col gap-1 w-full">
+          <div className="flex flex-col gap-1.5 w-full">
             <Label
               htmlFor="having-aggregate-column"
-              className="text-xs text-[#f8f9fa]"
+              className="text-xs text-slate-300"
             >
               Aggregate Column
             </Label>

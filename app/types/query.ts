@@ -222,6 +222,7 @@ export interface SelectOption {
   operator?: string;
   aggregate?: boolean;
   column?: string;
+  alias?: string;
 }
 
 // Interface for the where condition
