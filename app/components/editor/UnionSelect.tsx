@@ -17,6 +17,10 @@ interface UnionSelectProps {
     value: SingleValue<SelectOption>,
     unionIndex: number
   ) => void;
+  onUnionTypeSelect: (
+    value: SingleValue<SelectOption>,
+    unionIndex: number
+  ) => void;
   onAddUnionClause: () => void;
   onRemoveUnionClause: (unionIndex: number) => void;
   metadataLoading: boolean;
@@ -27,6 +31,7 @@ export default function UnionSelect({
   tableNames,
   unionClauses,
   onUnionTableSelect,
+  onUnionTypeSelect,
   onAddUnionClause,
   onRemoveUnionClause,
   metadataLoading,
@@ -37,7 +42,11 @@ export default function UnionSelect({
     .filter((table) => table !== selectedTable?.value)
     .map((table) => ({ value: table, label: table }));
 
-  // Handle the add union
+  const unionTypeOptions: SelectOption[] = [
+    { value: "UNION", label: "UNION (removes duplicates)" },
+    { value: "UNION ALL", label: "UNION ALL (keeps duplicates)" },
+  ];
+
   const handleAddUnion = useCallback(() => {
     onAddUnionClause();
   }, [onAddUnionClause]);
@@ -69,18 +78,32 @@ export default function UnionSelect({
               <X className="w-4 h-4" />
             </Button>
           </div>
-          <div className="flex flex-col gap-1">
-            <Label className="text-xs text-pink-300/80 font-mono">Union Table</Label>
-            <Select
-              options={tableOptions}
-              value={union.table}
-              onChange={(value) => onUnionTableSelect(value, index)}
-              placeholder="Table"
-              isClearable
-              isDisabled={!selectedTable || metadataLoading}
-              styles={selectStyles}
-              className="w-full"
-            />
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-1">
+              <Label className="text-xs text-pink-300/80 font-mono">Union Type</Label>
+              <Select
+                options={unionTypeOptions}
+                value={union.unionType}
+                onChange={(value) => onUnionTypeSelect(value, index)}
+                placeholder="Select type"
+                isDisabled={metadataLoading}
+                styles={selectStyles}
+                className="w-full"
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <Label className="text-xs text-pink-300/80 font-mono">Union Table</Label>
+              <Select
+                options={tableOptions}
+                value={union.table}
+                onChange={(value) => onUnionTableSelect(value, index)}
+                placeholder="Table"
+                isClearable
+                isDisabled={!selectedTable || metadataLoading}
+                styles={selectStyles}
+                className="w-full"
+              />
+            </div>
           </div>
         </div>
       ))}

@@ -57,6 +57,7 @@ interface EditorContextType extends QueryState, QueryHistoryState, QueryResultsS
   onRemoveJoinClause: (joinIndex: number) => void;
   // Union handlers
   onUnionTableSelect: (value: SelectOption | null, unionIndex: number) => void;
+  onUnionTypeSelect: (value: SelectOption | null, unionIndex: number) => void;
   onAddUnionClause: () => void;
   onRemoveUnionClause: (unionIndex: number) => void;
   // CTE handlers
@@ -320,7 +321,8 @@ export function EditorProvider({ children, schema, error, isMySQL = false, refre
     havingClause = queryState.havingClause,
     orderByClause = queryState.orderByClause,
     limit = queryState.limit,
-    joinClauses = queryState.joinClauses
+    joinClauses = queryState.joinClauses,
+    unionClauses = queryState.unionClauses
   ) => {
     // If the selected table is not null
     if (!selectedTable) {
@@ -359,7 +361,7 @@ export function EditorProvider({ children, schema, error, isMySQL = false, refre
     }
 
     // Get the valid where conditions
-    const validWhereConditions = whereClause.conditions.filter(cond => 
+    const validWhereConditions = whereClause.conditions.filter(cond =>
       cond.column && cond.operator && (cond.value || cond.operator.value === "IS NULL" || cond.operator.value === "IS NOT NULL")
     );
     // If the valid where conditions is not empty
@@ -381,16 +383,16 @@ export function EditorProvider({ children, schema, error, isMySQL = false, refre
           }
           // If the operator is BETWEEN and the value and value2 is not null
           if (op === "BETWEEN" && cond.value && cond.value2) {
-            const value1 = typeof cond.value.value === 'string' && !cond.value.value.match(/^['"]/) 
+            const value1 = typeof cond.value.value === 'string' && !cond.value.value.match(/^['"]/)
               ? `'${cond.value.value}'` : cond.value.value;
-            const value2 = typeof cond.value2.value === 'string' && !cond.value2.value.match(/^['"]/) 
+            const value2 = typeof cond.value2.value === 'string' && !cond.value2.value.match(/^['"]/)
               ? `'${cond.value2.value}'` : cond.value2.value;
             return `${logicalOp} ${colName} BETWEEN ${value1} AND ${value2}`.trim();
           }
           // If the operator is BETWEEN and the value and value2 is not null
           if (cond.value) {
             // Properly quote string values for SQL
-            const value = typeof cond.value.value === 'string' && !cond.value.value.match(/^['"]/) 
+            const value = typeof cond.value.value === 'string' && !cond.value.value.match(/^['"]/)
               ? `'${cond.value.value}'` : cond.value.value;
             // Return the logical operator and column name and operator and value
             return `${logicalOp} ${colName} ${op} ${value}`.trim();
@@ -415,7 +417,7 @@ export function EditorProvider({ children, schema, error, isMySQL = false, refre
       // Add the group by clause to the query with the group by string
       query += ` GROUP BY ${groupByString}`;
     }
-    // If the having clause is not null and the aggregate column 
+    // If the having clause is not null and the aggregate column
     // and operator is not null
     if (havingClause.condition.aggregateColumn && havingClause.condition.operator) {
       // Get the aggregate column
@@ -428,7 +430,7 @@ export function EditorProvider({ children, schema, error, isMySQL = false, refre
         query += ` HAVING ${agg} ${op}`;
       } else if (havingClause.condition.value) {
         // Get the value and properly quote string values
-        const value = typeof havingClause.condition.value.value === 'string' && !havingClause.condition.value.value.match(/^['"]/) 
+        const value = typeof havingClause.condition.value.value === 'string' && !havingClause.condition.value.value.match(/^['"]/)
           ? `'${havingClause.condition.value.value}'` : havingClause.condition.value.value;
         // Add the having clause to the query with proper value handling
         query += ` HAVING ${agg} ${op} ${value}`;
@@ -451,6 +453,17 @@ export function EditorProvider({ children, schema, error, isMySQL = false, refre
       // Add the limit clause to the query with the limit value
       query += ` LIMIT ${limit.value}`;
     }
+
+    // Add UNION clauses
+    if (unionClauses && unionClauses.length > 0) {
+      unionClauses.forEach((union) => {
+        if (union.table) {
+          const unionType = union.unionType?.value || "UNION";
+          query += ` ${unionType} SELECT ${columnsString} FROM ${union.table.value}`;
+        }
+      });
+    }
+
     // Return the query with a semicolon
     return query + ";";
   }, [
@@ -463,7 +476,8 @@ export function EditorProvider({ children, schema, error, isMySQL = false, refre
     queryState.havingClause,
     queryState.orderByClause,
     queryState.limit,
-    queryState.joinClauses
+    queryState.joinClauses,
+    queryState.unionClauses
   ]);
 
   // Handle the query change
@@ -1100,29 +1114,99 @@ export function EditorProvider({ children, schema, error, isMySQL = false, refre
   // Union handlers
   const onUnionTableSelect = useCallback(
     (value: SelectOption | null, unionIndex: number) => {
+      setIsManualEdit(false);
       const newUnionClauses = [...queryState.unionClauses];
       newUnionClauses[unionIndex] = {
         ...newUnionClauses[unionIndex],
         table: value,
       };
       queryState.setUnionClauses(newUnionClauses);
+      const newQuery = generateQueryFromState(
+        queryState.selectedTable,
+        queryState.selectedColumns,
+        queryState.isDistinct,
+        queryState.whereClause,
+        queryState.selectedGroupByColumns,
+        queryState.havingClause,
+        queryState.orderByClause,
+        queryState.limit,
+        queryState.joinClauses,
+        newUnionClauses
+      );
+      queryState.setQuery(newQuery);
     },
-    [queryState]
+    [queryState, generateQueryFromState]
+  );
+
+  const onUnionTypeSelect = useCallback(
+    (value: SelectOption | null, unionIndex: number) => {
+      setIsManualEdit(false);
+      const newUnionClauses = [...queryState.unionClauses];
+      newUnionClauses[unionIndex] = {
+        ...newUnionClauses[unionIndex],
+        unionType: value ?? undefined,
+      };
+      queryState.setUnionClauses(newUnionClauses);
+      const newQuery = generateQueryFromState(
+        queryState.selectedTable,
+        queryState.selectedColumns,
+        queryState.isDistinct,
+        queryState.whereClause,
+        queryState.selectedGroupByColumns,
+        queryState.havingClause,
+        queryState.orderByClause,
+        queryState.limit,
+        queryState.joinClauses,
+        newUnionClauses
+      );
+      queryState.setQuery(newQuery);
+    },
+    [queryState, generateQueryFromState]
   );
 
   const onAddUnionClause = useCallback(() => {
+    setIsManualEdit(false);
     const newUnionClause: UnionClause = {
       table: null,
+      unionType: { value: "UNION", label: "UNION" },
     };
-    queryState.setUnionClauses([...queryState.unionClauses, newUnionClause]);
-  }, [queryState]);
+    const newUnionClauses = [...queryState.unionClauses, newUnionClause];
+    queryState.setUnionClauses(newUnionClauses);
+    const newQuery = generateQueryFromState(
+      queryState.selectedTable,
+      queryState.selectedColumns,
+      queryState.isDistinct,
+      queryState.whereClause,
+      queryState.selectedGroupByColumns,
+      queryState.havingClause,
+      queryState.orderByClause,
+      queryState.limit,
+      queryState.joinClauses,
+      newUnionClauses
+    );
+    queryState.setQuery(newQuery);
+  }, [queryState, generateQueryFromState]);
 
   const onRemoveUnionClause = useCallback(
     (unionIndex: number) => {
+      setIsManualEdit(false);
       const newUnionClauses = queryState.unionClauses.filter((_, index) => index !== unionIndex);
       queryState.setUnionClauses(newUnionClauses);
+      const newQuery = generateQueryFromState(
+        queryState.selectedTable,
+        queryState.selectedColumns,
+        queryState.isDistinct,
+        queryState.whereClause,
+        queryState.selectedGroupByColumns,
+        queryState.havingClause,
+        queryState.orderByClause,
+        queryState.limit,
+        queryState.joinClauses,
+        newUnionClauses
+      );
+      queryState.setQuery(newQuery);
     },
-    [queryState]
+    [queryState, generateQueryFromState]
   );
 
   // CTE handlers
@@ -1319,6 +1403,7 @@ export function EditorProvider({ children, schema, error, isMySQL = false, refre
     onRemoveJoinClause,
     // Union handlers
     onUnionTableSelect,
+    onUnionTypeSelect,
     onAddUnionClause,
     onRemoveUnionClause,
     // CTE handlers
@@ -1376,6 +1461,7 @@ export function EditorProvider({ children, schema, error, isMySQL = false, refre
   onRemoveJoinClause,
   // Union handlers
   onUnionTableSelect,
+  onUnionTypeSelect,
   onAddUnionClause,
   onRemoveUnionClause,
   // CTE handlers
