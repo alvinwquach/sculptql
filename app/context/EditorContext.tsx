@@ -319,7 +319,8 @@ export function EditorProvider({ children, schema, error, isMySQL = false, refre
     selectedGroupByColumns = queryState.selectedGroupByColumns,
     havingClause = queryState.havingClause,
     orderByClause = queryState.orderByClause,
-    limit = queryState.limit
+    limit = queryState.limit,
+    joinClauses = queryState.joinClauses
   ) => {
     // If the selected table is not null
     if (!selectedTable) {
@@ -329,7 +330,7 @@ export function EditorProvider({ children, schema, error, isMySQL = false, refre
     // Get the table name
     const tableName = selectedTable.value;
     // Get the columns string
-    const columnsString = selectedColumns.length === 0 || 
+    const columnsString = selectedColumns.length === 0 ||
       // If the selected columns is empty or some of the selected columns is *
       selectedColumns.some((col) => col.value === "*")
       ? "*"
@@ -341,6 +342,22 @@ export function EditorProvider({ children, schema, error, isMySQL = false, refre
           .join(", ");
     // Get the query string with the distinct and columns string and table name
     let query = `SELECT ${isDistinct ? "DISTINCT " : ""}${columnsString} FROM ${tableName}`;
+
+    // Add JOIN clauses
+    if (joinClauses && joinClauses.length > 0) {
+      joinClauses.forEach((join) => {
+        if (join.table && join.joinType) {
+          const joinType = join.joinType.value || "INNER JOIN";
+          query += ` ${joinType} ${join.table.value}`;
+
+          // Add ON clause for all joins except CROSS JOIN
+          if (joinType !== "CROSS JOIN" && join.onColumn1 && join.onColumn2) {
+            query += ` ON ${tableName}.${join.onColumn1.value} = ${join.table.value}.${join.onColumn2.value}`;
+          }
+        }
+      });
+    }
+
     // Get the valid where conditions
     const validWhereConditions = whereClause.conditions.filter(cond => 
       cond.column && cond.operator && (cond.value || cond.operator.value === "IS NULL" || cond.operator.value === "IS NOT NULL")
@@ -445,7 +462,8 @@ export function EditorProvider({ children, schema, error, isMySQL = false, refre
     queryState.selectedGroupByColumns,
     queryState.havingClause,
     queryState.orderByClause,
-    queryState.limit
+    queryState.limit,
+    queryState.joinClauses
   ]);
 
   // Handle the query change
@@ -936,68 +954,147 @@ export function EditorProvider({ children, schema, error, isMySQL = false, refre
   // Join handlers
   const onJoinTableSelect = useCallback(
     (value: SelectOption | null, joinIndex: number) => {
+      setIsManualEdit(false);
       const newJoinClauses = [...queryState.joinClauses];
       newJoinClauses[joinIndex] = {
         ...newJoinClauses[joinIndex],
         table: value,
       };
       queryState.setJoinClauses(newJoinClauses);
+      const newQuery = generateQueryFromState(
+        queryState.selectedTable,
+        queryState.selectedColumns,
+        queryState.isDistinct,
+        queryState.whereClause,
+        queryState.selectedGroupByColumns,
+        queryState.havingClause,
+        queryState.orderByClause,
+        queryState.limit,
+        newJoinClauses
+      );
+      queryState.setQuery(newQuery);
     },
-    [queryState]
+    [queryState, generateQueryFromState]
   );
 
   const onJoinTypeSelect = useCallback(
     (value: SelectOption | null, joinIndex: number) => {
+      setIsManualEdit(false);
       const newJoinClauses = [...queryState.joinClauses];
       newJoinClauses[joinIndex] = {
         ...newJoinClauses[joinIndex],
         joinType: value,
       };
       queryState.setJoinClauses(newJoinClauses);
+      const newQuery = generateQueryFromState(
+        queryState.selectedTable,
+        queryState.selectedColumns,
+        queryState.isDistinct,
+        queryState.whereClause,
+        queryState.selectedGroupByColumns,
+        queryState.havingClause,
+        queryState.orderByClause,
+        queryState.limit,
+        newJoinClauses
+      );
+      queryState.setQuery(newQuery);
     },
-    [queryState]
+    [queryState, generateQueryFromState]
   );
 
   const onJoinOnColumn1Select = useCallback(
     (value: SelectOption | null, joinIndex: number) => {
+      setIsManualEdit(false);
       const newJoinClauses = [...queryState.joinClauses];
       newJoinClauses[joinIndex] = {
         ...newJoinClauses[joinIndex],
         onColumn1: value,
       };
       queryState.setJoinClauses(newJoinClauses);
+      const newQuery = generateQueryFromState(
+        queryState.selectedTable,
+        queryState.selectedColumns,
+        queryState.isDistinct,
+        queryState.whereClause,
+        queryState.selectedGroupByColumns,
+        queryState.havingClause,
+        queryState.orderByClause,
+        queryState.limit,
+        newJoinClauses
+      );
+      queryState.setQuery(newQuery);
     },
-    [queryState]
+    [queryState, generateQueryFromState]
   );
 
   const onJoinOnColumn2Select = useCallback(
     (value: SelectOption | null, joinIndex: number) => {
+      setIsManualEdit(false);
       const newJoinClauses = [...queryState.joinClauses];
       newJoinClauses[joinIndex] = {
         ...newJoinClauses[joinIndex],
         onColumn2: value,
       };
       queryState.setJoinClauses(newJoinClauses);
+      const newQuery = generateQueryFromState(
+        queryState.selectedTable,
+        queryState.selectedColumns,
+        queryState.isDistinct,
+        queryState.whereClause,
+        queryState.selectedGroupByColumns,
+        queryState.havingClause,
+        queryState.orderByClause,
+        queryState.limit,
+        newJoinClauses
+      );
+      queryState.setQuery(newQuery);
     },
-    [queryState]
+    [queryState, generateQueryFromState]
   );
 
   const onAddJoinClause = useCallback(() => {
+    setIsManualEdit(false);
     const newJoinClause: JoinClause = {
       table: null,
       joinType: { value: "INNER JOIN", label: "INNER JOIN" },
       onColumn1: null,
       onColumn2: null,
     };
-    queryState.setJoinClauses([...queryState.joinClauses, newJoinClause]);
-  }, [queryState]);
+    const newJoinClauses = [...queryState.joinClauses, newJoinClause];
+    queryState.setJoinClauses(newJoinClauses);
+    const newQuery = generateQueryFromState(
+      queryState.selectedTable,
+      queryState.selectedColumns,
+      queryState.isDistinct,
+      queryState.whereClause,
+      queryState.selectedGroupByColumns,
+      queryState.havingClause,
+      queryState.orderByClause,
+      queryState.limit,
+      newJoinClauses
+    );
+    queryState.setQuery(newQuery);
+  }, [queryState, generateQueryFromState]);
 
   const onRemoveJoinClause = useCallback(
     (joinIndex: number) => {
+      setIsManualEdit(false);
       const newJoinClauses = queryState.joinClauses.filter((_, index) => index !== joinIndex);
       queryState.setJoinClauses(newJoinClauses);
+      const newQuery = generateQueryFromState(
+        queryState.selectedTable,
+        queryState.selectedColumns,
+        queryState.isDistinct,
+        queryState.whereClause,
+        queryState.selectedGroupByColumns,
+        queryState.havingClause,
+        queryState.orderByClause,
+        queryState.limit,
+        newJoinClauses
+      );
+      queryState.setQuery(newQuery);
     },
-    [queryState]
+    [queryState, generateQueryFromState]
   );
 
   // Union handlers

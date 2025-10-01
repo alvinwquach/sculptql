@@ -1,16 +1,18 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 import Select, { SingleValue } from "react-select";
 import { X } from "lucide-react";
-import { SelectOption, TableColumn, JoinClause } from "@/app/types/query";
+import { SelectOption, TableColumn, JoinClause, TableSchema } from "@/app/types/query";
 import { selectStyles } from "../../utils/selectStyles";
+import { getValidJoinTables, getSuggestedJoinColumns } from "@/app/utils/joinValidation";
 
 interface JoinSelectProps {
   selectedTable: SelectOption | null;
   tableNames: string[];
   tableColumns: TableColumn;
   joinClauses: JoinClause[];
+  schema: TableSchema[];
   onJoinTableSelect: (
     value: SingleValue<SelectOption>,
     joinIndex: number
@@ -37,6 +39,7 @@ export default function JoinSelector({
   tableNames,
   tableColumns,
   joinClauses,
+  schema,
   onJoinTableSelect,
   onJoinTypeSelect,
   onJoinOnColumn1Select,
@@ -45,10 +48,18 @@ export default function JoinSelector({
   onRemoveJoinClause,
   metadataLoading,
 }: JoinSelectProps) {
-  // Set the table options to the table options
-  const tableOptions: SelectOption[] = tableNames
-    .filter((table) => table !== selectedTable?.value)
-    .map((table) => ({ value: table, label: table }));
+  // Get valid join tables based on FK relationships
+  const validJoinTableNames = useMemo(() => {
+    if (!selectedTable?.value || !schema || schema.length === 0) {
+      return [];
+    }
+    return getValidJoinTables(schema, selectedTable.value);
+  }, [schema, selectedTable]);
+
+  // Set the table options to only valid join tables
+  const tableOptions: SelectOption[] = useMemo(() => {
+    return validJoinTableNames.map((table) => ({ value: table, label: table }));
+  }, [validJoinTableNames]);
 
   // Set the join type options to the join type options
   const joinTypeOptions: SelectOption[] = [
