@@ -80,7 +80,7 @@ export default function NaturalLanguageDemo({
     if (intervalRef.current) clearInterval(intervalRef.current);
     intervalRef.current = setInterval(() => {
       animateExampleTransition();
-    }, 5000); // 5 seconds
+    }, 5000);
   };
 
   useEffect(() => {
@@ -555,7 +555,7 @@ export default function NaturalLanguageDemo({
                     ref={naturalLanguageRef}
                     className="text-pink-200 text-sm italic"
                   >
-                    "{examples[currentExample].natural}"
+                    {`"${examples[currentExample].natural}"`}
                   </p>
                 </div>
                 <div className="bg-gray-900/80 rounded-lg p-4 border border-gray-700/50">
