@@ -1,5 +1,12 @@
 import { gql } from "@apollo/client";
 
+export const GET_DIALECT = gql`
+  # Get the dialect
+  query GetDialect {
+    dialect
+  }
+`;
+
 export const GET_SCHEMA = gql`
   # Get the schema query
   query GetSchema($tableSearch: String, $columnSearch: String, $limit: Int, $includeSampleData: Boolean = false) {

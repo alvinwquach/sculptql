@@ -6,7 +6,6 @@ import Select from "react-select";
 import CreatableSelect from "react-select/creatable";
 import { selectStyles } from "@/app/utils/selectStyles";
 import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Database } from "lucide-react";
 import {  SelectOption, WhereCondition } from "@/app/types/query";

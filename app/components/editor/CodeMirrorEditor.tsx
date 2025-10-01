@@ -15,10 +15,8 @@ import { Button } from "@/components/ui/button";
 import { Maximize2, Minimize2, Wand2 } from "lucide-react";
 import { useSqlCompletion } from "@/app/hooks/useSqlCompletion";
 import { needsQuotes } from "@/app/utils/sqlCompletion/needsQuotes";
-import { stripQuotes } from "@/app/utils/sqlCompletion/stripQuotes";
 import { TableColumn, SelectOption, Tab } from "@/app/types/query";
 import { MultiValue, SingleValue } from "react-select";
-import { parseSelectedColumns, parseSelectedTable, parseWhereClause } from "@/app/utils/queryParser";
 import QueryTabs from "./QueryTabs";
 import {
   Tooltip,
@@ -30,6 +28,7 @@ import {
   getLocalStorageItem,
   setLocalStorageItem,
 } from "@/app/utils/localStorageUtils";
+import { stripQuotes } from "@/app/utils/helpers";
 
 // Props for the CodeMirrorEditor component
 interface CodeMirrorEditorProps {
@@ -84,7 +83,6 @@ export default function CodeMirrorEditor({
   tableNames,
   tableColumns,
   selectedColumns,
-  selectedTable,
   uniqueValues,
   onQueryChange,
   loading = false,
@@ -449,10 +447,9 @@ export default function CodeMirrorEditor({
           color: "#e0e6ed",
           fontSize: "clamp(14px, 2.5vw, 16px)",
           height: "100%",
-          border: "2px solid transparent",
+          border: "none",
           borderRadius: "0px",
-          background: "linear-gradient(#0a0a0f, #0a0a0f) padding-box, linear-gradient(135deg, #8b5cf6, #f472b6, #10b981, #fbbf24) border-box",
-          boxShadow: "0 0 40px rgba(139, 92, 246, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.1)",
+          background: "#0a0a0f",
           position: "relative",
           overflow: "hidden",
         },
@@ -734,6 +731,12 @@ export default function CodeMirrorEditor({
       className={`relative h-full ${
         fullScreenEditor ? "fixed inset-0 z-50 bg-[#0f172a] p-4" : ""
       }`}
+      style={
+        !fullScreenEditor ? {
+          background: "linear-gradient(135deg, #0a0a0f, #1a1a2e)",
+          boxShadow: "inset 0 0 60px rgba(139, 92, 246, 0.08)"
+        } : undefined
+      }
     >
       {loading && (
         <div className="absolute inset-0 bg-gradient-to-br from-slate-900/90 to-slate-800/90 backdrop-blur-md z-10 flex items-center justify-center">
@@ -752,7 +755,14 @@ export default function CodeMirrorEditor({
         </div>
       )}
       <TooltipProvider delayDuration={150}>
-        <div className="flex items-center justify-between p-4 bg-gradient-to-r from-slate-900/50 to-slate-800/50 backdrop-blur-sm border-b border-purple-500/20">
+        <div 
+          className="flex items-center justify-between p-4 backdrop-blur-sm border-b"
+          style={{
+            background: "linear-gradient(135deg, rgba(26, 26, 46, 0.6), rgba(15, 15, 35, 0.6))",
+            borderColor: "rgba(139, 92, 246, 0.2)",
+            boxShadow: "0 1px 20px rgba(139, 92, 246, 0.1)"
+          }}
+        >
           <Button
             variant="ghost"
             size="sm"

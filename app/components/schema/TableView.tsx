@@ -1,31 +1,18 @@
 "use client";
 
 import { useState } from "react";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { 
-  Search, 
+import {
+  Search,
   ChevronRight,
-  ChevronDown, 
-  Key, 
-  Link, 
-  Eye, 
+  ChevronDown,
+  Key,
+  Link,
+  Eye,
   EyeOff,
   Database,
-  Table as TableIcon,
   Filter,
-  SortAsc,
-  SortDesc,
   FileText,
   Folder,
   FolderOpen

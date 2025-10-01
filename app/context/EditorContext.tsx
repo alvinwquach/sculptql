@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, useCallback, useEffect, useMemo, useState } from "react";
-import { useMutation } from "@apollo/client/react";
+import { useMutation, useQuery } from "@apollo/client/react";
 import { toast } from "react-toastify";
 import {
   TableSchema,
@@ -12,6 +12,7 @@ import {
   CteClause,
 } from "@/app/types/query";
 import { RUN_QUERY } from "@/app/graphql/mutations/runQuery";
+import { GET_DIALECT } from "@/app/graphql/queries/getSchema";
 import { useQueryState, QueryState } from "./hooks/useQueryState";
 import { useQueryHistory, QueryHistoryState } from "./hooks/useQueryHistory";
 import { useQueryResults, QueryResultsState } from "./hooks/useQueryResults";
@@ -24,6 +25,7 @@ interface EditorContextType extends QueryState, QueryHistoryState, QueryResultsS
   schema: TableSchema[];
   error: string | null;
   isMySQL: boolean;
+  dialect: string;
   isManualEdit: boolean;
   setIsManualEdit: (isManual: boolean) => void;
   runQuery: (query: string) => Promise<void>;
@@ -126,7 +128,10 @@ export function EditorProvider({ children, schema, error, isMySQL = false, refre
     { runQuery: QueryResult },
     { query: string }
   >(RUN_QUERY);
-  
+
+  // Get the current dialect
+  const { data: dialectData } = useQuery<{ dialect: string }>(GET_DIALECT);
+
   // State to track if the query is being manually edited (prevents race conditions)
   const [isManualEdit, setIsManualEdit] = useState(false);
 
@@ -1179,6 +1184,7 @@ export function EditorProvider({ children, schema, error, isMySQL = false, refre
     schema,
     error,
     isMySQL,
+    dialect: dialectData?.dialect || "postgres",
     isManualEdit,
     setIsManualEdit,
     ...queryState,

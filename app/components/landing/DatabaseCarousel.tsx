@@ -22,7 +22,7 @@ function DatabaseCarousel({ databases }: { databases: Database[] }) {
   // Create multiple copies for seamless loop
       for (let i = 0; i < copies; i++) {
         // Create a card element for each database
-        databases.forEach((db, idx) => {
+        databases.forEach((db) => {
           // Create a card element
           const card = document.createElement('div');
           // Set the class name for the card

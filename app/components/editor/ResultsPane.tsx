@@ -41,29 +41,68 @@ export default function ResultsPane({
   } = useEditorContext();
 
   return (
-    <div className={`h-full p-4 sm:p-6 overflow-auto bg-gradient-to-br from-[#0f0f23] via-[#1e1b4b] to-[#312e81]`}>
+    <div 
+      className="h-full p-4 sm:p-6 overflow-auto relative"
+      style={{
+        background: "linear-gradient(135deg, #0a0a0f, #1a1a2e)",
+        boxShadow: "inset 0 0 60px rgba(139, 92, 246, 0.08)"
+      }}
+    >
+      <div 
+        className="absolute inset-0 pointer-events-none opacity-20"
+        style={{
+          background: "linear-gradient(135deg, rgba(139, 92, 246, 0.08), rgba(244, 114, 182, 0.08), rgba(16, 185, 129, 0.08))",
+        }}
+      />
+      
       {error && (
-        <div className="bg-red-900/30 border-2 border-red-500/50 text-red-200 p-4 rounded-xl shadow-[0_0_20px_rgba(239,68,68,0.3)] transition-all duration-200 font-mono">
+        <div 
+          className="relative border-2 text-red-200 p-4 rounded-xl transition-all duration-200 font-mono mb-4 animate-in fade-in slide-in-from-top-2"
+          style={{
+            background: "linear-gradient(135deg, rgba(239, 68, 68, 0.15), rgba(220, 38, 38, 0.1))",
+            borderColor: "#ef4444",
+            boxShadow: "0 0 30px rgba(239, 68, 68, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.05)"
+          }}
+        >
           <div className="flex items-center gap-2">
-            <div className="w-2 h-2 bg-red-400 rounded-full animate-pulse"></div>
+            <div className="w-2 h-2 bg-red-400 rounded-full animate-pulse" style={{ boxShadow: "0 0 8px rgba(239, 68, 68, 0.8)" }}></div>
             <span className="font-bold">ERROR:</span>
           </div>
           <p className="mt-2 text-sm">{error}</p>
         </div>
       )}
       {loading && (
-        <div className="flex flex-col items-center justify-center h-full text-purple-300 animate-pulse">
+        <div className="flex flex-col items-center justify-center h-full relative z-10">
           <div className="relative">
-            <Loader2 className="w-12 h-12 mb-4 animate-spin text-cyan-400 drop-shadow-[0_0_10px_rgba(6,182,212,0.5)]" />
-            <div className="absolute inset-0 w-12 h-12 border-2 border-purple-500/30 rounded-full animate-ping"></div>
+            <Loader2 
+              className="w-12 h-12 mb-4 animate-spin"
+              style={{ 
+                color: "#10b981",
+                filter: "drop-shadow(0 0 15px rgba(16, 185, 129, 0.6))"
+              }} 
+            />
+            <div 
+              className="absolute inset-0 w-12 h-12 border-2 rounded-full animate-ping"
+              style={{ 
+                borderColor: "rgba(139, 92, 246, 0.4)"
+              }}
+            ></div>
           </div>
-          <p className="text-lg font-medium text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-purple-400">
+          <p 
+            className="text-lg font-medium"
+            style={{
+              background: "linear-gradient(135deg, #10b981, #8b5cf6, #f472b6)",
+              WebkitBackgroundClip: "text",
+              WebkitTextFillColor: "transparent",
+              backgroundClip: "text",
+            }}
+          >
             Loading query results...
           </p>
         </div>
       )}
       {!loading && (
-        <>
+        <div className="relative z-10">
           {(queryResult ||
             viewMode === "show" ||
             viewMode === "describe" ||
@@ -131,7 +170,7 @@ export default function ResultsPane({
           {["bar", "pie", "line"].includes(viewMode) && !queryResult && (
             <EmptyState viewMode={viewMode} />
           )}
-        </>
+        </div>
       )}
     </div>
   );

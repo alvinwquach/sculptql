@@ -37,36 +37,39 @@ export class EnhancedSQLCompletion {
     try {
       // Fast context detection without parsing for better performance
       const textBeforeCursor = docText.slice(0, pos).trim();
-      
+
       // Determine completion context quickly
-      const context = this.getCompletionContext(textBeforeCursor, pos, null);
-      
+      const context = this.getCompletionContext(textBeforeCursor);
+
       switch (context.type) {
-        case 'select':
-          return this.getSelectCompletion(currentWord, pos, word, context);
-        case 'from':
-          return this.getFromCompletion(currentWord, pos, word, context);
-        case 'after_from':
-          return this.getAfterFromCompletion(currentWord, pos, word, context);
-        case 'where':
-          return this.getWhereCompletion(currentWord, pos, word, context);
-        case 'join':
-          return this.getJoinCompletion(currentWord, pos, word, context);
-        case 'union':
-          return this.getUnionCompletion(currentWord, pos, word, context);
-        case 'with':
-          return this.getWithCompletion(currentWord, pos, word, context);
-        case 'group_by':
-          return this.getGroupByCompletion(currentWord, pos, word, context);
-        case 'order_by':
-          return this.getOrderByCompletion(currentWord, pos, word, context);
-        case 'having':
-          return this.getHavingCompletion(currentWord, pos, word, context);
+        case "select":
+          return this.getSelectCompletion(currentWord, pos, word);
+        case "from":
+          return this.getFromCompletion(currentWord, pos, word);
+        case "after_from":
+          return this.getAfterFromCompletion(currentWord, pos, word);
+        case "where":
+          return this.getWhereCompletion(currentWord, pos, word);
+        case "join":
+          return this.getJoinCompletion(currentWord, pos, word);
+        case "union":
+          return this.getUnionCompletion(currentWord, pos, word);
+        case "with":
+          return this.getWithCompletion(currentWord, pos, word);
+        case "group_by":
+          return this.getGroupByCompletion(currentWord, pos, word);
+        case "order_by":
+          return this.getOrderByCompletion(currentWord, pos, word);
+        case "having":
+          return this.getHavingCompletion(currentWord, pos, word);
         default:
           return this.getKeywordCompletion(currentWord, pos, word);
       }
     } catch (error) {
-      console.warn('Enhanced completion failed, falling back to basic completion:', error);
+      console.warn(
+        "Enhanced completion failed, falling back to basic completion:",
+        error
+      );
       return this.getKeywordCompletion(currentWord, pos, word);
     }
   }
@@ -77,7 +80,7 @@ export class EnhancedSQLCompletion {
   private parseQuery(query: string): unknown {
     try {
       return parser.astify(query);
-    } catch (error) {
+    } catch {
       return null;
     }
   }
@@ -85,59 +88,63 @@ export class EnhancedSQLCompletion {
   /**
    * Determine the completion context based on cursor position
    */
-  private getCompletionContext(textBeforeCursor: string, pos: number, ast: unknown): { type: string; [key: string]: boolean | string } {
-    
+  private getCompletionContext(textBeforeCursor: string): {
+    type: string;
+    [key: string]: boolean | string;
+  } {
     // Check for CTE context
     if (/\bWITH\s+\w*\s*AS\s*\(\s*SELECT\b/i.test(textBeforeCursor)) {
-      return { type: 'with', inCte: true };
+      return { type: "with", inCte: true };
     }
-    
+
     // Check for UNION context
     if (/\bUNION\s+(?:ALL\s+)?\s*SELECT\b/i.test(textBeforeCursor)) {
-      return { type: 'union', inUnion: true };
+      return { type: "union", inUnion: true };
     }
-    
+
     // Check for SELECT context
     if (/\bSELECT\s+(?:\w+\s*,?\s*)*\s*$/i.test(textBeforeCursor)) {
-      return { type: 'select', inSelect: true };
+      return { type: "select", inSelect: true };
     }
-    
+
     // Check for FROM context
     if (/\bFROM\s+(\w+\s*,?\s*)*\s*$/i.test(textBeforeCursor)) {
-      return { type: 'from', inFrom: true };
+      return { type: "from", inFrom: true };
     }
-    
+
     // Check for after FROM context - should show WHERE, GROUP BY, etc.
     if (/\bSELECT\s+.*\s+FROM\s+\w+\s*$/i.test(textBeforeCursor)) {
-      return { type: 'after_from', inAfterFrom: true };
+      return { type: "after_from", inAfterFrom: true };
     }
-    
+
     // Check for JOIN context
-    if (/\b(?:INNER|LEFT|RIGHT|CROSS)\s+JOIN\s+\w*\s*$/i.test(textBeforeCursor)) {
-      return { type: 'join', inJoin: true };
+    if (
+      /\b(?:INNER|LEFT|RIGHT|CROSS)\s+JOIN\s+\w*\s*$/i.test(textBeforeCursor)
+    ) {
+      return { type: "join", inJoin: true };
     }
-    
+
     // Check for WHERE context
     if (/\bWHERE\s+.*\s*$/i.test(textBeforeCursor)) {
-      return { type: 'where', inWhere: true };
+      return { type: "where", inWhere: true };
     }
-    
+
     // Check for GROUP BY context
     if (/\bGROUP\s+BY\s+.*\s*$/i.test(textBeforeCursor)) {
-      return { type: 'group_by', inGroupBy: true };
+      return { type: "group_by", inGroupBy: true };
     }
-    
+
     // Check for HAVING context
     if (/\bHAVING\s+.*\s*$/i.test(textBeforeCursor)) {
-      return { type: 'having', inHaving: true };
+      return { type: "having", inHaving: true };
     }
-    
+
     // Check for ORDER BY context
     if (/\bORDER\s+BY\s+.*\s*$/i.test(textBeforeCursor)) {
-      return { type: 'order_by', inOrderBy: true };
+      return { type: "order_by", inOrderBy: true };
     }
-    
-    return { type: 'keyword' };
+
+    return { type: "keyword" };
   }
 
   /**
@@ -146,37 +153,38 @@ export class EnhancedSQLCompletion {
   private getSelectCompletion(
     currentWord: string,
     pos: number,
-    word: { from: number } | null,
-    context: { type: string; [key: string]: boolean | string }
+    word: { from: number } | null
   ): CompletionResult | null {
     const options = [];
-    
+
     // Add aggregate functions
     const aggregateFunctions = [
-      { label: 'COUNT(*)', apply: 'COUNT(*)', detail: 'Count all rows' },
-      { label: 'SUM()', apply: 'SUM(', detail: 'Sum numeric values' },
-      { label: 'AVG()', apply: 'AVG(', detail: 'Average numeric values' },
-      { label: 'MIN()', apply: 'MIN(', detail: 'Minimum value' },
-      { label: 'MAX()', apply: 'MAX(', detail: 'Maximum value' },
-      { label: '*', apply: '*', detail: 'All columns' }
+      { label: "COUNT(*)", apply: "COUNT(*)", detail: "Count all rows" },
+      { label: "SUM()", apply: "SUM(", detail: "Sum numeric values" },
+      { label: "AVG()", apply: "AVG(", detail: "Average numeric values" },
+      { label: "MIN()", apply: "MIN(", detail: "Minimum value" },
+      { label: "MAX()", apply: "MAX(", detail: "Maximum value" },
+      { label: "*", apply: "*", detail: "All columns" },
     ];
-    
+
     options.push(...aggregateFunctions);
-    
+
     // Add available columns
-    const availableColumns = this.getAvailableColumns(context);
-    options.push(...availableColumns.map(col => ({
-      label: col,
-      type: 'field',
-      apply: this.needsQuotes(col) ? `"${col}"` : col,
-      detail: 'Column'
-    })));
-    
+    const availableColumns = this.getAvailableColumns();
+    options.push(
+      ...availableColumns.map((col) => ({
+        label: col,
+        type: "field",
+        apply: this.needsQuotes(col) ? `"${col}"` : col,
+        detail: "Column",
+      }))
+    );
+
     return {
       from: word ? word.from : pos,
       options,
       filter: true,
-      validFor: /^[\w*"']*$/
+      validFor: /^[\w*"']*$/,
     };
   }
 
@@ -186,23 +194,26 @@ export class EnhancedSQLCompletion {
   private getFromCompletion(
     currentWord: string,
     pos: number,
-    word: { from: number } | null,
-    context: { type: string; [key: string]: boolean | string }
+    word: { from: number } | null
   ): CompletionResult | null {
-    const filteredTables = this.tableNames.filter(table =>
-      currentWord ? this.stripQuotes(table).toLowerCase().startsWith(this.stripQuotes(currentWord).toLowerCase()) : true
+    const filteredTables = this.tableNames.filter((table) =>
+      currentWord
+        ? this.stripQuotes(table)
+            .toLowerCase()
+            .startsWith(this.stripQuotes(currentWord).toLowerCase())
+        : true
     );
 
     return {
       from: word ? word.from : pos,
-      options: filteredTables.map(table => ({
+      options: filteredTables.map((table) => ({
         label: table,
-        type: 'table',
+        type: "table",
         apply: this.needsQuotes(table) ? `"${table}"` : table,
-        detail: 'Table'
+        detail: "Table",
       })),
       filter: true,
-      validFor: /^[\w"']*$/
+      validFor: /^[\w"']*$/,
     };
   }
 
@@ -212,37 +223,40 @@ export class EnhancedSQLCompletion {
   private getAfterFromCompletion(
     currentWord: string,
     pos: number,
-    word: { from: number } | null,
-    context: { type: string; [key: string]: boolean | string }
+    word: { from: number } | null
   ): CompletionResult | null {
     const options = [];
-    
+
     // Add SQL keywords that can come after FROM
     const keywords = [
-      { label: 'WHERE', apply: 'WHERE ', detail: 'Filter rows' },
-      { label: 'GROUP BY', apply: 'GROUP BY ', detail: 'Group rows' },
-      { label: 'HAVING', apply: 'HAVING ', detail: 'Filter groups' },
-      { label: 'ORDER BY', apply: 'ORDER BY ', detail: 'Sort results' },
-      { label: 'LIMIT', apply: 'LIMIT ', detail: 'Limit number of rows' },
-      { label: 'JOIN', apply: 'JOIN ', detail: 'Join with another table' },
-      { label: 'INNER JOIN', apply: 'INNER JOIN ', detail: 'Inner join' },
-      { label: 'LEFT JOIN', apply: 'LEFT JOIN ', detail: 'Left join' },
-      { label: 'RIGHT JOIN', apply: 'RIGHT JOIN ', detail: 'Right join' },
-      { label: 'CROSS JOIN', apply: 'CROSS JOIN ', detail: 'Cross join' },
-      { label: 'UNION', apply: 'UNION ', detail: 'Combine results' },
-      { label: 'UNION ALL', apply: 'UNION ALL ', detail: 'Combine all results' }
+      { label: "WHERE", apply: "WHERE ", detail: "Filter rows" },
+      { label: "GROUP BY", apply: "GROUP BY ", detail: "Group rows" },
+      { label: "HAVING", apply: "HAVING ", detail: "Filter groups" },
+      { label: "ORDER BY", apply: "ORDER BY ", detail: "Sort results" },
+      { label: "LIMIT", apply: "LIMIT ", detail: "Limit number of rows" },
+      { label: "JOIN", apply: "JOIN ", detail: "Join with another table" },
+      { label: "INNER JOIN", apply: "INNER JOIN ", detail: "Inner join" },
+      { label: "LEFT JOIN", apply: "LEFT JOIN ", detail: "Left join" },
+      { label: "RIGHT JOIN", apply: "RIGHT JOIN ", detail: "Right join" },
+      { label: "CROSS JOIN", apply: "CROSS JOIN ", detail: "Cross join" },
+      { label: "UNION", apply: "UNION ", detail: "Combine results" },
+      {
+        label: "UNION ALL",
+        apply: "UNION ALL ",
+        detail: "Combine all results",
+      },
     ];
-    
+
     options.push(...keywords);
-    
+
     return {
       from: word ? word.from : pos,
-      options: options.map(opt => ({
+      options: options.map((opt) => ({
         ...opt,
-        type: 'keyword'
+        type: "keyword",
       })),
       filter: true,
-      validFor: /^[\w\s]*$/
+      validFor: /^[\w\s]*$/,
     };
   }
 
@@ -252,50 +266,55 @@ export class EnhancedSQLCompletion {
   private getWhereCompletion(
     currentWord: string,
     pos: number,
-    word: { from: number } | null,
-    context: { type: string; [key: string]: boolean | string }
+    word: { from: number } | null
   ): CompletionResult | null {
     const options = [];
-    
+
     // Add operators
     const operators = [
-      { label: '=', apply: '= ', detail: 'Equals' },
-      { label: '!=', apply: '!= ', detail: 'Not equals' },
-      { label: '>', apply: '> ', detail: 'Greater than' },
-      { label: '<', apply: '< ', detail: 'Less than' },
-      { label: '>=', apply: '>= ', detail: 'Greater than or equal' },
-      { label: '<=', apply: '<= ', detail: 'Less than or equal' },
-      { label: 'LIKE', apply: 'LIKE ', detail: 'Pattern matching' },
-      { label: 'IN', apply: 'IN (', detail: 'Value in list' },
-      { label: 'BETWEEN', apply: 'BETWEEN ', detail: 'Range of values' },
-      { label: 'IS NULL', apply: 'IS NULL', detail: 'Check for null' },
-      { label: 'IS NOT NULL', apply: 'IS NOT NULL', detail: 'Check for not null' }
+      { label: "=", apply: "= ", detail: "Equals" },
+      { label: "!=", apply: "!= ", detail: "Not equals" },
+      { label: ">", apply: "> ", detail: "Greater than" },
+      { label: "<", apply: "< ", detail: "Less than" },
+      { label: ">=", apply: ">= ", detail: "Greater than or equal" },
+      { label: "<=", apply: "<= ", detail: "Less than or equal" },
+      { label: "LIKE", apply: "LIKE ", detail: "Pattern matching" },
+      { label: "IN", apply: "IN (", detail: "Value in list" },
+      { label: "BETWEEN", apply: "BETWEEN ", detail: "Range of values" },
+      { label: "IS NULL", apply: "IS NULL", detail: "Check for null" },
+      {
+        label: "IS NOT NULL",
+        apply: "IS NOT NULL",
+        detail: "Check for not null",
+      },
     ];
-    
+
     options.push(...operators);
-    
+
     // Add logical operators
     const logicalOperators = [
-      { label: 'AND', apply: 'AND ', detail: 'Logical AND' },
-      { label: 'OR', apply: 'OR ', detail: 'Logical OR' }
+      { label: "AND", apply: "AND ", detail: "Logical AND" },
+      { label: "OR", apply: "OR ", detail: "Logical OR" },
     ];
-    
+
     options.push(...logicalOperators);
-    
+
     // Add available columns
-    const availableColumns = this.getAvailableColumns(context);
-    options.push(...availableColumns.map(col => ({
-      label: col,
-      type: 'field',
-      apply: this.needsQuotes(col) ? `"${col}"` : col,
-      detail: 'Column'
-    })));
-    
+    const availableColumns = this.getAvailableColumns();
+    options.push(
+      ...availableColumns.map((col) => ({
+        label: col,
+        type: "field",
+        apply: this.needsQuotes(col) ? `"${col}"` : col,
+        detail: "Column",
+      }))
+    );
+
     return {
       from: word ? word.from : pos,
       options,
       filter: true,
-      validFor: /^[\w"']*$/
+      validFor: /^[\w"']*$/,
     };
   }
 
@@ -305,38 +324,43 @@ export class EnhancedSQLCompletion {
   private getJoinCompletion(
     currentWord: string,
     pos: number,
-    word: { from: number } | null,
-    context: { type: string; [key: string]: boolean | string }
+    word: { from: number } | null
   ): CompletionResult | null {
     const options = [];
-    
+
     // Add JOIN types
     const joinTypes = [
-      { label: 'INNER JOIN', apply: 'INNER JOIN ', detail: 'Inner join' },
-      { label: 'LEFT JOIN', apply: 'LEFT JOIN ', detail: 'Left outer join' },
-      { label: 'RIGHT JOIN', apply: 'RIGHT JOIN ', detail: 'Right outer join' },
-      { label: 'CROSS JOIN', apply: 'CROSS JOIN ', detail: 'Cross join' }
+      { label: "INNER JOIN", apply: "INNER JOIN ", detail: "Inner join" },
+      { label: "LEFT JOIN", apply: "LEFT JOIN ", detail: "Left outer join" },
+      { label: "RIGHT JOIN", apply: "RIGHT JOIN ", detail: "Right outer join" },
+      { label: "CROSS JOIN", apply: "CROSS JOIN ", detail: "Cross join" },
     ];
-    
+
     options.push(...joinTypes);
-    
+
     // Add available tables
-    const filteredTables = this.tableNames.filter(table =>
-      currentWord ? this.stripQuotes(table).toLowerCase().startsWith(this.stripQuotes(currentWord).toLowerCase()) : true
+    const filteredTables = this.tableNames.filter((table) =>
+      currentWord
+        ? this.stripQuotes(table)
+            .toLowerCase()
+            .startsWith(this.stripQuotes(currentWord).toLowerCase())
+        : true
     );
-    
-    options.push(...filteredTables.map(table => ({
-      label: table,
-      type: 'table',
-      apply: this.needsQuotes(table) ? `"${table}"` : table,
-      detail: 'Table'
-    })));
-    
+
+    options.push(
+      ...filteredTables.map((table) => ({
+        label: table,
+        type: "table",
+        apply: this.needsQuotes(table) ? `"${table}"` : table,
+        detail: "Table",
+      }))
+    );
+
     return {
       from: word ? word.from : pos,
       options,
       filter: true,
-      validFor: /^[\w"']*$/
+      validFor: /^[\w"']*$/,
     };
   }
 
@@ -346,19 +370,22 @@ export class EnhancedSQLCompletion {
   private getUnionCompletion(
     currentWord: string,
     pos: number,
-    word: { from: number } | null,
-    context: { type: string; [key: string]: boolean | string }
+    word: { from: number } | null
   ): CompletionResult | null {
     const options = [
-      { label: 'UNION', apply: 'UNION ', detail: 'Union (removes duplicates)' },
-      { label: 'UNION ALL', apply: 'UNION ALL ', detail: 'Union all (keeps duplicates)' }
+      { label: "UNION", apply: "UNION ", detail: "Union (removes duplicates)" },
+      {
+        label: "UNION ALL",
+        apply: "UNION ALL ",
+        detail: "Union all (keeps duplicates)",
+      },
     ];
-    
+
     return {
       from: word ? word.from : pos,
       options,
       filter: true,
-      validFor: /^UNION$/
+      validFor: /^UNION$/,
     };
   }
 
@@ -368,19 +395,22 @@ export class EnhancedSQLCompletion {
   private getWithCompletion(
     currentWord: string,
     pos: number,
-    word: { from: number } | null,
-    context: { type: string; [key: string]: boolean | string }
+    word: { from: number } | null
   ): CompletionResult | null {
     const options = [
-      { label: 'WITH', apply: 'WITH ', detail: 'Common Table Expression' },
-      { label: 'WITH RECURSIVE', apply: 'WITH RECURSIVE ', detail: 'Recursive CTE' }
+      { label: "WITH", apply: "WITH ", detail: "Common Table Expression" },
+      {
+        label: "WITH RECURSIVE",
+        apply: "WITH RECURSIVE ",
+        detail: "Recursive CTE",
+      },
     ];
-    
+
     return {
       from: word ? word.from : pos,
       options,
       filter: true,
-      validFor: /^WITH$/
+      validFor: /^WITH$/,
     };
   }
 
@@ -390,21 +420,20 @@ export class EnhancedSQLCompletion {
   private getGroupByCompletion(
     currentWord: string,
     pos: number,
-    word: { from: number } | null,
-    context: { type: string; [key: string]: boolean | string }
+    word: { from: number } | null
   ): CompletionResult | null {
-    const availableColumns = this.getAvailableColumns(context);
-    
+    const availableColumns = this.getAvailableColumns();
+
     return {
       from: word ? word.from : pos,
-      options: availableColumns.map(col => ({
+      options: availableColumns.map((col) => ({
         label: col,
-        type: 'field',
+        type: "field",
         apply: this.needsQuotes(col) ? `"${col}"` : col,
-        detail: 'Group by column'
+        detail: "Group by column",
       })),
       filter: true,
-      validFor: /^[\w"']*$/
+      validFor: /^[\w"']*$/,
     };
   }
 
@@ -414,39 +443,38 @@ export class EnhancedSQLCompletion {
   private getHavingCompletion(
     currentWord: string,
     pos: number,
-    word: { from: number } | null,
-    context: { type: string; [key: string]: boolean | string }
+    word: { from: number } | null
   ): CompletionResult | null {
     const options = [];
-    
+
     // Add aggregate functions for HAVING
     const aggregateFunctions = [
-      { label: 'COUNT(*)', apply: 'COUNT(*)', detail: 'Count all rows' },
-      { label: 'SUM()', apply: 'SUM(', detail: 'Sum numeric values' },
-      { label: 'AVG()', apply: 'AVG(', detail: 'Average numeric values' },
-      { label: 'MIN()', apply: 'MIN(', detail: 'Minimum value' },
-      { label: 'MAX()', apply: 'MAX(', detail: 'Maximum value' }
+      { label: "COUNT(*)", apply: "COUNT(*)", detail: "Count all rows" },
+      { label: "SUM()", apply: "SUM(", detail: "Sum numeric values" },
+      { label: "AVG()", apply: "AVG(", detail: "Average numeric values" },
+      { label: "MIN()", apply: "MIN(", detail: "Minimum value" },
+      { label: "MAX()", apply: "MAX(", detail: "Maximum value" },
     ];
-    
+
     options.push(...aggregateFunctions);
-    
+
     // Add operators
     const operators = [
-      { label: '>', apply: '> ', detail: 'Greater than' },
-      { label: '<', apply: '< ', detail: 'Less than' },
-      { label: '>=', apply: '>= ', detail: 'Greater than or equal' },
-      { label: '<=', apply: '<= ', detail: 'Less than or equal' },
-      { label: '=', apply: '= ', detail: 'Equals' },
-      { label: '!=', apply: '!= ', detail: 'Not equals' }
+      { label: ">", apply: "> ", detail: "Greater than" },
+      { label: "<", apply: "< ", detail: "Less than" },
+      { label: ">=", apply: ">= ", detail: "Greater than or equal" },
+      { label: "<=", apply: "<= ", detail: "Less than or equal" },
+      { label: "=", apply: "= ", detail: "Equals" },
+      { label: "!=", apply: "!= ", detail: "Not equals" },
     ];
-    
+
     options.push(...operators);
-    
+
     return {
       from: word ? word.from : pos,
       options,
       filter: true,
-      validFor: /^[\w"']*$/
+      validFor: /^[\w"']*$/,
     };
   }
 
@@ -456,33 +484,34 @@ export class EnhancedSQLCompletion {
   private getOrderByCompletion(
     currentWord: string,
     pos: number,
-    word: { from: number } | null,
-    context: { type: string; [key: string]: boolean | string }
+    word: { from: number } | null
   ): CompletionResult | null {
     const options = [];
-    
+
     // Add direction keywords
     const directions = [
-      { label: 'ASC', apply: 'ASC', detail: 'Ascending order' },
-      { label: 'DESC', apply: 'DESC', detail: 'Descending order' }
+      { label: "ASC", apply: "ASC", detail: "Ascending order" },
+      { label: "DESC", apply: "DESC", detail: "Descending order" },
     ];
-    
+
     options.push(...directions);
-    
+
     // Add available columns
-    const availableColumns = this.getAvailableColumns(context);
-    options.push(...availableColumns.map(col => ({
-      label: col,
-      type: 'field',
-      apply: this.needsQuotes(col) ? `"${col}"` : col,
-      detail: 'Order by column'
-    })));
-    
+    const availableColumns = this.getAvailableColumns();
+    options.push(
+      ...availableColumns.map((col) => ({
+        label: col,
+        type: "field",
+        apply: this.needsQuotes(col) ? `"${col}"` : col,
+        detail: "Order by column",
+      }))
+    );
+
     return {
       from: word ? word.from : pos,
       options,
       filter: true,
-      validFor: /^[\w"']*$/
+      validFor: /^[\w"']*$/,
     };
   }
 
@@ -495,99 +524,163 @@ export class EnhancedSQLCompletion {
     word: { from: number } | null
   ): CompletionResult | null {
     // Check if we're at the start of a query (beginning of line or after semicolon)
-    const isQueryStart = pos === 0 || /\s*;\s*$/.test(this.getTextBeforeCursor(pos));
-    
+    const isQueryStart =
+      pos === 0 || /\s*;\s*$/.test(this.getTextBeforeCursor(pos));
+
     const keywords = [
       // Query starting keywords
-      { label: 'SELECT', apply: 'SELECT ', detail: 'Select data from tables' },
-      { label: 'WITH', apply: 'WITH ', detail: 'Common Table Expression (CTE)' },
-      { label: 'VALUES', apply: 'VALUES ', detail: 'Query literal rows of data' },
-      { label: 'TABLE', apply: 'TABLE ', detail: 'Query table directly (PostgreSQL)' },
-      
+      { label: "SELECT", apply: "SELECT ", detail: "Select data from tables" },
+      {
+        label: "WITH",
+        apply: "WITH ",
+        detail: "Common Table Expression (CTE)",
+      },
+      {
+        label: "VALUES",
+        apply: "VALUES ",
+        detail: "Query literal rows of data",
+      },
+      {
+        label: "TABLE",
+        apply: "TABLE ",
+        detail: "Query table directly (PostgreSQL)",
+      },
+
       // Query continuation keywords
-      { label: 'FROM', apply: 'FROM ', detail: 'Specify source table' },
-      { label: 'WHERE', apply: 'WHERE ', detail: 'Filter rows' },
-      { label: 'GROUP BY', apply: 'GROUP BY ', detail: 'Group rows' },
-      { label: 'HAVING', apply: 'HAVING ', detail: 'Filter groups' },
-      { label: 'ORDER BY', apply: 'ORDER BY ', detail: 'Sort results' },
-      { label: 'LIMIT', apply: 'LIMIT ', detail: 'Limit number of results' },
-      { label: 'OFFSET', apply: 'OFFSET ', detail: 'Skip number of rows' },
-      
+      { label: "FROM", apply: "FROM ", detail: "Specify source table" },
+      { label: "WHERE", apply: "WHERE ", detail: "Filter rows" },
+      { label: "GROUP BY", apply: "GROUP BY ", detail: "Group rows" },
+      { label: "HAVING", apply: "HAVING ", detail: "Filter groups" },
+      { label: "ORDER BY", apply: "ORDER BY ", detail: "Sort results" },
+      { label: "LIMIT", apply: "LIMIT ", detail: "Limit number of results" },
+      { label: "OFFSET", apply: "OFFSET ", detail: "Skip number of rows" },
+
       // Set operations
-      { label: 'UNION', apply: 'UNION ', detail: 'Combine results (removes duplicates)' },
-      { label: 'UNION ALL', apply: 'UNION ALL ', detail: 'Combine all results (keeps duplicates)' },
-      { label: 'INTERSECT', apply: 'INTERSECT ', detail: 'Intersection of results' },
-      { label: 'EXCEPT', apply: 'EXCEPT ', detail: 'Difference of results' },
-      
+      {
+        label: "UNION",
+        apply: "UNION ",
+        detail: "Combine results (removes duplicates)",
+      },
+      {
+        label: "UNION ALL",
+        apply: "UNION ALL ",
+        detail: "Combine all results (keeps duplicates)",
+      },
+      {
+        label: "INTERSECT",
+        apply: "INTERSECT ",
+        detail: "Intersection of results",
+      },
+      { label: "EXCEPT", apply: "EXCEPT ", detail: "Difference of results" },
+
       // Join operations
-      { label: 'INNER JOIN', apply: 'INNER JOIN ', detail: 'Inner join tables' },
-      { label: 'LEFT JOIN', apply: 'LEFT JOIN ', detail: 'Left outer join tables' },
-      { label: 'LEFT OUTER JOIN', apply: 'LEFT OUTER JOIN ', detail: 'Left outer join tables' },
-      { label: 'RIGHT JOIN', apply: 'RIGHT JOIN ', detail: 'Right outer join tables' },
-      { label: 'RIGHT OUTER JOIN', apply: 'RIGHT OUTER JOIN ', detail: 'Right outer join tables' },
-      { label: 'FULL JOIN', apply: 'FULL JOIN ', detail: 'Full outer join tables' },
-      { label: 'FULL OUTER JOIN', apply: 'FULL OUTER JOIN ', detail: 'Full outer join tables' },
-      { label: 'CROSS JOIN', apply: 'CROSS JOIN ', detail: 'Cross join tables' },
-      
+      {
+        label: "INNER JOIN",
+        apply: "INNER JOIN ",
+        detail: "Inner join tables",
+      },
+      {
+        label: "LEFT JOIN",
+        apply: "LEFT JOIN ",
+        detail: "Left outer join tables",
+      },
+      {
+        label: "LEFT OUTER JOIN",
+        apply: "LEFT OUTER JOIN ",
+        detail: "Left outer join tables",
+      },
+      {
+        label: "RIGHT JOIN",
+        apply: "RIGHT JOIN ",
+        detail: "Right outer join tables",
+      },
+      {
+        label: "RIGHT OUTER JOIN",
+        apply: "RIGHT OUTER JOIN ",
+        detail: "Right outer join tables",
+      },
+      {
+        label: "FULL JOIN",
+        apply: "FULL JOIN ",
+        detail: "Full outer join tables",
+      },
+      {
+        label: "FULL OUTER JOIN",
+        apply: "FULL OUTER JOIN ",
+        detail: "Full outer join tables",
+      },
+      {
+        label: "CROSS JOIN",
+        apply: "CROSS JOIN ",
+        detail: "Cross join tables",
+      },
+
       // Modifiers
-      { label: 'DISTINCT', apply: 'DISTINCT ', detail: 'Remove duplicate rows' },
-      { label: 'ALL', apply: 'ALL ', detail: 'Include all rows' },
-      
+      {
+        label: "DISTINCT",
+        apply: "DISTINCT ",
+        detail: "Remove duplicate rows",
+      },
+      { label: "ALL", apply: "ALL ", detail: "Include all rows" },
+
       // Functions
-      { label: 'COUNT', apply: 'COUNT(', detail: 'Count rows or non-null values' },
-      { label: 'SUM', apply: 'SUM(', detail: 'Sum numeric values' },
-      { label: 'AVG', apply: 'AVG(', detail: 'Average numeric values' },
-      { label: 'MIN', apply: 'MIN(', detail: 'Minimum value' },
-      { label: 'MAX', apply: 'MAX(', detail: 'Maximum value' },
-      { label: 'CASE', apply: 'CASE ', detail: 'Conditional expression' },
+      {
+        label: "COUNT",
+        apply: "COUNT(",
+        detail: "Count rows or non-null values",
+      },
+      { label: "SUM", apply: "SUM(", detail: "Sum numeric values" },
+      { label: "AVG", apply: "AVG(", detail: "Average numeric values" },
+      { label: "MIN", apply: "MIN(", detail: "Minimum value" },
+      { label: "MAX", apply: "MAX(", detail: "Maximum value" },
+      { label: "CASE", apply: "CASE ", detail: "Conditional expression" },
     ];
 
     // Filter keywords based on context
     let filteredKeywords = keywords;
-    
+
     if (isQueryStart) {
       // At query start, only show query starting keywords
-      filteredKeywords = keywords.filter(kw => 
-        ['SELECT', 'WITH', 'VALUES', 'TABLE'].includes(kw.label)
+      filteredKeywords = keywords.filter((kw) =>
+        ["SELECT", "WITH", "VALUES", "TABLE"].includes(kw.label)
       );
     }
 
     // Further filter based on current word
-    filteredKeywords = filteredKeywords.filter(kw =>
-      currentWord ? kw.label.toLowerCase().startsWith(currentWord.toLowerCase()) : true
+    filteredKeywords = filteredKeywords.filter((kw) =>
+      currentWord
+        ? kw.label.toLowerCase().startsWith(currentWord.toLowerCase())
+        : true
     );
 
     return {
       from: word ? word.from : pos,
       options: filteredKeywords,
       filter: true,
-      validFor: /^[A-Z\s]*$/i
+      validFor: /^[A-Z\s]*$/i,
     };
   }
 
   /**
    * Get text before cursor position for context analysis
    */
-  private getTextBeforeCursor(_pos: number): string {
-    // This would need to be passed from the completion context
-    // For now, return empty string - this should be enhanced
-    return '';
+  private getTextBeforeCursor(pos: number, docText?: string): string {
+    if (!docText) return "";
+    return docText.slice(0, pos);
   }
 
   /**
    * Get available columns based on context
    */
-  private getAvailableColumns(_context: { type: string; [key: string]: boolean | string }): string[] {
+  private getAvailableColumns(): string[] {
     const columns = [];
-    
-    // Add columns from all tables for now
-    // In a more sophisticated implementation, you'd determine which tables are in scope
+
     for (const tableName of this.tableNames) {
       if (this.tableColumns[tableName]) {
         columns.push(...this.tableColumns[tableName]);
       }
     }
-    
-    return [...new Set(columns)]; // Remove duplicates
+
+    return [...new Set(columns)]; 
   }
 }

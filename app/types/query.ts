@@ -417,3 +417,39 @@ export interface Database {
   alt: string;
   tooltip: string;
 }
+
+// Unified schema format for API communication (same as backend TableSchemaInput)
+export interface ApiTableSchema {
+  table_name: string;
+  columns: Array<{
+    column_name: string;
+    data_type: string;
+    is_nullable: string;
+    is_primary_key: boolean;
+  }>;
+  primary_keys?: string[];
+  foreign_keys: Array<{
+    column_name: string;
+    referenced_table: string;
+    referenced_column: string;
+    constraint_name: string;
+  }>;
+}
+
+// Schema context for AI prompts - optimized format for LLM understanding
+export interface SchemaContext {
+  tables: Array<{
+    name: string;
+    columns: Array<{
+      name: string;
+      type: string;
+      nullable: boolean;
+      primaryKey: boolean;
+    }>;
+    relationships: Array<{
+      fromColumn: string;
+      toTable: string;
+      toColumn: string;
+    }>;
+  }>;
+}

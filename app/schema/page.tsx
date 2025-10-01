@@ -1,5 +1,4 @@
 import { Suspense } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import SchemaWithProvider from "../components/schema/SchemaWithProvider";
 
 export default async function SchemaPage({

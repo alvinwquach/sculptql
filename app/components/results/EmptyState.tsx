@@ -38,9 +38,11 @@ export default function EmptyState({ viewMode }: EmptyStateProps) {
   };
 
   return (
-    <div className="bg-gradient-to-br from-[#0f0f23] via-[#1e1b4b] to-[#312e81] border-2 border-purple-500/50 rounded-xl shadow-[0_0_25px_rgba(139,92,246,0.3)] flex flex-col items-center justify-center h-full text-cyan-300 p-8 backdrop-blur-sm">
+    <div className="flex flex-col items-center justify-center h-screen text-cyan-300 p-8">
       {getIcon()}
-      <p className="text-xs sm:text-lg font-medium text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-purple-400 font-mono">{getMessage()}</p>
+      <p className="text-xs sm:text-lg font-medium text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-purple-400 font-mono text-center">
+        {getMessage()}
+      </p>
     </div>
   );
 }
