@@ -1,11 +1,6 @@
 import OpenAI from "openai";
 import { ApiTableSchema, SchemaContext } from "@/app/types/query";
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-  timeout: 30000,
-});
-
 export type TableSchemaInput = ApiTableSchema;
 
 export interface GenerateSqlInput {
@@ -54,6 +49,11 @@ export async function generateSqlFromNaturalLanguage({
       console.warn("No OpenAI API key provided, returning mock SQL");
       return generateMockSql(naturalLanguage, schema);
     }
+
+    const openai = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY,
+      timeout: 30000,
+    });
 
     const schemaContext = transformToSchemaContext(schema);
 
