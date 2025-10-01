@@ -50,6 +50,10 @@ interface WithSelectProps {
   ) => void;
   onAddCteClause: () => void;
   onRemoveCteClause: (cteIndex: number) => void;
+  onCteGroupBySelect: (cteIndex: number, value: readonly SelectOption[]) => void;
+  onCteHavingAggregateSelect: (cteIndex: number, conditionIndex: number, value: SingleValue<SelectOption>) => void;
+  onCteHavingOperatorSelect: (cteIndex: number, conditionIndex: number, value: SingleValue<SelectOption>) => void;
+  onCteHavingValueSelect: (cteIndex: number, conditionIndex: number, value: SingleValue<SelectOption>) => void;
   metadataLoading: boolean;
 }
 
@@ -71,6 +75,10 @@ export default function WithSelect({
   onCteValueSelect,
   onAddCteClause,
   onRemoveCteClause,
+  onCteGroupBySelect,
+  onCteHavingAggregateSelect,
+  onCteHavingOperatorSelect,
+  onCteHavingValueSelect,
   metadataLoading,
 }: WithSelectProps) {
   // Create the table options
@@ -298,6 +306,106 @@ export default function WithSelect({
     </div>
   ))}
 </div>
+
+            {/* GROUP BY Section */}
+            <div className="flex flex-col gap-2">
+              <Label className="text-sm font-bold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-purple-400">
+                GROUP BY (Optional)
+              </Label>
+              <Select
+                isMulti
+                options={getColumnOptions(cte.fromTable)}
+                value={cte.groupByColumns}
+                onChange={(value) => onCteGroupBySelect(cteIndex, value)}
+                placeholder="Select columns to group by"
+                isDisabled={metadataLoading || !cte.fromTable}
+                styles={selectStyles}
+                className="min-w-0 w-full"
+              />
+            </div>
+
+            {/* HAVING Section */}
+            {cte.groupByColumns && cte.groupByColumns.length > 0 && (
+              <div className="flex flex-col gap-3">
+                <Label className="text-sm font-bold text-transparent bg-clip-text bg-gradient-to-r from-amber-400 to-purple-400">
+                  HAVING (Filter Aggregates)
+                </Label>
+                {cte.havingClause.conditions.map((condition, conditionIndex) => (
+                  <div
+                    key={conditionIndex}
+                    className="p-4 border border-amber-500/30 rounded-lg bg-gradient-to-br from-[#0f0f23] to-[#1e1b4b] shadow-[0_0_10px_rgba(251,191,36,0.1)]"
+                  >
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                      <div className="flex flex-col gap-1">
+                        <label className="text-xs text-amber-300/80 font-mono">Aggregate</label>
+                        <Select
+                          options={
+                            cte.fromTable
+                              ? [
+                                  { value: "COUNT(*)", label: "COUNT(*)" },
+                                  ...getColumnOptions(cte.fromTable)
+                                    .filter((col) => col.value !== "*")
+                                    .flatMap((col) => [
+                                      { value: `COUNT(${col.value})`, label: `COUNT(${col.value})` },
+                                      { value: `SUM(${col.value})`, label: `SUM(${col.value})` },
+                                      { value: `AVG(${col.value})`, label: `AVG(${col.value})` },
+                                      { value: `MAX(${col.value})`, label: `MAX(${col.value})` },
+                                      { value: `MIN(${col.value})`, label: `MIN(${col.value})` },
+                                    ]),
+                                ]
+                              : []
+                          }
+                          value={condition.aggregateColumn}
+                          onChange={(value) =>
+                            onCteHavingAggregateSelect(cteIndex, conditionIndex, value)
+                          }
+                          placeholder="COUNT(*), SUM(...)"
+                          isClearable
+                          isDisabled={metadataLoading || !cte.fromTable}
+                          styles={selectStyles}
+                          className="w-full"
+                        />
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        <label className="text-xs text-amber-300/80 font-mono">Operator</label>
+                        <Select
+                          options={operatorOptions}
+                          value={condition.operator}
+                          onChange={(value) =>
+                            onCteHavingOperatorSelect(cteIndex, conditionIndex, value)
+                          }
+                          placeholder="Operator"
+                          isClearable
+                          isDisabled={metadataLoading || !condition.aggregateColumn}
+                          styles={selectStyles}
+                          className="w-full"
+                        />
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        <label className="text-xs text-amber-300/80 font-mono">Value</label>
+                        <CreatableSelect
+                          options={[]}
+                          value={condition.value}
+                          onChange={(value) =>
+                            onCteHavingValueSelect(cteIndex, conditionIndex, value)
+                          }
+                          placeholder="Value"
+                          isClearable
+                          isDisabled={
+                            metadataLoading ||
+                            !condition.aggregateColumn ||
+                            !condition.operator
+                          }
+                          styles={selectStyles}
+                          className="w-full"
+                          formatCreateLabel={(inputValue) => inputValue}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
 
           </div>
         </div>

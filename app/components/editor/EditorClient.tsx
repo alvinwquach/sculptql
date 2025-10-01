@@ -28,6 +28,7 @@ import HavingSelect from "./HavingSelect";
 import JoinSelect from "./JoinSelect";
 import UnionSelect from "./UnionSelect";
 import CaseSelect from "./CaseSelect";
+import WithSelect from "./WithSelect";
 import CodeMirrorEditor from "./CodeMirrorEditor";
 import QueryHistory from "../history/QueryHistory";
 import ResultsPane from "./ResultsPane";
@@ -98,6 +99,22 @@ const EditorClient = memo(function EditorClient({
     onAddCaseCondition,
     onRemoveCaseCondition,
     operatorOptions,
+    // CTE/WITH handlers
+    cteClauses,
+    onCteAliasChange,
+    onCteTableSelect,
+    onCteColumnSelect,
+    onCteLogicalOperatorSelect,
+    onCteWhereColumnSelect,
+    onCteOperatorSelect,
+    onCteValueSelect,
+    onAddCteClause,
+    onRemoveCteClause,
+    onCteGroupBySelect,
+    onCteHavingAggregateSelect,
+    onCteHavingOperatorSelect,
+    onCteHavingValueSelect,
+    logicalOperatorOptions,
   } = useEditorContext();
   const [showConnectionPrompt, setShowConnectionPrompt] = useState(false);
   const [showMobileSidebar, setShowMobileSidebar] = useState(false);
@@ -403,6 +420,29 @@ const EditorClient = memo(function EditorClient({
                       onRemoveUnionClause={onRemoveUnionClause}
                       metadataLoading={metadataLoading}
                     />
+                    <WithSelect
+                      selectedTable={selectedTable}
+                      tableNames={tableNames}
+                      tableColumns={tableColumns}
+                      cteClauses={cteClauses}
+                      uniqueValues={uniqueValues}
+                      operatorOptions={operatorOptions}
+                      logicalOperatorOptions={logicalOperatorOptions}
+                      onCteAliasChange={onCteAliasChange}
+                      onCteTableSelect={onCteTableSelect}
+                      onCteColumnSelect={onCteColumnSelect}
+                      onCteLogicalOperatorSelect={onCteLogicalOperatorSelect}
+                      onCteWhereColumnSelect={onCteWhereColumnSelect}
+                      onCteOperatorSelect={onCteOperatorSelect}
+                      onCteValueSelect={onCteValueSelect}
+                      onAddCteClause={onAddCteClause}
+                      onRemoveCteClause={onRemoveCteClause}
+                      onCteGroupBySelect={onCteGroupBySelect}
+                      onCteHavingAggregateSelect={onCteHavingAggregateSelect}
+                      onCteHavingOperatorSelect={onCteHavingOperatorSelect}
+                      onCteHavingValueSelect={onCteHavingValueSelect}
+                      metadataLoading={metadataLoading}
+                    />
                   </div>
                 </CollapsibleSection>
               </>
@@ -550,6 +590,29 @@ const EditorClient = memo(function EditorClient({
                         onUnionTypeSelect={onUnionTypeSelect}
                         onAddUnionClause={onAddUnionClause}
                         onRemoveUnionClause={onRemoveUnionClause}
+                        metadataLoading={metadataLoading}
+                      />
+                      <WithSelect
+                        selectedTable={selectedTable}
+                        tableNames={tableNames}
+                        tableColumns={tableColumns}
+                        cteClauses={cteClauses}
+                        uniqueValues={uniqueValues}
+                        operatorOptions={operatorOptions}
+                        logicalOperatorOptions={logicalOperatorOptions}
+                        onCteAliasChange={onCteAliasChange}
+                        onCteTableSelect={onCteTableSelect}
+                        onCteColumnSelect={onCteColumnSelect}
+                        onCteLogicalOperatorSelect={onCteLogicalOperatorSelect}
+                        onCteWhereColumnSelect={onCteWhereColumnSelect}
+                        onCteOperatorSelect={onCteOperatorSelect}
+                        onCteValueSelect={onCteValueSelect}
+                        onAddCteClause={onAddCteClause}
+                        onRemoveCteClause={onRemoveCteClause}
+                        onCteGroupBySelect={onCteGroupBySelect}
+                        onCteHavingAggregateSelect={onCteHavingAggregateSelect}
+                        onCteHavingOperatorSelect={onCteHavingOperatorSelect}
+                        onCteHavingValueSelect={onCteHavingValueSelect}
                         metadataLoading={metadataLoading}
                       />
                     </div>

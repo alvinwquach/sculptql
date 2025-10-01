@@ -273,10 +273,9 @@ export interface JsonFilter {
 
 // Interface for the having condition
 export interface HavingCondition {
-  aggregate: SelectOption | null;
-  column: SelectOption | null;
+  aggregateColumn: SelectOption | null;
   operator: SelectOption | null;
-  value: string | null;
+  value: SelectOption | null;
   logicalOperator: SelectOption | null;
 }
 
@@ -348,6 +347,8 @@ export interface CteClause {
   selectedColumns: SelectOption[];
   fromTable: SelectOption | null;
   whereClause: WhereClause;
+  groupByColumns: SelectOption[];
+  havingClause: { conditions: HavingCondition[] };
 }
 
 // Interface for the column type
