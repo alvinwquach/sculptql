@@ -26,20 +26,25 @@ export function useUnifiedSchema(options: {
   useApolloCachePersistence();
   useSchemaVersioning();
 
-  const { data, loading, error, refetch } = useQuery<{ schema: TableSchema[] }>(GET_SCHEMA, {
-    variables: {
-      includeSampleData,
-      limit,
-      tableSearch: tableSearch || undefined,
-      columnSearch: columnSearch || undefined,
-    },
-    fetchPolicy: "cache-first"
-    errorPolicy: "all",
-    notifyOnNetworkStatusChange: false,
-    context: {
-      cacheKey: `schema-${limit}-${tableSearch || ''}-${columnSearch || ''}-${includeSampleData}`,
-    },
-  });
+  const { data, loading, error, refetch } = useQuery<{ schema: TableSchema[] }>(
+    GET_SCHEMA,
+    {
+      variables: {
+        includeSampleData,
+        limit,
+        tableSearch: tableSearch || undefined,
+        columnSearch: columnSearch || undefined,
+      },
+      fetchPolicy: "cache-first",
+      errorPolicy: "all",
+      notifyOnNetworkStatusChange: false,
+      context: {
+        cacheKey: `schema-${limit}-${tableSearch || ""}-${
+          columnSearch || ""
+        }-${includeSampleData}`,
+      },
+    }
+  );
 
   const [schema, setSchema] = useState<TableSchema[]>([]);
   const [schemaError, setSchemaError] = useState<string | null>(null);
