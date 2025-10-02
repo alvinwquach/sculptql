@@ -15,12 +15,12 @@ import {
   Filter,
   FileText,
   Folder,
-  FolderOpen
+  FolderOpen,
 } from "lucide-react";
 import { TableSchema } from "@/app/types/query";
 
 // Props for the TableView component
-interface TableViewProps {
+interface StructureViewProps {
   schema: TableSchema[];
   tableSearch: string;
   columnSearch: string;
@@ -32,13 +32,13 @@ interface TableViewProps {
   viewMode: "table" | "erd";
 }
 
-export default function TableView({
+export default function StructureView({
   schema,
   tableSearch,
   columnSearch,
   updateUrl,
   viewMode,
-}: TableViewProps) {
+}: StructureViewProps) {
   // Set the open tables state
   const [openTables, setOpenTables] = useState<string[]>([]);
   // Set the selected table state
@@ -73,110 +73,145 @@ export default function TableView({
   };
 
   // Filter schema based on search
-  const filteredSchema = schema.filter(table => {
+  const filteredSchema = schema.filter((table) => {
     // Get the matches table search
-    const matchesTableSearch = table.table_name.toLowerCase().includes(tableSearch.toLowerCase());
+    const matchesTableSearch = table.table_name
+      .toLowerCase()
+      .includes(tableSearch.toLowerCase());
     // Get the matches column search
-    const matchesColumnSearch = columnSearch === '' || 
+    const matchesColumnSearch =
+      columnSearch === "" ||
       // Filter the columns by the column name and the column search
-      table.columns.some(col => col.column_name.toLowerCase().includes(columnSearch.toLowerCase()));
+      table.columns.some((col) =>
+        col.column_name.toLowerCase().includes(columnSearch.toLowerCase())
+      );
     // Return the matches table search and the matches column search
     return matchesTableSearch && matchesColumnSearch;
   });
 
   // Sort schema alphabetically
-  const sortedSchema = [...filteredSchema].sort((a, b) => a.table_name.localeCompare(b.table_name));
+  const sortedSchema = [...filteredSchema].sort((a, b) =>
+    a.table_name.localeCompare(b.table_name)
+  );
 
   return (
     <div className="space-y-6">
-      <div className="bg-slate-900/80 backdrop-blur-sm border border-purple-500/30 rounded-lg shadow-lg p-4">
+      <div className="bg-gradient-to-r from-slate-900/50 to-slate-800/50 backdrop-blur-sm border border-purple-500/20 rounded-xl shadow-lg p-6">
         <div className="flex flex-col lg:flex-row gap-4">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-cyan-400" />
+          <div className="relative flex-1 group">
+            <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-cyan-400 w-5 h-5 group-focus-within:text-cyan-300 transition-colors" />
             <Input
               type="text"
               placeholder="Search tables..."
               value={tableSearch}
               onChange={handleTableSearch}
-              className="pl-10 bg-slate-800/50 text-cyan-200 border-cyan-500/30 focus:border-cyan-400 focus:ring-2 focus:ring-cyan-500/30 transition-all rounded-lg font-mono"
+              className="pl-12 pr-4 h-12 bg-slate-800/70 text-cyan-100 placeholder:text-cyan-400/50 border-cyan-500/20 focus:border-cyan-400/50 focus:ring-2 focus:ring-cyan-500/20 transition-all rounded-xl font-mono text-sm shadow-inner hover:bg-slate-800/90"
               aria-label="Search tables"
             />
           </div>
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-pink-400" />
+          <div className="relative flex-1 group">
+            <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-pink-400 w-5 h-5 group-focus-within:text-pink-300 transition-colors" />
             <Input
               type="text"
               placeholder="Search columns..."
               value={columnSearch}
               onChange={handleColumnSearch}
-              className="pl-10 bg-slate-800/50 text-pink-200 border-pink-500/30 focus:border-pink-400 focus:ring-2 focus:ring-pink-500/30 transition-all rounded-lg font-mono"
+              className="pl-12 pr-4 h-12 bg-slate-800/70 text-pink-100 placeholder:text-pink-400/50 border-pink-500/20 focus:border-pink-400/50 focus:ring-2 focus:ring-pink-500/20 transition-all rounded-xl font-mono text-sm shadow-inner hover:bg-slate-800/90"
               aria-label="Search columns"
             />
           </div>
-          <Button
-            variant="outline"
-            className="bg-purple-500/20 border-purple-500/30 text-purple-300 hover:bg-purple-500/30 hover:text-purple-200 font-mono"
-          >
-            <Filter className="w-4 h-4 mr-2" />
-            Filters
-          </Button>
         </div>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-slate-900/80 backdrop-blur-sm border border-cyan-500/30 rounded-lg shadow-lg p-4 hover:shadow-cyan-500/20 transition-all">
-          <div className="flex items-center space-x-3">
-            <div className="p-2 bg-cyan-500/20 rounded-lg">
-              <Database className="w-5 h-5 text-cyan-400" />
-            </div>
-            <div>
-              <p className="text-sm text-cyan-300 font-mono">TOTAL TABLES</p>
-              <p className="text-2xl font-bold text-white font-mono">{schema.length}</p>
-            </div>
-          </div>
-        </div>
-        <div className="bg-slate-900/80 backdrop-blur-sm border border-purple-500/30 rounded-lg shadow-lg p-4 hover:shadow-purple-500/20 transition-all">
-          <div className="flex items-center space-x-3">
-            <div className="p-2 bg-purple-500/20 rounded-lg">
-              <Key className="w-5 h-5 text-purple-400" />
-            </div>
-            <div>
-              <p className="text-sm text-purple-300 font-mono">PRIMARY KEYS</p>
-              <p className="text-2xl font-bold text-white font-mono">
-                {schema.reduce((acc, table) => acc + table.primary_keys.length, 0)}
-              </p>
+        <div className="group bg-gradient-to-br from-slate-900/80 to-slate-800/80 backdrop-blur-sm border border-cyan-500/20 rounded-xl shadow-lg p-5 hover:shadow-cyan-500/30 hover:border-cyan-400/40 transition-all duration-300">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <div className="p-3 bg-cyan-500/10 rounded-xl border border-cyan-500/20 group-hover:bg-cyan-500/20 transition-colors">
+                <Database className="w-6 h-6 text-cyan-400" />
+              </div>
+              <div>
+                <p className="text-xs text-cyan-400/80 font-mono tracking-wider uppercase">
+                  Tables
+                </p>
+                <p className="text-3xl font-bold text-white font-mono mt-1">
+                  {schema.length}
+                </p>
+              </div>
             </div>
           </div>
         </div>
-        <div className="bg-slate-900/80 backdrop-blur-sm border border-pink-500/30 rounded-lg shadow-lg p-4 hover:shadow-pink-500/20 transition-all">
-          <div className="flex items-center space-x-3">
-            <div className="p-2 bg-pink-500/20 rounded-lg">
-              <Link className="w-5 h-5 text-pink-400" />
+        <div className="group bg-gradient-to-br from-slate-900/80 to-slate-800/80 backdrop-blur-sm border border-purple-500/20 rounded-xl shadow-lg p-5 hover:shadow-purple-500/30 hover:border-purple-400/40 transition-all duration-300">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <div className="p-3 bg-purple-500/10 rounded-xl border border-purple-500/20 group-hover:bg-purple-500/20 transition-colors">
+                <Key className="w-6 h-6 text-purple-400" />
+              </div>
+              <div>
+                <p className="text-xs text-purple-400/80 font-mono tracking-wider uppercase">
+                  Primary Keys
+                </p>
+                <p className="text-3xl font-bold text-white font-mono mt-1">
+                  {schema.reduce(
+                    (acc, table) => acc + table.primary_keys.length,
+                    0
+                  )}
+                </p>
+              </div>
             </div>
-            <div>
-              <p className="text-sm text-pink-300 font-mono">FOREIGN KEYS</p>
-              <p className="text-2xl font-bold text-white font-mono">
-                {schema.reduce((acc, table) => acc + table.foreign_keys.length, 0)}
-              </p>
+          </div>
+        </div>
+        <div className="group bg-gradient-to-br from-slate-900/80 to-slate-800/80 backdrop-blur-sm border border-pink-500/20 rounded-xl shadow-lg p-5 hover:shadow-pink-500/30 hover:border-pink-400/40 transition-all duration-300">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <div className="p-3 bg-pink-500/10 rounded-xl border border-pink-500/20 group-hover:bg-pink-500/20 transition-colors">
+                <Link className="w-6 h-6 text-pink-400" />
+              </div>
+              <div>
+                <p className="text-xs text-pink-400/80 font-mono tracking-wider uppercase">
+                  Foreign Keys
+                </p>
+                <p className="text-3xl font-bold text-white font-mono mt-1">
+                  {schema.reduce(
+                    (acc, table) => acc + table.foreign_keys.length,
+                    0
+                  )}
+                </p>
+              </div>
             </div>
           </div>
         </div>
       </div>
-      <div className="bg-slate-900/80 backdrop-blur-sm border border-purple-500/30 rounded-lg shadow-lg overflow-hidden">
-        <div className="bg-slate-800/50 border-b border-purple-500/20 p-4">
-          <h3 className="text-lg font-bold text-cyan-300 font-mono tracking-wider">
-            DATABASE SCHEMA
-          </h3>
-          <p className="text-sm text-purple-300 font-mono">
-            {sortedSchema.length} tables • Click to expand column details
-          </p>
+      <div className="bg-gradient-to-br from-slate-900/60 to-slate-800/60 backdrop-blur-sm border border-purple-500/20 rounded-xl shadow-lg overflow-hidden">
+        <div className="bg-gradient-to-r from-slate-800/80 to-slate-700/80 border-b border-purple-500/20 p-5">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-bold text-cyan-300 font-mono tracking-wider flex items-center gap-2">
+                <Database className="w-5 h-5" />
+                DATABASE STRUCTURE
+              </h3>
+              <p className="text-sm text-purple-300/80 font-mono mt-1">
+                {sortedSchema.length}{" "}
+                {sortedSchema.length === 1 ? "table" : "tables"} • Click to
+                expand details
+              </p>
+            </div>
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-purple-500/10 border border-purple-500/30">
+              <div className="w-1.5 h-1.5 bg-cyan-400 rounded-full animate-pulse shadow-[0_0_8px_rgba(6,182,212,0.8)]"></div>
+              <span className="text-xs font-semibold text-cyan-300 font-mono">
+                LIVE
+              </span>
+            </div>
+          </div>
         </div>
         {sortedSchema.length > 0 ? (
-          <div className="max-h-96 overflow-y-auto">
-            <div className="p-2">
+          <div className="max-h-[600px] overflow-y-auto custom-scrollbar">
+            <div className="p-4">
               <div className="flex items-center space-x-2 text-cyan-300 font-mono text-sm font-bold">
                 <Database className="w-4 h-4" />
                 <span>Database</span>
-                <span className="text-slate-500">({sortedSchema.length} tables)</span>
+                <span className="text-slate-500">
+                  ({sortedSchema.length} tables)
+                </span>
               </div>
               <div className="ml-4 mt-2 space-y-1">
                 {sortedSchema.map((table) => {
@@ -190,12 +225,14 @@ export default function TableView({
                   const pkCount = table.primary_keys.length;
                   // Get the foreign key count
                   const fkCount = table.foreign_keys.length;
-                  
+
                   return (
                     <div key={table.table_name} className="select-none">
                       <div
                         className={`flex items-center space-x-2 py-1 px-2 rounded cursor-pointer hover:bg-slate-800/50 transition-colors group ${
-                          isSelected ? 'bg-purple-500/20 border border-purple-500/30' : ''
+                          isSelected
+                            ? "bg-purple-500/20 border border-purple-500/30"
+                            : ""
                         }`}
                         onClick={() => {
                           setSelectedTable(table.table_name);
@@ -233,22 +270,28 @@ export default function TableView({
                           </div>
                         </div>
                       </div>
-                                            {isOpen && (
+                      {isOpen && (
                         <div className="ml-6 mt-1 space-y-1">
                           {table.columns.map((column) => {
                             const fk = table.foreign_keys.find(
                               (fk) => fk.column_name === column.column_name
                             );
                             const isPrimary = column.is_primary_key;
-                            const isColumnSelected = selectedColumn === `${table.table_name}.${column.column_name}`;
-                            
+                            const isColumnSelected =
+                              selectedColumn ===
+                              `${table.table_name}.${column.column_name}`;
+
                             return (
                               <div
                                 key={column.column_name}
                                 className={`flex items-center space-x-2 py-1 px-2 rounded cursor-pointer hover:bg-slate-800/30 transition-colors group ${
-                                  isColumnSelected ? 'bg-slate-700/50' : ''
+                                  isColumnSelected ? "bg-slate-700/50" : ""
                                 }`}
-                                onClick={() => setSelectedColumn(`${table.table_name}.${column.column_name}`)}
+                                onClick={() =>
+                                  setSelectedColumn(
+                                    `${table.table_name}.${column.column_name}`
+                                  )
+                                }
                               >
                                 <FileText className="w-3 h-3 text-slate-400" />
                                 <div className="flex items-center space-x-2 flex-1 min-w-0">
@@ -274,7 +317,8 @@ export default function TableView({
                                 </div>
                                 {fk && (
                                   <div className="text-xs text-slate-500 font-mono">
-                                    → {fk.referenced_table}.{fk.referenced_column}
+                                    → {fk.referenced_table}.
+                                    {fk.referenced_column}
                                   </div>
                                 )}
                               </div>
@@ -289,11 +333,19 @@ export default function TableView({
             </div>
           </div>
         ) : (
-          <div className="flex flex-col items-center justify-center py-12">
-            <Database className="w-12 h-12 text-slate-500 mb-4" />
-            <p className="text-slate-400 text-lg mb-2 font-mono">NO TABLES FOUND</p>
-            <p className="text-slate-500 text-sm font-mono">
-              Try adjusting your search criteria or check your database connection.
+          <div className="flex flex-col items-center justify-center py-16 px-4">
+            <div className="relative mb-6">
+              <div className="p-4 bg-slate-800/50 rounded-2xl border border-slate-600/30">
+                <Database className="w-16 h-16 text-slate-500" />
+              </div>
+              <div className="absolute inset-0 bg-slate-500/10 rounded-2xl blur-xl"></div>
+            </div>
+            <p className="text-slate-300 text-lg mb-2 font-mono font-bold">
+              NO TABLES FOUND
+            </p>
+            <p className="text-slate-500 text-sm font-mono text-center max-w-md">
+              No tables match your search criteria. Try adjusting your filters
+              or check your database connection.
             </p>
           </div>
         )}

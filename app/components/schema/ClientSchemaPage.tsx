@@ -14,8 +14,9 @@ import {
 import { TableIcon, Share2Icon } from "lucide-react";
 import { TableSchema } from "@/app/types/query";
 import { filterSchema } from "./FilterSchema";
-import DatabaseFolderView from "./TableView";
+import DatabaseFolderView from "./StructureView";
 import ERDView from "./ERDView";
+import ERDSkeleton from "./ERDSkeleton";
 
 // Props for the ClientSchemaPage component
 interface ClientSchemaPageProps {
@@ -24,6 +25,7 @@ interface ClientSchemaPageProps {
   initialColumnSearch: string;
   initialViewMode: "table" | "erd";
   error: string | null;
+  loading?: boolean;
 }
 
 export default function ClientSchemaPage({
@@ -32,6 +34,7 @@ export default function ClientSchemaPage({
   initialColumnSearch,
   initialViewMode,
   error,
+  loading = false,
 }: ClientSchemaPageProps) {
   // Create the search params by the use search params
   const searchParams = useSearchParams();
@@ -45,18 +48,18 @@ export default function ClientSchemaPage({
   const [columnSearch, setColumnSearch] = useState(
     searchParams.get("columnSearch") || initialColumnSearch
   );
-  // Create the valid view modes by the table and the erd 
+  // Create the valid view modes by the table and the erd
   const validViewModes = ["table", "erd"] as const;
   // Type for the view mode
   type ViewMode = (typeof validViewModes)[number];
-// Extract the view param from searchParams
-const initialViewParam = searchParams.get("view");
-// Determine the initial view mode based on valid view modes or the fallback mode
-const initialView = validViewModes.includes(initialViewParam as ViewMode)
-  ? (initialViewParam as ViewMode)
-  : initialViewMode;
-// Set the view mode state
-const [viewMode, setViewMode] = useState<ViewMode>(initialView);
+  // Extract the view param from searchParams
+  const initialViewParam = searchParams.get("view");
+  // Determine the initial view mode based on valid view modes or the fallback mode
+  const initialView = validViewModes.includes(initialViewParam as ViewMode)
+    ? (initialViewParam as ViewMode)
+    : initialViewMode;
+  // Set the view mode state
+  const [viewMode, setViewMode] = useState<ViewMode>(initialView);
   // Create the debounced table search by the table search and the debounce
   const [debouncedTableSearch] = useDebounce(tableSearch, 300);
   // Create the debounced column search by the column search and the debounce
@@ -111,50 +114,59 @@ const [viewMode, setViewMode] = useState<ViewMode>(initialView);
   return (
     <div className="w-full">
       {error ? (
-        <Card className="bg-red-900/20 border-red-500/30 shadow-lg backdrop-blur-sm">
-          <CardContent className="pt-6">
-            <p className="text-red-300">{error}</p>
-          </CardContent>
-        </Card>
+        <div className="bg-red-900/20 border border-red-500/30 rounded-xl shadow-lg backdrop-blur-sm p-6">
+          <div className="flex items-center gap-3">
+            <div className="w-2 h-2 bg-red-400 rounded-full animate-pulse"></div>
+            <p className="text-red-300 font-mono">{error}</p>
+          </div>
+        </div>
       ) : (
         <div className="w-full">
-          <TooltipProvider>
+          <TooltipProvider delayDuration={200}>
             <Tabs
               value={viewMode}
               onValueChange={handleTabChange}
               className="w-full"
             >
-              <TabsList className="bg-slate-800/70 backdrop-blur-sm mb-6 grid grid-cols-2 shadow-inner rounded-lg border border-purple-500/30 bg-gradient-to-r from-slate-800/80 to-slate-700/80">
+              <TabsList className="inline-flex h-12 items-center justify-center rounded-xl bg-slate-800/50 p-1 text-slate-400 mb-6 shadow-lg border border-purple-500/20 backdrop-blur-sm">
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <TabsTrigger
                       value="table"
-                      className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-cyan-500 data-[state=active]:to-purple-500 data-[state=active]:text-white text-cyan-300 flex items-center justify-center rounded-md hover:bg-gradient-to-r hover:from-cyan-500/20 hover:to-purple-500/20 hover:text-cyan-200 transition-all duration-200 font-medium border border-cyan-500/30 hover:border-cyan-400/50 hover:shadow-lg hover:shadow-cyan-500/20"
+                      className="inline-flex items-center justify-center whitespace-nowrap rounded-lg px-6 py-2 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-gradient-to-r data-[state=active]:from-cyan-500 data-[state=active]:to-purple-500 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-cyan-500/30 hover:text-cyan-300 hover:bg-slate-700/50"
                     >
-                      <TableIcon className="w-5 h-5 mr-2" />
-                      Table View
+                      <TableIcon className="w-4 h-4 mr-2 text-cyan-300" />
+                      <span className="font-mono text-cyan-300">STRUCTURE</span>
                     </TabsTrigger>
                   </TooltipTrigger>
-                  <TooltipContent side="top" className="text-sm bg-slate-800 border-purple-500/50 text-cyan-200">
-                    Browse tables in a structured format
+                  <TooltipContent
+                    side="top"
+                    className="text-sm bg-slate-800 border-purple-500/50 text-cyan-200 shadow-lg shadow-cyan-500/20 z-[100]"
+                  >
+                    Browse tables and columns in folder structure
                   </TooltipContent>
                 </Tooltip>
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <TabsTrigger
                       value="erd"
-                      className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-pink-500 data-[state=active]:to-purple-500 data-[state=active]:text-white text-pink-300 flex items-center justify-center rounded-md hover:bg-gradient-to-r hover:from-pink-500/20 hover:to-purple-500/20 hover:text-pink-200 transition-all duration-200 font-medium border border-pink-500/30 hover:border-pink-400/50 hover:shadow-lg hover:shadow-pink-500/20"
+                      className="inline-flex items-center justify-center whitespace-nowrap rounded-lg px-6 py-2 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-gradient-to-r data-[state=active]:from-pink-500 data-[state=active]:to-purple-500 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-pink-500/30 hover:text-pink-300 hover:bg-slate-700/50"
                     >
-                      <Share2Icon className="w-5 h-5 mr-2" />
-                      ERD View
+                      <Share2Icon className="w-4 h-4 mr-2 text-purple-400" />
+                      <span className="font-mono text-purple-400">
+                        RELATIONSHIPS
+                      </span>
                     </TabsTrigger>
                   </TooltipTrigger>
-                  <TooltipContent side="top" className="text-sm bg-slate-800 border-purple-500/50 text-pink-200">
-                    Visualize table relationships
+                  <TooltipContent
+                    side="top"
+                    className="text-sm bg-slate-800 border-purple-500/50 text-pink-200 shadow-lg shadow-pink-500/20 z-[100]"
+                  >
+                    Visualize table relationships in ERD diagram
                   </TooltipContent>
                 </Tooltip>
               </TabsList>
-              <TabsContent value="table" className="mt-0">
+              <TabsContent value="table" className="mt-0 mb-4">
                 <DatabaseFolderView
                   schema={filteredSchema}
                   tableSearch={tableSearch}
@@ -164,7 +176,11 @@ const [viewMode, setViewMode] = useState<ViewMode>(initialView);
                 />
               </TabsContent>
               <TabsContent value="erd" className="mt-0">
-                <ERDView schema={filteredSchema} />
+                {loading && initialSchema.length === 0 ? (
+                  <ERDSkeleton />
+                ) : (
+                  <ERDView schema={filteredSchema} />
+                )}
               </TabsContent>
             </Tabs>
           </TooltipProvider>

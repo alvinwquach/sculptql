@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import SchemaWithProvider from "../components/schema/SchemaWithProvider";
+import SchemaHeader from "../components/schema/SchemaHeader";
 
 export default async function SchemaPage({
   searchParams,
@@ -10,7 +11,7 @@ export default async function SchemaPage({
     view?: string;
   }>;
 }) {
-  // Get the table search, column search, and view 
+  // Get the table search, column search, and view
   // from the search params
   const {
     tableSearch = "",
@@ -19,28 +20,28 @@ export default async function SchemaPage({
   } = await searchParams;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#0f0f23] via-[#1e1b4b] to-[#312e81] overflow-x-hidden">
-      <div className="py-6 px-4 sm:px-6 lg:px-8">
-        <div className="mx-auto max-w-7xl">
-          <div className="mb-8">
-            <h1 className="text-4xl sm:text-5xl font-bold bg-gradient-to-r from-cyan-400 via-purple-400 to-pink-400 bg-clip-text text-transparent mb-2">
-              SCHEMA EXPLORER
-            </h1>
-            <div className="flex items-center gap-3">
-              <p className="text-cyan-300 text-lg font-medium">
-                Explore your database structure with interactive tables and relationships
-              </p>
-              <span className="hidden md:inline text-xs text-purple-300 font-mono tracking-wider bg-purple-500/20 px-2 py-1 rounded border border-purple-500/30">
-                [SYNTHWAVE MODE]
-              </span>
-            </div>
-          </div>
-          <Suspense fallback={
-            <div className="flex items-center justify-center h-64">
-              <div className="text-white">Loading schema...</div>
-            </div>
-          }>
-            <SchemaPageContent 
+    <div className="flex flex-col bg-gradient-to-br from-[#0a0a0f] via-[#1a1a2e] to-[#16213e] text-white min-h-screen font-sans">
+      <div
+        className="flex-shrink-0 border-b border-purple-500/20 bg-gradient-to-r from-[#1a1a2e]/80 to-[#16213e]/80 backdrop-blur-sm"
+        style={{ boxShadow: "0 4px 20px rgba(139, 92, 246, 0.1)" }}
+      >
+        <SchemaHeader />
+      </div>
+      <div className="flex-1 overflow-auto">
+        <div className="p-4 sm:p-6 lg:p-8">
+          <Suspense
+            fallback={
+              <div className="flex items-center justify-center h-64">
+                <div className="flex flex-col items-center gap-4">
+                  <div className="w-8 h-8 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full animate-pulse"></div>
+                  <div className="text-cyan-300 font-mono text-sm">
+                    Loading schema...
+                  </div>
+                </div>
+              </div>
+            }
+          >
+            <SchemaPageContent
               initialTableSearch={tableSearch}
               initialColumnSearch={columnSearch}
               initialViewMode={view as "table" | "erd"}
