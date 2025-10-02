@@ -1,121 +1,157 @@
 "use client";
 
-import { useEditorContext } from "@/app/context/EditorContext";
 import ChartsPanel from "../panel/ChartsPanel";
 import StatsPanel from "../panel/StatsPanel";
 import DescribeTableView from "../results/DescribeTableView";
-import EmptyState from "../results/EmptyState";
 import JsonView from "../results/JsonView";
 import ShowTableView from "../results/ShowTableView";
 import TableView from "../results/TableView";
 import ViewToggle from "../view/ViewToggle";
+import ResultsToolbar from "../view/ResultsToolbar";
 import { Loader2 } from "lucide-react";
+import { useQueryStore } from "@/app/stores/useQueryStore";
+import { useResultsStore } from "@/app/stores/useResultsStore";
+import {
+  ViewMode,
+  TableSchema,
+  TableDescription,
+  ChartDataItem,
+} from "@/app/types/query";
 
-// Props for the ResultsPane component
 interface ResultsPaneProps {
   error: string | undefined;
   loading: boolean;
+  table: TableSchema[];
+  tableDescription: TableDescription | null;
+  statsChartData: ChartDataItem[];
+  resultChartData: ChartDataItem[];
+  handleViewModeChange: (mode: ViewMode) => void;
+  exportToCsv: () => void;
+  exportToJson: () => void;
+  exportToMarkdown: () => void;
+  handlePageChange: (page: number) => void;
+  handlePageSizeChange: (size: number) => void;
+  logQueryResultAsJson: () => void;
+  exposeQueryResultsToConsole: () => void;
 }
 
 export default function ResultsPane({
   error,
   loading,
+  table,
+  tableDescription,
+  statsChartData,
+  resultChartData,
+  handleViewModeChange,
+  exportToCsv,
+  exportToJson,
+  exportToMarkdown,
+  handlePageChange,
+  handlePageSizeChange,
+  logQueryResultAsJson,
+  exposeQueryResultsToConsole,
 }: ResultsPaneProps) {
-  // Get the query result, view mode, selected table, table, table description, stats chart data, result chart data, handle view mode change, export to csv, export to json, export to markdown, current page, page size, handle page change, and handle page size change from the editor context
-  const {
-    queryResult,
-    viewMode,
-    selectedTable,
-    table,
-    tableDescription,
-    statsChartData,
-    resultChartData,
-    handleViewModeChange,
-    exportToCsv,
-    exportToJson,
-    exportToMarkdown,
-    currentPage,
-    pageSize,
-    handlePageChange,
-    handlePageSizeChange,
-  } = useEditorContext();
+  const selectedTable = useQueryStore((state) => state.selectedTable);
+  const queryResult = useResultsStore((state) => state.queryResult);
+  const viewMode = useResultsStore((state) => state.viewMode);
+  const currentPage = useResultsStore((state) => state.currentPage);
+  const pageSize = useResultsStore((state) => state.pageSize);
 
   return (
-    <div 
-      className="h-full p-4 sm:p-6 overflow-auto relative"
-      style={{
-        background: "linear-gradient(135deg, #0a0a0f, #1a1a2e)",
-        boxShadow: "inset 0 0 60px rgba(139, 92, 246, 0.08)"
-      }}
+    <div
+      className="h-full flex flex-col relative bg-gradient-to-br from-[#0a0a0f] via-[#1a1a2e] to-[#16213e]"
+      style={{ boxShadow: "inset 0 0 20px rgba(139, 92, 246, 0.1)" }}
     >
-      <div 
-        className="absolute inset-0 pointer-events-none opacity-20"
-        style={{
-          background: "linear-gradient(135deg, rgba(139, 92, 246, 0.08), rgba(244, 114, 182, 0.08), rgba(16, 185, 129, 0.08))",
-        }}
-      />
-      
       {error && (
-        <div 
-          className="relative border-2 text-red-200 p-4 rounded-xl transition-all duration-200 font-mono mb-4 animate-in fade-in slide-in-from-top-2"
-          style={{
-            background: "linear-gradient(135deg, rgba(239, 68, 68, 0.15), rgba(220, 38, 38, 0.1))",
-            borderColor: "#ef4444",
-            boxShadow: "0 0 30px rgba(239, 68, 68, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.05)"
-          }}
-        >
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 bg-red-400 rounded-full animate-pulse" style={{ boxShadow: "0 0 8px rgba(239, 68, 68, 0.8)" }}></div>
-            <span className="font-bold">ERROR:</span>
+        <div className="p-4">
+          <div
+            className="border-2 text-red-200 p-4 rounded-lg mb-4 animate-in fade-in slide-in-from-top-2 bg-red-900/30 border-red-800/50"
+            style={{ boxShadow: "0 0 10px rgba(239, 68, 68, 0.2)" }}
+          >
+            <div className="flex items-center gap-2">
+              <div
+                className="w-2 h-2 bg-red-400 rounded-full animate-pulse"
+                style={{ boxShadow: "0 0 8px rgba(239, 68, 68, 0.8)" }}
+              ></div>
+              <span className="font-bold">ERROR:</span>
+            </div>
+            <p className="mt-2 text-sm">{error}</p>
           </div>
-          <p className="mt-2 text-sm">{error}</p>
         </div>
       )}
       {loading && (
-        <div className="flex flex-col items-center justify-center h-full relative z-10">
+        <div className="flex flex-col items-center justify-center h-full">
           <div className="relative">
-            <Loader2 
-              className="w-12 h-12 mb-4 animate-spin"
-              style={{ 
-                color: "#10b981",
-                filter: "drop-shadow(0 0 15px rgba(16, 185, 129, 0.6))"
-              }} 
-            />
-            <div 
-              className="absolute inset-0 w-12 h-12 border-2 rounded-full animate-ping"
-              style={{ 
-                borderColor: "rgba(139, 92, 246, 0.4)"
+            <Loader2
+              className="w-12 h-12 mb-4 animate-spin text-green-400"
+              style={{
+                filter: "drop-shadow(0 0 10px rgba(16, 185, 129, 0.6))",
               }}
-            ></div>
+            />
+            <div className="absolute inset-0 w-12 h-12 border-2 rounded-full animate-ping border-green-400/50"></div>
           </div>
-          <p 
-            className="text-lg font-medium"
-            style={{
-              background: "linear-gradient(135deg, #10b981, #8b5cf6, #f472b6)",
-              WebkitBackgroundClip: "text",
-              WebkitTextFillColor: "transparent",
-              backgroundClip: "text",
-            }}
-          >
+          <p className="text-lg font-medium text-green-400">
             Loading query results...
           </p>
         </div>
       )}
-      {!loading && (
-        <div className="relative z-10">
+      {!loading && !error && !queryResult && !["show", "describe"].includes(viewMode) && (
+        <div className="flex-1 flex items-center justify-center p-8">
+          <div className="text-center max-w-md">
+            <div className="mb-6 relative">
+              <div className="w-24 h-24 mx-auto rounded-full bg-gradient-to-br from-purple-500/20 to-pink-500/20 border-2 border-purple-500/30 flex items-center justify-center">
+                <svg
+                  className="w-12 h-12 text-purple-400"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                  />
+                </svg>
+              </div>
+              <div className="absolute top-0 left-1/2 transform -translate-x-1/2 w-24 h-24 rounded-full bg-purple-500/10 animate-ping"></div>
+            </div>
+            <h3 className="text-xl font-semibold text-purple-300 mb-3">
+              No Results Yet
+            </h3>
+            <p className="text-slate-400 text-sm leading-relaxed">
+              The results of your query will appear here. Write a query in the
+              editor and press{" "}
+              <kbd className="px-2 py-1 bg-purple-500/20 border border-purple-500/30 rounded text-purple-300 text-xs font-mono">
+                Cmd+Enter
+              </kbd>{" "}
+              to run it.
+            </p>
+          </div>
+        </div>
+      )}
+      {!loading && (queryResult || ["show", "describe"].includes(viewMode)) && (
+        <div className="flex-1 flex flex-col overflow-auto p-4">
+          <ResultsToolbar
+            hasResults={!!queryResult}
+            exportToCsv={exportToCsv}
+            exportToJson={exportToJson}
+            exportToMarkdown={exportToMarkdown}
+            logQueryResultAsJson={logQueryResultAsJson}
+            exposeQueryResultsToConsole={exposeQueryResultsToConsole}
+          />
           {(queryResult ||
-            viewMode === "show" ||
-            viewMode === "describe" ||
-            viewMode === "bar" ||
-            viewMode === "pie" ||
-            viewMode === "line") && (
+            ["show", "describe", "bar", "pie", "line"].includes(viewMode)) && (
             <ViewToggle
               viewMode={viewMode}
               onViewModeChange={handleViewModeChange}
             />
           )}
           {viewMode === "show" && (
-            <ShowTableView selectedTable={selectedTable?.value || ""} table={table} />
+            <ShowTableView
+              selectedTable={selectedTable?.value || ""}
+              table={table}
+            />
           )}
           {viewMode === "describe" && (
             <DescribeTableView
@@ -150,25 +186,15 @@ export default function ResultsPane({
           {queryResult && viewMode === "stats" && (
             <StatsPanel result={queryResult} chartData={statsChartData} />
           )}
-          {queryResult &&
-            (viewMode === "bar" ||
-              viewMode === "pie" ||
-              viewMode === "line") && (
-              <ChartsPanel
-                viewMode={viewMode}
-                chartData={resultChartData}
-                currentPage={currentPage}
-                pageSize={pageSize}
-                onPageChange={handlePageChange}
-                onPageSizeChange={handlePageSizeChange}
-              />
-            )}
-          {!queryResult &&
-            !["show", "describe", "bar", "pie", "line"].includes(viewMode) && (
-              <EmptyState viewMode={viewMode} />
-            )}
-          {["bar", "pie", "line"].includes(viewMode) && !queryResult && (
-            <EmptyState viewMode={viewMode} />
+          {queryResult && ["bar", "pie", "line"].includes(viewMode) && (
+            <ChartsPanel
+              viewMode={viewMode}
+              chartData={resultChartData}
+              currentPage={currentPage}
+              pageSize={pageSize}
+              onPageChange={handlePageChange}
+              onPageSizeChange={handlePageSizeChange}
+            />
           )}
         </div>
       )}

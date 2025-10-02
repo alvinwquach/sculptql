@@ -10,7 +10,6 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input";
 
-// Props for the WithSelect component
 interface WithSelectProps {
   selectedTable: SelectOption | null;
   tableNames: string[];
@@ -182,6 +181,9 @@ export default function WithSelect({
                 isDisabled={metadataLoading}
                 styles={selectStyles}
                 className="min-w-0 w-full"
+        maxMenuHeight={300}
+        menuPlacement="auto"
+        
               />
             </div>
             <div className="flex flex-col gap-1">
@@ -195,6 +197,9 @@ export default function WithSelect({
                 isDisabled={metadataLoading || !cte.fromTable}
                 styles={selectStyles}
                 className="min-w-0 w-full"
+        maxMenuHeight={300}
+        menuPlacement="auto"
+        
               />
             </div>
             <div className="flex flex-col gap-3">
@@ -278,7 +283,6 @@ export default function WithSelect({
             formatCreateLabel={(inputValue) => inputValue}
           />
         </div>
-
         {condition.operator?.value === "BETWEEN" && (
           <div className="flex flex-col gap-1">
             <label className="text-xs text-pink-300/80 font-mono">Value 2</label>
@@ -306,8 +310,6 @@ export default function WithSelect({
     </div>
   ))}
 </div>
-
-            {/* GROUP BY Section */}
             <div className="flex flex-col gap-2">
               <Label className="text-sm font-bold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-purple-400">
                 GROUP BY (Optional)
@@ -321,10 +323,11 @@ export default function WithSelect({
                 isDisabled={metadataLoading || !cte.fromTable}
                 styles={selectStyles}
                 className="min-w-0 w-full"
+        maxMenuHeight={300}
+        menuPlacement="auto"
+        
               />
             </div>
-
-            {/* HAVING Section */}
             {cte.groupByColumns && cte.groupByColumns.length > 0 && (
               <div className="flex flex-col gap-3">
                 <Label className="text-sm font-bold text-transparent bg-clip-text bg-gradient-to-r from-amber-400 to-purple-400">

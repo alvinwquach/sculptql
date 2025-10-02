@@ -9,7 +9,6 @@ import { Loader2, AlertCircle, Sparkles } from "lucide-react";
 import { GENERATE_SQL_FROM_NATURAL_LANGUAGE } from "@/app/graphql/mutations/generateSqlFromNaturalLanguage";
 import { transformToApiSchema } from "@/app/utils/schemaCache";
 
-// Type definitions for the GraphQL mutation response
 interface GenerateSqlResponse {
   generateSqlFromNaturalLanguage: {
     sql: string;
@@ -299,44 +298,35 @@ export default function NaturalLanguageInput({
 
   return (
     <div className="space-y-3">
-      <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row gap-2">
-        <div className="flex-1 relative min-w-0">
-          <Input
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onBlur={performValidation}
-            placeholder="Show me all users where role is admin"
-            className="w-full bg-gradient-to-br from-[#0a0a0f] to-[#1a1a2e] border-2 text-white placeholder:text-slate-400 rounded-lg focus-visible:ring-2 transition-all duration-200 pr-10 text-sm py-2.5 overflow-hidden text-ellipsis whitespace-nowrap"
-            style={{
-              borderImage:
-                "linear-gradient(135deg, #8b5cf6, #f472b6, #10b981, #fbbf24) 1",
-              borderImageSlice: 1,
-              boxShadow:
-                "0 0 20px rgba(139, 92, 246, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.05)",
-            }}
-            title={input || "Show me all users where role is admin"}
-          />
-          <Sparkles className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-purple-400 animate-pulse pointer-events-none" />
-        </div>
+      <form onSubmit={handleSubmit} className="relative">
+        <Input
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onBlur={performValidation}
+          placeholder="Show me all users where role is admin"
+          className="w-full bg-gradient-to-br from-[#0a0a0f] to-[#1a1a2e] border-2 text-white placeholder:text-slate-400 rounded-lg focus-visible:ring-2 transition-all duration-200 pr-12 text-sm py-2.5"
+          style={{
+            borderImage:
+              "linear-gradient(135deg, #8b5cf6, #f472b6, #10b981, #fbbf24) 1",
+            borderImageSlice: 1,
+            boxShadow:
+              "0 0 20px rgba(139, 92, 246, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.05)",
+          }}
+        />
         <Button
           type="submit"
-          disabled={loading}
-          className="text-white font-semibold transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed relative overflow-hidden w-full sm:w-auto px-6 py-2.5 whitespace-nowrap"
+          disabled={loading || !input.trim()}
+          className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 p-0 rounded-full transition-all duration-300 disabled:opacity-40 disabled:cursor-not-allowed hover:scale-110"
           style={{
-            background: "linear-gradient(135deg, #8b5cf6, #f472b6)",
-            boxShadow:
-              "0 0 20px rgba(139, 92, 246, 0.4), 0 0 40px rgba(244, 114, 182, 0.2)",
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.boxShadow =
-              "0 0 30px rgba(139, 92, 246, 0.6), 0 0 60px rgba(244, 114, 182, 0.3)";
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.boxShadow =
-              "0 0 20px rgba(139, 92, 246, 0.4), 0 0 40px rgba(244, 114, 182, 0.2)";
+            background: loading || !input.trim() ? "rgba(139, 92, 246, 0.3)" : "linear-gradient(135deg, #8b5cf6, #f472b6)",
+            boxShadow: loading || !input.trim() ? "none" : "0 0 15px rgba(139, 92, 246, 0.5)",
           }}
         >
-          {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Generate SQL"}
+          {loading ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : (
+            <Sparkles className="w-4 h-4" />
+          )}
         </Button>
       </form>
       {showValidation && validationResult.error && (

@@ -1,7 +1,6 @@
 "use client"
 
 
-import { useEditorContext } from "@/app/context/EditorContext";
 import { JoinClause, SelectOption } from "@/app/types/query";
 import { SingleValue } from "react-select";
 import CreatableSelect from "react-select/creatable";
@@ -9,50 +8,75 @@ import { Button } from "@/components/ui/button";
 import { Trash2 } from "lucide-react";
 import { stripQuotes } from "@/app/utils/sqlCompletion/stripQuotes";
 import { selectStyles } from "@/app/utils/selectStyles";
-import { Label } from "@/components/ui/label"
+import { Label } from "@/components/ui/label";
+import { useQueryStore } from "@/app/stores/useQueryStore";
+import { useQueryActionsStore } from "@/app/stores/useQueryActionsStore";
 
 // Props for the WhereClauseSelect component
 interface WhereClauseSelectProps {
   metadataLoading: boolean;
   joinClauses: JoinClause[];
+  tableColumns: Record<string, string[]>;
+  uniqueValues: Record<string, SelectOption[]>;
+  operatorOptions: SelectOption[];
+  logicalOperatorOptions: SelectOption[];
 }
 
 export default function WhereClauseSelect({
   metadataLoading,
+  tableColumns,
+  uniqueValues,
+  operatorOptions,
+  logicalOperatorOptions,
 }: WhereClauseSelectProps) {
-  // Get the selected table, table columns, where clause, unique values, operator options, logical operator options, handle logical operator select, handle where column select, handle operator select, handle value select, and on delete condition from the editor context
-  const {
-    selectedTable,
-    tableColumns,
-    whereClause,
-    uniqueValues,
-    operatorOptions,
-    logicalOperatorOptions,
-    handleLogicalOperatorSelect,
-    handleWhereColumnSelect,
-    handleOperatorSelect,
-    handleValueSelect,
-    onDeleteCondition,
-  } = useEditorContext();
-
+  const selectedTable = useQueryStore((state) => state.selectedTable);
+  const whereClause = useQueryStore((state) => state.whereClause);
+  const handleLogicalOperatorSelect = useQueryActionsStore(
+    (state) => state.handleLogicalOperatorSelect
+  );
+  const handleWhereColumnSelect = useQueryActionsStore(
+    (state) => state.handleWhereColumnSelect
+  );
+  const handleOperatorSelect = useQueryActionsStore(
+    (state) => state.handleOperatorSelect
+  );
+  const handleValueSelect = useQueryActionsStore(
+    (state) => state.handleValueSelect
+  );
+  const onDeleteCondition = useQueryActionsStore(
+    (state) => state.onDeleteCondition
+  );
 
   // Function to handle type conversion
-  const handleWhereColumnSelectWrapper = (value: SingleValue<SelectOption>, conditionIndex: number) => {
+  const handleWhereColumnSelectWrapper = (
+    value: SingleValue<SelectOption>,
+    conditionIndex: number
+  ) => {
     handleWhereColumnSelect(value, conditionIndex);
   };
 
   // Function to handle type conversion
-  const handleOperatorSelectWrapper = (value: SingleValue<SelectOption>, conditionIndex: number) => {
+  const handleOperatorSelectWrapper = (
+    value: SingleValue<SelectOption>,
+    conditionIndex: number
+  ) => {
     handleOperatorSelect(value, conditionIndex);
   };
 
   // Function to handle type conversion
-  const handleValueSelectWrapper = (value: SingleValue<SelectOption>, conditionIndex: number, isValue2: boolean = false) => {
+  const handleValueSelectWrapper = (
+    value: SingleValue<SelectOption>,
+    conditionIndex: number,
+    isValue2: boolean = false
+  ) => {
     handleValueSelect(value, conditionIndex, isValue2);
   };
 
   // Function to handle type conversion
-  const handleLogicalOperatorSelectWrapper = (value: SingleValue<SelectOption>, conditionIndex: number) => {
+  const handleLogicalOperatorSelectWrapper = (
+    value: SingleValue<SelectOption>,
+    conditionIndex: number
+  ) => {
     handleLogicalOperatorSelect(value, conditionIndex);
   };
 
@@ -63,8 +87,8 @@ export default function WhereClauseSelect({
         const valueOptions =
           // If the selected table is not null and the condition column is not null
           selectedTable && condition.column
-            // Create the value options
-            ? uniqueValues[
+            ? // Create the value options
+              uniqueValues[
                 `${stripQuotes(selectedTable.value)}.${stripQuotes(
                   condition.column.value
                 )}`
@@ -102,12 +126,16 @@ export default function WhereClauseSelect({
                       : []
                   }
                   value={condition.column}
-                  onChange={(value) => handleWhereColumnSelectWrapper(value, index)}
+                  onChange={(value) =>
+                    handleWhereColumnSelectWrapper(value, index)
+                  }
                   placeholder="Column"
                   isClearable
                   isDisabled={!selectedTable || metadataLoading}
                   styles={selectStyles}
                   className="min-w-0 w-full"
+                  maxMenuHeight={300}
+                  menuPlacement="auto"
                 />
               </div>
               <div className="flex flex-col gap-1 w-full">
@@ -123,7 +151,9 @@ export default function WhereClauseSelect({
                   aria-label={`Select operator for condition ${index + 1}`}
                   options={operatorOptions}
                   value={condition.operator}
-                  onChange={(value) => handleOperatorSelectWrapper(value, index)}
+                  onChange={(value) =>
+                    handleOperatorSelectWrapper(value, index)
+                  }
                   placeholder="Operator"
                   isClearable
                   isDisabled={!condition.column || metadataLoading}
@@ -177,7 +207,9 @@ export default function WhereClauseSelect({
                     }`}
                     options={valueOptions}
                     value={condition.value2}
-                    onChange={(value) => handleValueSelectWrapper(value, index, true)}
+                    onChange={(value) =>
+                      handleValueSelectWrapper(value, index, true)
+                    }
                     placeholder="Value 2"
                     isClearable
                     isDisabled={
@@ -207,7 +239,9 @@ export default function WhereClauseSelect({
                     aria-label={`Select logical operator for conditions group`}
                     options={logicalOperatorOptions}
                     value={condition.logicalOperator}
-                    onChange={(value) => handleLogicalOperatorSelectWrapper(value, index)}
+                    onChange={(value) =>
+                      handleLogicalOperatorSelectWrapper(value, index)
+                    }
                     placeholder="Logical"
                     isClearable
                     isDisabled={metadataLoading}

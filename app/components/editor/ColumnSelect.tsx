@@ -1,38 +1,46 @@
 "use client";
 
 import { useMemo } from "react";
-import { useEditorContext } from "@/app/context/EditorContext";
 import Select, { MultiValue } from "react-select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Label } from "@/components/ui/label"
-import { SelectOption } from "@/app/types/query";
+import { Label } from "@/components/ui/label";
+import { SelectOption, TableSchema } from "@/app/types/query";
 import { selectStyles } from "@/app/utils/selectStyles";
+import { useQueryStore } from "@/app/stores/useQueryStore";
+import { useQueryActionsStore } from "@/app/stores/useQueryActionsStore";
 
-// Props for the ColumnSelector component
 interface ColumnSelectProps {
   metadataLoading: boolean;
   isMySQL?: boolean;
+  schema?: TableSchema[];
 }
 
 export default function ColumnSelect({
   metadataLoading,
   isMySQL = false,
+  schema = [],
 }: ColumnSelectProps) {
-  // Get the selected table, table columns, selected columns, is distinct, handle column select, and handle distinct change from the editor context
-  const {
-    selectedTable,
-    tableColumns,
-    selectedColumns,
-    isDistinct,
-    handleColumnSelect,
-    handleDistinctChange,
-  } = useEditorContext();
+  const selectedTable = useQueryStore((state) => state.selectedTable);
+  const selectedColumns = useQueryStore((state) => state.selectedColumns);
+  const isDistinct = useQueryStore((state) => state.isDistinct);
+  const handleColumnSelect = useQueryActionsStore((s) => s.handleColumnSelect);
+  const handleDistinctChange = useQueryActionsStore(
+    (s) => s.handleDistinctChange
+  );
 
+  // Compute table columns from schema
+  const tableColumns = useMemo(() => {
+    return schema.reduce((acc, table) => {
+      acc[table.table_name] = table.columns.map((col) => col.column_name);
+      return acc;
+    }, {} as Record<string, string[]>);
+  }, [schema]);
 
   // Create the aggregate functions
-  const aggregateFunctions = useMemo(() => [
-    { value: "COUNT(*)", label: "COUNT(*)", isAggregate: true },
-  ], []);
+  const aggregateFunctions = useMemo(
+    () => [{ value: "COUNT(*)", label: "COUNT(*)", isAggregate: true }],
+    []
+  );
 
   // Create the column options
   const columnOptions: SelectOption[] = useMemo(() => {
@@ -54,7 +62,7 @@ export default function ColumnSelect({
         // Create the aggregates
         const aggregates = [
           {
-            value: `SUM_${col}`, 
+            value: `SUM_${col}`,
             label: `SUM(${col})`,
             isAggregate: true,
             targetColumn: col,
@@ -184,7 +192,7 @@ export default function ColumnSelect({
         // Return the aggregates
         return aggregates;
       }) || []),
-      // Aggregate functions 
+      // Aggregate functions
       ...aggregateFunctions,
     ];
     // Ensure uniqueness by filtering out duplicates
@@ -215,7 +223,9 @@ export default function ColumnSelect({
           // If the value contains the all columns
           value.some((col) => col.value === "*")
             ? [{ value: "*", label: "All Columns (*)" }]
-            : Array.isArray(value) ? value : []
+            : Array.isArray(value)
+            ? value
+            : []
         );
       }
     }
@@ -225,10 +235,10 @@ export default function ColumnSelect({
     // If the selected columns length is 1 and the first column value is the all columns
     selectedColumns.length === 1 && selectedColumns[0].value === "*"
       ? "Columns"
-      // If the selected columns length is greater than 1
-      : selectedColumns.length > 1
-      // Return the columns
-      ? "Columns"
+      : // If the selected columns length is greater than 1
+      selectedColumns.length > 1
+      ? // Return the columns
+        "Columns"
       : "Column";
 
   // Handle alias change
@@ -289,12 +299,16 @@ export default function ColumnSelect({
         <div className="mt-3 p-3 rounded-xl bg-gradient-to-br from-[#0f0f23] to-[#1e1b4b] border border-purple-500/30">
           <div className="flex items-center gap-2 mb-3">
             <div className="w-1.5 h-1.5 bg-pink-400 rounded-full shadow-[0_0_6px_rgba(244,114,182,0.6)]"></div>
-            <Label className="text-xs font-semibold text-pink-400 uppercase tracking-wider">Column Aliases (Optional)</Label>
+            <Label className="text-xs font-semibold text-pink-400 uppercase tracking-wider">
+              Column Aliases (Optional)
+            </Label>
           </div>
           <div className="flex flex-col gap-2">
             {selectedColumns.map((col) => (
               <div key={col.value} className="flex items-center gap-2 group">
-                <Label className="text-xs text-slate-400 min-w-[120px] font-mono group-hover:text-purple-300 transition-colors">{col.label}:</Label>
+                <Label className="text-xs text-slate-400 min-w-[120px] font-mono group-hover:text-purple-300 transition-colors">
+                  {col.label}:
+                </Label>
                 <input
                   type="text"
                   value={col.alias || ""}
