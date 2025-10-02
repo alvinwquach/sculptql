@@ -1,29 +1,28 @@
 "use client";
 
 import { useState, useCallback, useMemo } from "react";
-import { useEditorContext } from "@/app/context/EditorContext";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Trash2, Pin, Bookmark, Tag, Search, Play, Pencil } from "lucide-react";
+import { useHistoryStore } from "@/app/stores/useHistoryStore";
+import { useQueryActionsStore } from "@/app/stores/useQueryActionsStore";
 
 export default function QueryHistory({}) {
-  // Get the query history, pinned queries, bookmarked queries, labeled queries, clear history, load query from history, run query, add pinned query, remove pinned query, add bookmarked query, remove bookmarked query, add labeled query, edit labeled query, and remove labeled query from the editor context
-  const {
-    queryHistory,
-    pinnedQueries,
-    bookmarkedQueries,
-    labeledQueries,
-    clearHistory,
-    loadQueryFromHistory,
-    runQuery,
-    addPinnedQuery,
-    removePinnedQuery,
-    addBookmarkedQuery,
-    removeBookmarkedQuery,
-    addLabeledQuery,
-    editLabeledQuery,
-    removeLabeledQuery,
-  } = useEditorContext();
+  // Get state and actions from Zustand stores
+  const queryHistory = useHistoryStore((state) => state.queryHistory);
+  const pinnedQueries = useHistoryStore((state) => state.pinnedQueries);
+  const bookmarkedQueries = useHistoryStore((state) => state.bookmarkedQueries);
+  const labeledQueries = useHistoryStore((state) => state.labeledQueries);
+  const clearHistory = useHistoryStore((state) => state.clearHistory);
+  const loadQueryFromHistory = useHistoryStore((state) => state.loadQueryFromHistory);
+  const addPinnedQuery = useHistoryStore((state) => state.addPinnedQuery);
+  const removePinnedQuery = useHistoryStore((state) => state.removePinnedQuery);
+  const addBookmarkedQuery = useHistoryStore((state) => state.addBookmarkedQuery);
+  const removeBookmarkedQuery = useHistoryStore((state) => state.removeBookmarkedQuery);
+  const addLabeledQuery = useHistoryStore((state) => state.addLabeledQuery);
+  const editLabeledQuery = useHistoryStore((state) => state.editLabeledQuery);
+  const removeLabeledQuery = useHistoryStore((state) => state.removeLabeledQuery);
+  const runQuery = useQueryActionsStore((state) => state.runQuery);
 
   // Create the label input
   const [labelInput, setLabelInput] = useState<string>("");

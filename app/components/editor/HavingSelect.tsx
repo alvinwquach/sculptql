@@ -1,55 +1,70 @@
 "use client"
 
-import { useEditorContext } from "@/app/context/EditorContext";
 import { JoinClause, SelectOption } from "@/app/types/query";
 import { SingleValue } from "react-select";
 import CreatableSelect from "react-select/creatable";
 import { selectStyles } from "@/app/utils/selectStyles";
-import { Label } from "@/components/ui/label"
+import { Label } from "@/components/ui/label";
+import { useQueryStore } from "@/app/stores/useQueryStore";
+import { useQueryActionsStore } from "@/app/stores/useQueryActionsStore";
 
 // Props for the HavingSelect component
 interface HavingSelectProps {
   metadataLoading: boolean;
   joinClauses: JoinClause[];
   isMySQL?: boolean;
+  tableColumns: Record<string, string[]>;
+  uniqueValues: Record<string, SelectOption[]>;
+  operatorOptions: SelectOption[];
 }
 
 export default function HavingSelect({
   metadataLoading,
   isMySQL = false,
+  tableColumns,
+  uniqueValues,
+  operatorOptions,
 }: HavingSelectProps) {
-  // Get the selected table, table columns, having clause, unique values, operator options, logical operator options, handle aggregate column select, handle having operator select, and handle having value select from the editor context
-  const {
-    selectedTable,
-    tableColumns,
-    havingClause,
-    uniqueValues,
-    operatorOptions,
-    handleAggregateColumnSelect,
-    handleHavingOperatorSelect,
-    handleHavingValueSelect,
-  } = useEditorContext();
-
+  const selectedTable = useQueryStore((state) => state.selectedTable);
+  const havingClause = useQueryStore((state) => state.havingClause);
+  const handleAggregateColumnSelect = useQueryActionsStore(
+    (state) => state.handleAggregateColumnSelect
+  );
+  const handleHavingOperatorSelect = useQueryActionsStore(
+    (state) => state.handleHavingOperatorSelect
+  );
+  const handleHavingValueSelect = useQueryActionsStore(
+    (state) => state.handleHavingValueSelect
+  );
 
   // Handle the aggregate column select
-  const handleAggregateColumnSelectWrapper = (value: SingleValue<SelectOption>, conditionIndex: number) => {
+  const handleAggregateColumnSelectWrapper = (
+    value: SingleValue<SelectOption>,
+    conditionIndex: number
+  ) => {
     handleAggregateColumnSelect(value, conditionIndex);
   };
 
   // Handle the having operator select
-  const handleHavingOperatorSelectWrapper = (value: SingleValue<SelectOption>, conditionIndex: number) => {
+  const handleHavingOperatorSelectWrapper = (
+    value: SingleValue<SelectOption>,
+    conditionIndex: number
+  ) => {
     handleHavingOperatorSelect(value, conditionIndex);
   };
 
   // Handle the having value select
-  const handleHavingValueSelectWrapper = (value: SingleValue<SelectOption>, conditionIndex: number) => {
+  const handleHavingValueSelectWrapper = (
+    value: SingleValue<SelectOption>,
+    conditionIndex: number
+  ) => {
     handleHavingValueSelect(value, conditionIndex);
   };
 
   // Create the aggregate options
   const aggregateOptions: SelectOption[] = selectedTable
-    // If the selected table is not null
-    ? tableColumns[selectedTable.value]?.flatMap((col) => {
+    ? // If the selected table is not null
+      tableColumns[selectedTable.value]?.flatMap((col) => {
         // Create the aggregates
         const aggregates = [
           // Sum aggregate
@@ -125,36 +140,37 @@ export default function HavingSelect({
       }) || []
     : [];
   // Create the value options for HAVING clause (aggregate comparisons)
-  const valueOptions = selectedTable && havingClause.condition.aggregateColumn
-    ? [
-        // Common numeric values for aggregate comparisons
-        { value: "0", label: "0" },
-        { value: "1", label: "1" },
-        { value: "5", label: "5" },
-        { value: "10", label: "10" },
-        { value: "100", label: "100" },
-        { value: "1000", label: "1000" },
-        // Common comparison values
-        { value: "0.5", label: "0.5" },
-        { value: "1.0", label: "1.0" },
-        { value: "10.5", label: "10.5" },
-        { value: "100.0", label: "100.0" },
-        // SQL functions and expressions
-        { value: "COUNT(*)", label: "COUNT(*)" },
-        { value: "AVG(column)", label: "AVG(column)" },
-        { value: "SUM(column)", label: "SUM(column)" },
-        { value: "MAX(column)", label: "MAX(column)" },
-        { value: "MIN(column)", label: "MIN(column)" },
-        // Common thresholds
-        { value: "> 0", label: "> 0" },
-        { value: ">= 1", label: ">= 1" },
-        { value: "< 10", label: "< 10" },
-        { value: "<= 100", label: "<= 100" },
-        // NULL checks
-        { value: "IS NULL", label: "IS NULL" },
-        { value: "IS NOT NULL", label: "IS NOT NULL" },
-      ]
-    : [];
+  const valueOptions =
+    selectedTable && havingClause.condition.aggregateColumn
+      ? [
+          // Common numeric values for aggregate comparisons
+          { value: "0", label: "0" },
+          { value: "1", label: "1" },
+          { value: "5", label: "5" },
+          { value: "10", label: "10" },
+          { value: "100", label: "100" },
+          { value: "1000", label: "1000" },
+          // Common comparison values
+          { value: "0.5", label: "0.5" },
+          { value: "1.0", label: "1.0" },
+          { value: "10.5", label: "10.5" },
+          { value: "100.0", label: "100.0" },
+          // SQL functions and expressions
+          { value: "COUNT(*)", label: "COUNT(*)" },
+          { value: "AVG(column)", label: "AVG(column)" },
+          { value: "SUM(column)", label: "SUM(column)" },
+          { value: "MAX(column)", label: "MAX(column)" },
+          { value: "MIN(column)", label: "MIN(column)" },
+          // Common thresholds
+          { value: "> 0", label: "> 0" },
+          { value: ">= 1", label: ">= 1" },
+          { value: "< 10", label: "< 10" },
+          { value: "<= 100", label: "<= 100" },
+          // NULL checks
+          { value: "IS NULL", label: "IS NULL" },
+          { value: "IS NOT NULL", label: "IS NOT NULL" },
+        ]
+      : [];
 
   return (
     <div className="space-y-3">
@@ -188,10 +204,7 @@ export default function HavingSelect({
             />
           </div>
           <div className="flex flex-col gap-1 w-full">
-            <Label
-              htmlFor="having-operator"
-              className="text-xs text-[#f8f9fa]"
-            >
+            <Label htmlFor="having-operator" className="text-xs text-[#f8f9fa]">
               Operator
             </Label>
             <CreatableSelect
@@ -211,10 +224,7 @@ export default function HavingSelect({
             />
           </div>
           <div className="flex flex-col gap-1 w-full">
-            <Label
-              htmlFor="having-value"
-              className="text-xs text-[#f8f9fa]"
-            >
+            <Label htmlFor="having-value" className="text-xs text-[#f8f9fa]">
               Value
             </Label>
             <CreatableSelect

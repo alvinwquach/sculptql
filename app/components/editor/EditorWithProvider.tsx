@@ -1,6 +1,5 @@
 "use client";
 
-import { EditorProvider } from "@/app/context/EditorContext";
 import EditorClient from "./EditorClient";
 import { TableSchema } from "@/app/types/query";
 import { useUnifiedSchema } from "@/app/hooks/useUnifiedSchema";
@@ -17,20 +16,17 @@ export default function EditorWithProvider({
   error: initialError,
   isMySQL = false,
 }: EditorWithProviderProps = {}) {
-  // Use unified schema loading with caching - include sample data for WHERE clause values
   const { schema, loading, error } = useUnifiedSchema({
     // Include sample data
-    includeSampleData: true, 
+    includeSampleData: true,
   });
 
   return (
-    <EditorProvider schema={schema} error={error} isMySQL={isMySQL}>
-      <EditorClient
-        schema={schema}
-        error={error}
-        isMySQL={isMySQL}
-        metadataLoading={loading}
-      />
-    </EditorProvider>
+    <EditorClient
+      schema={schema}
+      error={error}
+      isMySQL={isMySQL}
+      metadataLoading={loading}
+    />
   );
 }

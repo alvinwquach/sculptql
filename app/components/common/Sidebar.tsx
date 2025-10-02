@@ -17,7 +17,7 @@ export default function Sidebar({ isOpen, onToggle, title, children, className =
   return (
     <>
       <div
-        className={`fixed top-0 left-0 h-full w-64 sm:w-72 md:w-80 lg:w-96 xl:w-[28rem] bg-gradient-to-b from-[#0f0f23] to-[#1e1b4b] border-r border-purple-500/30 shadow-[0_0_20px_rgba(139,92,246,0.15)] transform transition-transform duration-300 ease-in-out z-50 ${
+        className={`fixed top-0 left-0 h-full w-64 sm:w-72 md:w-80 bg-gradient-to-b from-[#0f0f23] to-[#1e1b4b] border-r border-purple-500/30 shadow-[0_0_20px_rgba(139,92,246,0.15)] transform transition-transform duration-300 ease-in-out z-50 ${
           isOpen ? "translate-x-0" : "-translate-x-full"
         } ${className}`}
       >

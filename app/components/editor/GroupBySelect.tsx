@@ -1,32 +1,35 @@
 "use client";
 
-import { useEditorContext } from "@/app/context/EditorContext";
 import { JoinClause, SelectOption } from "@/app/types/query";
 import CreatableSelect from "react-select/creatable";
 import { selectStyles } from "@/app/utils/selectStyles";
-import { Label } from "@/components/ui/label"
+import { Label } from "@/components/ui/label";
+import { useQueryStore } from "@/app/stores/useQueryStore";
+import { useQueryActionsStore } from "@/app/stores/useQueryActionsStore";
 
 // Props for the GroupBySelect component
 interface GroupBySelectProps {
   metadataLoading: boolean;
   joinClauses: JoinClause[];
+  tableColumns: Record<string, string[]>;
 }
 
 export default function GroupBySelect({
   metadataLoading,
+  tableColumns,
 }: GroupBySelectProps) {
-  // Get the selected table, table columns, selected group by columns, and handle group by column select from the editor context
-  const {
-    selectedTable,
-    tableColumns,
-    selectedGroupByColumns,
-    handleGroupByColumnSelect,
-  } = useEditorContext();
+  const selectedTable = useQueryStore((state) => state.selectedTable);
+  const selectedGroupByColumns = useQueryStore(
+    (state) => state.selectedGroupByColumns
+  );
+  const handleGroupByColumnSelect = useQueryActionsStore(
+    (state) => state.handleGroupByColumnSelect
+  );
 
   // Create the column options
   const columnOptions: SelectOption[] = selectedTable
-    // If the selected table is not null
-    ? tableColumns[selectedTable.value]?.map((col) => ({
+    ? // If the selected table is not null
+      tableColumns[selectedTable.value]?.map((col) => ({
         // Add the column options
         value: col,
         label: col,
@@ -37,7 +40,10 @@ export default function GroupBySelect({
     <div className="flex flex-col gap-2">
       <div className="flex items-center gap-2">
         <div className="w-1.5 h-1.5 bg-cyan-400 rounded-full shadow-[0_0_6px_rgba(6,182,212,0.6)]"></div>
-        <Label htmlFor="group-by-selector" className="text-xs font-semibold text-cyan-400 uppercase tracking-wider">
+        <Label
+          htmlFor="group-by-selector"
+          className="text-xs font-semibold text-cyan-400 uppercase tracking-wider"
+        >
           Group By Columns
         </Label>
       </div>

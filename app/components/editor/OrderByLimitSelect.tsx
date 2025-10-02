@@ -1,39 +1,49 @@
 "use client"
 
-import { useEditorContext } from "@/app/context/EditorContext";
 import { SingleValue } from "react-select";
 import CreatableSelect from "react-select/creatable";
 import { JoinClause, SelectOption } from "@/app/types/query";
 import { selectStyles } from "@/app/utils/selectStyles";
-import { Label } from "@/components/ui/label"
+import { Label } from "@/components/ui/label";
+import { useQueryStore } from "@/app/stores/useQueryStore";
+import { useQueryActionsStore } from "@/app/stores/useQueryActionsStore";
 
 // Props for the OrderByLimitSelect component
 interface OrderByLimitSelectProps {
   metadataLoading: boolean;
   joinClauses: JoinClause[];
+  tableColumns: Record<string, string[]>;
 }
 
 export default function OrderByLimitSelect({
   metadataLoading,
+  tableColumns,
 }: OrderByLimitSelectProps) {
-  // Get the selected table, table columns, order by clause, limit, handle order by column select, handle order by direction select, and handle limit select from the editor context
-  const {
-    selectedTable,
-    tableColumns,
-    orderByClause,
-    limit,
-    handleOrderByColumnSelect,
-    handleOrderByDirectionSelect,
-    handleLimitSelect,
-  } = useEditorContext();
+  // Get state from Zustand stores
+  const selectedTable = useQueryStore((state) => state.selectedTable);
+  const orderByClause = useQueryStore((state) => state.orderByClause);
+  const limit = useQueryStore((state) => state.limit);
+  const handleOrderByColumnSelect = useQueryActionsStore(
+    (state) => state.handleOrderByColumnSelect
+  );
+  const handleOrderByDirectionSelect = useQueryActionsStore(
+    (state) => state.handleOrderByDirectionSelect
+  );
+  const handleLimitSelect = useQueryActionsStore(
+    (state) => state.handleLimitSelect
+  );
 
   // Handle the order by column select
-  const handleOrderByColumnSelectWrapper = (value: SingleValue<SelectOption>) => {
+  const handleOrderByColumnSelectWrapper = (
+    value: SingleValue<SelectOption>
+  ) => {
     handleOrderByColumnSelect(value);
   };
 
   // Handle the order by direction select
-  const handleOrderByDirectionSelectWrapper = (value: SingleValue<SelectOption>) => {
+  const handleOrderByDirectionSelectWrapper = (
+    value: SingleValue<SelectOption>
+  ) => {
     handleOrderByDirectionSelect(value);
   };
 
@@ -69,10 +79,7 @@ export default function OrderByLimitSelect({
       <div className="space-y-2">
         <div className="flex gap-2 items-center">
           <div className="flex flex-col gap-1.5 w-full">
-            <Label
-              htmlFor="order-by-column"
-              className="text-xs text-slate-300"
-            >
+            <Label htmlFor="order-by-column" className="text-xs text-slate-300">
               Column
             </Label>
             <CreatableSelect
@@ -88,7 +95,7 @@ export default function OrderByLimitSelect({
                   : []
               }
               value={orderByClause.column}
-                  onChange={handleOrderByColumnSelectWrapper}
+              onChange={handleOrderByColumnSelectWrapper}
               placeholder="Column"
               isClearable
               isDisabled={!selectedTable || metadataLoading}
@@ -109,12 +116,12 @@ export default function OrderByLimitSelect({
               aria-label="Select sort direction"
               options={directionOptions}
               value={orderByClause.direction}
-                  onChange={handleOrderByDirectionSelectWrapper}
+              onChange={handleOrderByDirectionSelectWrapper}
               placeholder="Direction"
               isClearable
               isDisabled={!orderByClause.column || metadataLoading}
               styles={selectStyles}
-              className="min-w-0 w-full"
+              className="min-w-0 w-full"        
             />
           </div>
           <div className="flex flex-col gap-1.5 w-full">
@@ -127,12 +134,12 @@ export default function OrderByLimitSelect({
               aria-label="Select row limit"
               options={limitOptions}
               value={limit}
-                  onChange={handleLimitSelectWrapper}
+              onChange={handleLimitSelectWrapper}
               placeholder="Limit"
               isClearable
               isDisabled={metadataLoading}
               styles={selectStyles}
-              className="min-w-0 w-full"
+              className="min-w-0 w-full"        
             />
           </div>
         </div>

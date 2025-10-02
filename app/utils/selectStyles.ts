@@ -58,12 +58,31 @@ export const selectStyles: StylesConfig<SelectOption, true> &
     border: "1px solid rgba(139, 92, 246, 0.3)",
     borderRadius: "0.75rem",
     marginTop: "0.3rem",
-    zIndex: 20,
+    zIndex: 9999,
     width: "100%",
+    maxHeight: "300px",
+    boxShadow: "0 0 25px rgba(139, 92, 246, 0.2)",
+  }),
+  menuList: (baseStyles) => ({
+    ...baseStyles,
+    maxHeight: "300px",
     overflowY: "auto",
     overflowX: "hidden",
-    wordWrap: "break-word",
-    boxShadow: "0 0 25px rgba(139, 92, 246, 0.2)",
+    padding: "0.25rem",
+    "::-webkit-scrollbar": {
+      width: "8px",
+    },
+    "::-webkit-scrollbar-track": {
+      background: "rgba(139, 92, 246, 0.1)",
+      borderRadius: "0.5rem",
+    },
+    "::-webkit-scrollbar-thumb": {
+      background: "rgba(139, 92, 246, 0.4)",
+      borderRadius: "0.5rem",
+    },
+    "::-webkit-scrollbar-thumb:hover": {
+      background: "rgba(139, 92, 246, 0.6)",
+    },
   }),
   option: (baseStyles, state) => ({
     ...baseStyles,
