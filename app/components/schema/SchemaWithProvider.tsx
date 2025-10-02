@@ -3,7 +3,6 @@
 import { useUnifiedSchema } from "@/app/hooks/useUnifiedSchema";
 import ClientSchemaPage from "./ClientSchemaPage";
 
-// Props for the SchemaWithProvider component
 interface SchemaWithProviderProps {
   initialTableSearch: string;
   initialColumnSearch: string;
@@ -30,6 +29,7 @@ export default function SchemaWithProvider({
       initialColumnSearch={initialColumnSearch}
       initialViewMode={initialViewMode}
       error={error}
+      loading={loading}
     />
   );
 }
