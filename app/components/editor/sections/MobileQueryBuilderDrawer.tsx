@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { X } from "lucide-react";
 import { useUIStore } from "@/app/stores/useUIStore";
 import QueryBuilderSections from "./QueryBuilderSections";
-import { TableSchema, SelectOption, JoinClause, CaseClause } from "@/app/types/query";
+import { TableSchema, SelectOption, JoinClause, UnionClause, CteClause, CaseClause } from "@/app/types/query";
 
 interface MobileQueryBuilderDrawerProps {
   schema: TableSchema[];
@@ -16,8 +16,8 @@ interface MobileQueryBuilderDrawerProps {
   tableColumns: Record<string, string[]>;
   uniqueValues: Record<string, SelectOption[]>;
   joinClauses: JoinClause[];
-  unionClauses: any[];
-  cteClauses: any[];
+  unionClauses: UnionClause[];
+  cteClauses: CteClause[];
   caseClause: CaseClause;
   operatorOptions: SelectOption[];
   logicalOperatorOptions: SelectOption[];
