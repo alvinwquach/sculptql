@@ -14,8 +14,6 @@ import {
 } from "../../types/query";
 import EditorSkeleton from "./EditorSkeleton";
 import NoDatabaseConnected from "./NoDatabaseConnected";
-import CodeMirrorEditor from "./CodeMirrorEditor";
-import QueryHistory from "../history/QueryHistory";
 import ResultsPane from "./ResultsPane";
 import Sidebar from "../common/Sidebar";
 import ResizablePanel from "../common/ResizablePanel";
@@ -36,6 +34,8 @@ import { GET_DIALECT } from "@/app/graphql/queries/getSchema";
 import EditorControls from "./controls/EditorControls";
 import QueryBuilderSections from "./sections/QueryBuilderSections";
 import MobileQueryBuilderDrawer from "./sections/MobileQueryBuilderDrawer";
+import QueryHistory from "../history/QueryHistory";
+import CodeMirrorEditor from "./CodeMirrorEditor";
 
 interface EditorClientProps {
   schema: TableSchema[];
