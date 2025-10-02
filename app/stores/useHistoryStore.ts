@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { v4 as uuidv4 } from 'uuid';
 import { QueryHistoryItem, PinnedQuery, BookmarkedQuery, LabeledQuery } from '@/app/types/query';
+import { useQueryStore } from "./useQueryStore";
 
 interface HistoryState {
   // State
@@ -45,7 +46,9 @@ export const useHistoryStore = create<HistoryState>()(
         set((state) => ({
           queryHistory: [
             newItem,
-            ...state.queryHistory.filter((item) => item.query !== newItem.query),
+            ...state.queryHistory.filter(
+              (item) => item.query !== newItem.query
+            ),
           ].slice(0, 100),
         }));
       },
@@ -53,8 +56,8 @@ export const useHistoryStore = create<HistoryState>()(
       clearHistory: () => set({ queryHistory: [] }),
 
       loadQueryFromHistory: (query) => {
-        // Import and use the query store to set the query
-        const { setQuery } = require('./useQueryStore').useQueryStore.getState();
+        // Use the query store to set the query
+        const { setQuery } = useQueryStore.getState();
         setQuery(query);
       },
 
@@ -87,7 +90,9 @@ export const useHistoryStore = create<HistoryState>()(
 
       removeBookmarkedQuery: (id) =>
         set((state) => ({
-          bookmarkedQueries: state.bookmarkedQueries.filter((item) => item.id !== id),
+          bookmarkedQueries: state.bookmarkedQueries.filter(
+            (item) => item.id !== id
+          ),
         })),
 
       addLabeledQuery: (label, historyItemId) => {
@@ -119,7 +124,7 @@ export const useHistoryStore = create<HistoryState>()(
         })),
     }),
     {
-      name: 'sculptql-history-store',
+      name: "sculptql-history-store",
     }
   )
 );
