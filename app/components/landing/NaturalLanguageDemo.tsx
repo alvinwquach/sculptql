@@ -30,22 +30,22 @@ export default function NaturalLanguageDemo({
   const examples: QueryExample[] = [
     {
       natural: "Show me all users who signed up this month",
-      sql: "SELECT * FROM users\nWHERE created_at >= DATE_TRUNC('month', CURRENT_DATE);",
+      sql: "SELECT * \nFROM users\nWHERE \n  created_at >= DATE_TRUNC('month', CURRENT_DATE);",
       description: "Temporal filtering with date functions",
     },
     {
       natural: "Find the top 5 customers by total order value",
-      sql: "SELECT c.name, SUM(o.total) as total_value\nFROM customers c\nJOIN orders o ON c.id = o.customer_id\nGROUP BY c.id, c.name\nORDER BY total_value DESC\nLIMIT 5;",
+      sql: "SELECT \n  c.name, \n  SUM(o.total) as total_value\nFROM customers c\nJOIN orders o \n  ON c.id = o.customer_id\nGROUP BY c.id, c.name\nORDER BY total_value DESC\nLIMIT 5;",
       description: "Complex joins with aggregation and sorting",
     },
     {
       natural: "Get products that are low in stock",
-      sql: "SELECT * FROM products\nWHERE stock_quantity < 10;",
+      sql: "SELECT * \nFROM products\nWHERE \n  stock_quantity < 10;",
       description: "Simple conditional filtering",
     },
     {
       natural: "Show me orders from customers in California",
-      sql: "SELECT o.* FROM orders o\nJOIN customers c ON o.customer_id = c.id\nWHERE c.state = 'CA';",
+      sql: "SELECT o.* \nFROM orders o\nJOIN customers c \n  ON o.customer_id = c.id\nWHERE \n  c.state = 'CA';",
       description: "Join operations with WHERE conditions",
     },
   ];
@@ -81,9 +81,7 @@ export default function NaturalLanguageDemo({
             Describe what you want, and our AI converts it to perfect SQL
           </p>
         </div>
-
         <div className="grid lg:grid-cols-2 gap-6 lg:gap-8">
-          {/* Left side - Example selection */}
           <div className="space-y-6">
             <div className="bg-gray-800/50 rounded-lg p-4 sm:p-6 border border-gray-600/50">
               <h3 className="text-base sm:text-lg font-semibold text-purple-300 mb-4 flex items-center gap-2">
@@ -116,8 +114,6 @@ export default function NaturalLanguageDemo({
               </div>
             </div>
           </div>
-
-          {/* Right side - Generated SQL */}
           <div className="space-y-4">
             <div className="bg-gray-800/50 rounded-lg p-4 sm:p-6 border border-gray-600/50">
               <h3 className="text-base sm:text-lg font-semibold text-green-300 mb-4 flex items-center gap-2">
@@ -125,7 +121,6 @@ export default function NaturalLanguageDemo({
                 Generated SQL
               </h3>
               <div className="space-y-4">
-                {/* Natural Language Display */}
                 <div className="bg-gray-900/80 rounded-lg p-4 border border-gray-700/50">
                   <p className="text-purple-300 font-medium text-xs sm:text-sm mb-2 flex items-center gap-2">
                     <MessageSquare className="w-4 h-4" />
@@ -135,19 +130,15 @@ export default function NaturalLanguageDemo({
                     &quot;{examples[currentExample].natural}&quot;
                   </p>
                 </div>
-
-                {/* SQL Query Display */}
                 <div className="bg-gray-900/80 rounded-lg p-4 border border-gray-700/50">
                   <p className="text-green-300 font-medium text-xs sm:text-sm mb-2 flex items-center gap-2">
                     <Database className="w-4 h-4" />
                     SQL Query:
                   </p>
-                  <pre className="text-pink-200 text-xs sm:text-sm font-mono whitespace-pre-wrap break-words">
+                  <pre className="text-pink-200 text-xs sm:text-sm font-mono whitespace-pre-wrap break-words overflow-x-auto">
                     {examples[currentExample].sql}
                   </pre>
                 </div>
-
-                {/* Description */}
                 <div className="bg-gray-900/80 rounded-lg p-4 border border-gray-700/50">
                   <p className="text-yellow-300 font-medium text-xs sm:text-sm mb-2 flex items-center gap-2">
                     <ArrowRight className="w-4 h-4" />
@@ -161,7 +152,6 @@ export default function NaturalLanguageDemo({
             </div>
           </div>
         </div>
-
         <div className="text-center mt-6 sm:mt-8">
           <p className="text-xs sm:text-sm text-pink-200">
             Powered by advanced AI to understand context and table relationships

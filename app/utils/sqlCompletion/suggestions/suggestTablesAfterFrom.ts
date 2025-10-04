@@ -2,6 +2,7 @@ import { CompletionResult } from "@codemirror/autocomplete";
 import { Select, ColumnRefExpr } from "node-sql-parser";
 import { SelectOption, TableColumn } from "@/app/types/query";
 import { EditorView } from "codemirror";
+import { getValidTablesForColumns } from "../getValidTables";
 
 // Set the column ref expr fixed to the column ref expr fixed
 interface ColumnRefExprFixed extends Omit<ColumnRefExpr, "type"> {
@@ -47,7 +48,8 @@ export const suggestTablesAfterFrom = (
   needsQuotes: (id: string) => boolean,
   tableColumns: TableColumn,
   ast: Select | Select[] | null,
-  onTableSelect?: (value: SelectOption | null) => void
+  onTableSelect?: (value: SelectOption | null) => void,
+  tableNames?: string[]
 ): CompletionResult | null => {
 
   // Set the is select node to the is select node
@@ -230,15 +232,25 @@ export const suggestTablesAfterFrom = (
         ? stripQuotes(cteAliasMatch[1])
         : "previous_query";
       // Set the valid tables to the valid tables
-      validTables = [cteAlias, ...getValidTables(null, tableColumns)];
+      // Include CTE alias plus regular tables (filtered by columns if any)
+      const regularTables = tableNames && selectedColumns.length > 0
+        ? getValidTablesForColumns(tableNames, tableColumns, selectedColumns)
+        : getValidTables(null, tableColumns);
+      validTables = [cteAlias, ...regularTables];
       // If the selected columns length is greater than 0
     } else {
-      // Set the valid tables to the valid tables
-      validTables = selectedColumns.length
-        // If the selected columns length is greater than 0
-        ? getValidTables(selectedColumns[0], tableColumns)
-        // Set the valid tables to the valid tables
-        : getValidTables(null, tableColumns);
+      // Use new function to filter by ALL selected columns when tableNames is provided
+      if (tableNames && selectedColumns.length > 0) {
+        validTables = getValidTablesForColumns(tableNames, tableColumns, selectedColumns);
+      } else if (tableNames) {
+        // No columns selected, return all tables
+        validTables = tableNames;
+      } else {
+        // Fallback to callback (old behavior for backward compatibility)
+        validTables = selectedColumns.length
+          ? getValidTables(selectedColumns[0], tableColumns)
+          : getValidTables(null, tableColumns);
+      }
     }
 
     // Set the filtered tables to the filtered tables
@@ -377,9 +389,14 @@ export const suggestTablesAfterFrom = (
     // Set the selected columns to the selected columns
     const selectedColumns = getSelectedColumns("", selectNode);
     // Set the valid tables to the valid tables
-    const validTables = selectedColumns.length
-      ? getValidTables(selectedColumns[0], tableColumns)
-      : getValidTables(null, tableColumns);
+    // Filter by ALL selected columns when tableNames is provided
+    const validTables = tableNames && selectedColumns.length > 0
+      ? getValidTablesForColumns(tableNames, tableColumns, selectedColumns)
+      : tableNames
+        ? tableNames
+        : selectedColumns.length
+          ? getValidTables(selectedColumns[0], tableColumns)
+          : getValidTables(null, tableColumns);
     // Set the filtered tables to the filtered tables
     // Filter tables based on current word
     const filteredTables = validTables.filter((table) =>

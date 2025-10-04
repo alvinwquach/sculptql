@@ -80,7 +80,7 @@ export default function EditorSkeleton() {
         </div>
         <div className="flex-1 h-full w-full overflow-hidden flex gap-1">
           {/* Left Panel - Editor */}
-          <div className="p-2 h-full flex-1" style={{ width: "45%" }}>
+          <div className="p-2 h-full flex-1 w-[45%]">
             <div className="h-full rounded-lg border border-purple-500/20 bg-gradient-to-br from-[#0f0f23] to-[#1a1a2e] shadow-[0_0_20px_rgba(139,92,246,0.15)] overflow-hidden">
               <div className="flex items-center justify-between p-3 sm:p-4 border-b border-purple-500/20 bg-[#0f0f23]/60">
                 <Skeleton className="h-8 w-24 bg-cyan-400/20 rounded" />
@@ -109,7 +109,7 @@ export default function EditorSkeleton() {
           <div className="w-1 bg-purple-500/20 my-2"></div>
 
           {/* Right Panel - Results */}
-          <div className="p-2 h-full flex-1" style={{ width: "55%" }}>
+          <div className="p-2 h-full flex-1 w-[55%]">
             <div className="h-full rounded-lg border border-purple-500/20 bg-gradient-to-br from-[#0f0f23] to-[#1a1a2e] shadow-[0_0_20px_rgba(139,92,246,0.15)] overflow-hidden">
               <div className="p-4 sm:p-6 h-full flex items-center justify-center">
                 <div className="text-center max-w-md">

@@ -50,8 +50,6 @@ export default function Home() {
   const tabRefs = useRef<HTMLButtonElement[]>([]);
   const [activeTab, setActiveTab] = useState(0);
   const [copied, setCopied] = useState(false);
-
-  // Custom theme matching CodeMirrorEditor.tsx
   const customTheme = EditorView.theme(
     {
       "&": {
@@ -758,16 +756,12 @@ ORDER BY count DESC;`,
           >
             <div
               ref={editorRef}
-              className="relative w-full max-w-6xl shadow-2xl overflow-hidden bg-[#0f0f23] z-10"
+              className="relative w-full min-w-full max-w-6xl min-h-[500px] shadow-2xl overflow-hidden bg-[#0f0f23] border-2 border-transparent rounded-none z-10"
               style={{
-                minHeight: "500px",
-                minWidth: "100%",
-                border: "2px solid transparent",
                 background:
                   "linear-gradient(#0f0f23, #0f0f23) padding-box, linear-gradient(135deg, #8b5cf6, #f472b6, #10b981, #fbbf24) border-box",
                 boxShadow:
                   "0 0 40px rgba(139, 92, 246, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.1)",
-                borderRadius: "0px",
               }}
             >
               <div className="flex items-center justify-between bg-[#0f0f23] px-4 py-2 border-b border-purple-500/30">

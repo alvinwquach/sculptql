@@ -22,8 +22,7 @@ export default async function SchemaPage({
   return (
     <div className="flex flex-col bg-gradient-to-br from-[#0a0a0f] via-[#1a1a2e] to-[#16213e] text-white min-h-screen font-sans">
       <div
-        className="flex-shrink-0 border-b border-purple-500/20 bg-gradient-to-r from-[#1a1a2e]/80 to-[#16213e]/80 backdrop-blur-sm"
-        style={{ boxShadow: "0 4px 20px rgba(139, 92, 246, 0.1)" }}
+        className="flex-shrink-0 border-b border-purple-500/20 bg-gradient-to-r from-[#1a1a2e]/80 to-[#16213e]/80 backdrop-blur-sm shadow-[0_4px_20px_rgba(139,92,246,0.1)]"
       >
         <SchemaHeader />
       </div>

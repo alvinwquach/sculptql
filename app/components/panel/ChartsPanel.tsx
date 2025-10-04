@@ -41,7 +41,6 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 
-// Props for the ChartsPanel component
 interface ChartsPanelProps {
   viewMode: ViewMode;
   chartData: ChartDataItem[];
@@ -51,7 +50,6 @@ interface ChartsPanelProps {
   onPageSizeChange: (size: number) => void;
 }
 
-// Create the colors
 const COLORS = [
   "#34d399",
   "#60a5fa",
@@ -282,8 +280,8 @@ export default function ChartsPanel({
   };
 
   return (
-    <Card className="bg-gradient-to-br from-[#0f0f23] via-[#1e1b4b] to-[#312e81] border-2 border-purple-500/50 hover:border-pink-500/50 transition-all duration-300 shadow-[0_0_25px_rgba(139,92,246,0.3)] rounded-xl backdrop-blur-sm">
-      <CardHeader className="flex flex-row items-center justify-between space-x-2">
+    <Card className="h-full bg-gradient-to-br from-[#0f0f23] via-[#1e1b4b] to-[#312e81] border-2 border-purple-500/50 hover:border-pink-500/50 transition-all duration-300 shadow-[0_0_25px_rgba(139,92,246,0.3)] rounded-xl backdrop-blur-sm flex flex-col">
+      <CardHeader className="flex-shrink-0 flex flex-row items-center justify-between space-x-2">
         <div className="flex items-center space-x-2">
           {viewMode === "bar" && (
             <BarChart2 className="w-5 h-5 text-cyan-400 drop-shadow-[0_0_8px_rgba(6,182,212,0.6)]" />
@@ -342,7 +340,7 @@ export default function ChartsPanel({
           </TooltipProvider>
         </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className="flex-1 overflow-auto">
         {paginatedChartData.length === 0 ? (
           <p className="text-gray-300 text-center text-sm font-medium">
             No data available to display the chart.
