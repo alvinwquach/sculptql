@@ -81,23 +81,23 @@ export default function NoDatabaseConnected() {
   };
 
   return (
-    <div className="flex items-center justify-center min-h-full h-full p-8 overflow-y-auto bg-gradient-to-br from-[#0a0a0f] via-[#1a1a2e] to-[#16213e]">
-      <Card className="max-w-4xl w-full bg-gradient-to-br from-[#1a1a2e]/95 to-[#16213e]/95 border border-purple-500/20 shadow-[0_0_60px_rgba(139,92,246,0.25)] backdrop-blur-sm">
-        <CardHeader className="text-center pb-8 pt-8">
-          <div className="relative mb-6 inline-flex mx-auto">
+    <div className="flex items-center justify-center min-h-full h-full p-4 overflow-y-auto bg-gradient-to-br from-[#0a0a0f] via-[#1a1a2e] to-[#16213e]">
+      <Card className="max-w-2xl w-full bg-gradient-to-br from-[#1a1a2e]/95 to-[#16213e]/95 border border-purple-500/20 shadow-[0_0_60px_rgba(139,92,246,0.25)] backdrop-blur-sm">
+        <CardHeader className="text-center pb-4 pt-6">
+          <div className="relative mb-4 inline-flex mx-auto">
             <div className="absolute inset-0 bg-gradient-to-r from-purple-500/20 to-pink-500/20 rounded-full blur-2xl animate-pulse"></div>
-            <div className="relative bg-gradient-to-br from-purple-500/10 to-pink-500/10 p-6 rounded-2xl border border-purple-500/30">
-              <Database className="w-16 h-16 text-purple-400" />
-              <div className="absolute -bottom-2 -right-2 bg-gradient-to-r from-pink-500 to-purple-500 rounded-full p-2 shadow-[0_0_25px_rgba(244,114,182,0.6)] animate-bounce">
-                <Plug className="w-4 h-4 text-white" />
+            <div className="relative bg-gradient-to-br from-purple-500/10 to-pink-500/10 p-4 rounded-2xl border border-purple-500/30">
+              <Database className="w-12 h-12 text-purple-400" />
+              <div className="absolute -bottom-1 -right-1 bg-gradient-to-r from-pink-500 to-purple-500 rounded-full p-1.5 shadow-[0_0_25px_rgba(244,114,182,0.6)] animate-bounce">
+                <Plug className="w-3 h-3 text-white" />
               </div>
             </div>
           </div>
-          <CardTitle className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-purple-400 to-pink-400 mb-3">
+          <CardTitle className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-purple-400 to-pink-400 mb-2">
             Connect Your Database
           </CardTitle>
-          <CardDescription className="text-slate-300 text-base leading-relaxed max-w-xl mx-auto">
-            Get started by connecting to your database. Choose your database type below and copy the configuration to your{" "}
+          <CardDescription className="text-slate-300 text-sm leading-relaxed max-w-xl mx-auto">
+            Choose your database type and copy the configuration to your{" "}
             <Badge variant="secondary" className="bg-purple-500/20 text-cyan-300 border border-purple-500/30">
               .env
             </Badge>{" "}
@@ -105,18 +105,18 @@ export default function NoDatabaseConnected() {
           </CardDescription>
         </CardHeader>
 
-        <CardContent className="space-y-8 pb-8">
+        <CardContent className="space-y-4 pb-6">
           <div>
-            <label className="text-sm font-semibold text-slate-300 mb-4 block flex items-center gap-2">
+            <label className="text-sm font-semibold text-slate-300 mb-2 block flex items-center gap-2">
               <span className="w-2 h-2 bg-purple-500 rounded-full animate-pulse"></span>
               Select Database Type
             </label>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
               {Object.keys(ENV_EXAMPLES).map((db) => (
                 <Button
                   key={db}
                   variant={selectedDb === db ? "default" : "outline"}
-                  size="lg"
+                  size="sm"
                   onClick={() => setSelectedDb(db as keyof typeof ENV_EXAMPLES)}
                   className={`font-semibold transition-all duration-300 relative overflow-hidden ${
                     selectedDb === db
@@ -130,8 +130,8 @@ export default function NoDatabaseConnected() {
             </div>
           </div>
 
-          <div className="bg-gradient-to-br from-[#0f0f23]/80 to-[#0a0a0f]/80 rounded-xl p-6 border border-purple-500/20 shadow-[inset_0_0_20px_rgba(139,92,246,0.1)]">
-            <div className="flex items-center justify-between mb-4">
+          <div className="bg-gradient-to-br from-[#0f0f23]/80 to-[#0a0a0f]/80 rounded-xl p-4 border border-purple-500/20 shadow-[inset_0_0_20px_rgba(139,92,246,0.1)]">
+            <div className="flex items-center justify-between mb-2">
               <label className="text-sm font-semibold text-slate-300 flex items-center gap-2">
                 <span className="w-2 h-2 bg-cyan-500 rounded-full animate-pulse"></span>
                 Configuration
@@ -154,54 +154,51 @@ export default function NoDatabaseConnected() {
                 )}
               </Button>
             </div>
-            <div className="bg-[#0a0a0f] border border-purple-500/30 rounded-lg p-5 font-mono text-sm text-slate-300 leading-relaxed whitespace-pre-wrap select-all shadow-[inset_0_0_10px_rgba(0,0,0,0.5)]">
+            <div className="bg-[#0a0a0f] border border-purple-500/30 rounded-lg p-3 font-mono text-xs text-slate-300 leading-relaxed whitespace-pre-wrap select-all shadow-[inset_0_0_10px_rgba(0,0,0,0.5)]">
               {ENV_EXAMPLES[selectedDb]}
             </div>
           </div>
-          <div className="bg-gradient-to-br from-cyan-500/5 to-purple-500/5 rounded-xl p-6 border border-purple-500/20">
-            <h3 className="text-sm font-semibold text-slate-300 mb-4 flex items-center gap-2">
+          <div className="bg-gradient-to-br from-cyan-500/5 to-purple-500/5 rounded-xl p-4 border border-purple-500/20">
+            <h3 className="text-sm font-semibold text-slate-300 mb-2 flex items-center gap-2">
               <span className="w-2 h-2 bg-pink-500 rounded-full animate-pulse"></span>
               Quick Setup Guide
             </h3>
-            <div className="space-y-4">
-              <div className="flex items-start gap-4 p-4 bg-[#0f0f23]/60 rounded-xl border border-cyan-500/20 hover:border-cyan-500/40 transition-all duration-300 hover:shadow-[0_0_15px_rgba(6,182,212,0.2)]">
-                <Badge variant="secondary" className="w-8 h-8 rounded-full bg-gradient-to-r from-cyan-500 to-blue-500 text-white text-sm font-bold flex items-center justify-center flex-shrink-0 shadow-[0_0_15px_rgba(6,182,212,0.5)]">
+            <div className="space-y-2">
+              <div className="flex items-start gap-3 p-3 bg-[#0f0f23]/60 rounded-lg border border-cyan-500/20 hover:border-cyan-500/40 transition-all duration-300 hover:shadow-[0_0_15px_rgba(6,182,212,0.2)]">
+                <Badge variant="secondary" className="w-6 h-6 rounded-full bg-gradient-to-r from-cyan-500 to-blue-500 text-white text-xs font-bold flex items-center justify-center flex-shrink-0 shadow-[0_0_15px_rgba(6,182,212,0.5)]">
                   1
                 </Badge>
                 <div className="flex-1">
-                  <p className="text-sm text-slate-300 font-medium mb-1">Create environment file</p>
-                  <p className="text-xs text-slate-400">
-                    Create a{" "}
+                  <p className="text-xs text-slate-300 font-medium">
+                    Create{" "}
                     <Badge variant="outline" className="bg-cyan-500/20 text-cyan-300 border-cyan-500/30 text-xs">
                       .env
                     </Badge>{" "}
-                    file in your project root directory
+                    file in project root
                   </p>
                 </div>
               </div>
-              <div className="flex items-start gap-4 p-4 bg-[#0f0f23]/60 rounded-xl border border-purple-500/20 hover:border-purple-500/40 transition-all duration-300 hover:shadow-[0_0_15px_rgba(139,92,246,0.2)]">
-                <Badge variant="secondary" className="w-8 h-8 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 text-white text-sm font-bold flex items-center justify-center flex-shrink-0 shadow-[0_0_15px_rgba(139,92,246,0.5)]">
+              <div className="flex items-start gap-3 p-3 bg-[#0f0f23]/60 rounded-lg border border-purple-500/20 hover:border-purple-500/40 transition-all duration-300 hover:shadow-[0_0_15px_rgba(139,92,246,0.2)]">
+                <Badge variant="secondary" className="w-6 h-6 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 text-white text-xs font-bold flex items-center justify-center flex-shrink-0 shadow-[0_0_15px_rgba(139,92,246,0.5)]">
                   2
                 </Badge>
                 <div className="flex-1">
-                  <p className="text-sm text-slate-300 font-medium mb-1">Add your credentials</p>
-                  <p className="text-xs text-slate-400">
-                    Paste the configuration above and update with your database credentials
+                  <p className="text-xs text-slate-300 font-medium">
+                    Paste config and add your database credentials
                   </p>
                 </div>
               </div>
-              <div className="flex items-start gap-4 p-4 bg-[#0f0f23]/60 rounded-xl border border-pink-500/20 hover:border-pink-500/40 transition-all duration-300 hover:shadow-[0_0_15px_rgba(244,114,182,0.2)]">
-                <Badge variant="secondary" className="w-8 h-8 rounded-full bg-gradient-to-r from-pink-500 to-orange-500 text-white text-sm font-bold flex items-center justify-center flex-shrink-0 shadow-[0_0_15px_rgba(244,114,182,0.5)]">
+              <div className="flex items-start gap-3 p-3 bg-[#0f0f23]/60 rounded-lg border border-pink-500/20 hover:border-pink-500/40 transition-all duration-300 hover:shadow-[0_0_15px_rgba(244,114,182,0.2)]">
+                <Badge variant="secondary" className="w-6 h-6 rounded-full bg-gradient-to-r from-pink-500 to-orange-500 text-white text-xs font-bold flex items-center justify-center flex-shrink-0 shadow-[0_0_15px_rgba(244,114,182,0.5)]">
                   3
                 </Badge>
                 <div className="flex-1">
-                  <p className="text-sm text-slate-300 font-medium mb-1">Restart the server</p>
-                  <p className="text-xs text-slate-400">
+                  <p className="text-xs text-slate-300 font-medium">
                     Run{" "}
                     <Badge variant="outline" className="bg-pink-500/20 text-pink-300 border-pink-500/30 text-xs">
                       npm run dev
                     </Badge>{" "}
-                    to restart your development server
+                    to restart server
                   </p>
                 </div>
               </div>

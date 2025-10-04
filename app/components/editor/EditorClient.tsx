@@ -310,6 +310,7 @@ const EditorClient = memo(function EditorClient({
             loading={false}
             runQuery={runQuery}
             query={query}
+            hasDatabase={false}
           />
         </div>
         <div className="flex-1 flex">
