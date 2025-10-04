@@ -1,6 +1,7 @@
 import { CompletionResult } from "@codemirror/autocomplete";
 import { Select } from "node-sql-parser";
 import { TableColumn } from "@/app/types/query";
+import { getValidTablesForJoin } from "../getValidTables";
 
 export const suggestJoinClause = (
   docText: string,
@@ -144,17 +145,35 @@ export const suggestJoinClause = (
   const afterJoinTypeRegex = /\b(INNER|LEFT|RIGHT|CROSS)\s+JOIN\s+(\w*)$/i;
   // If the after join type regex is true
   if (afterJoinTypeRegex.test(docText)) {
-    // Set the filtered tables to the filtered tables
-    const filteredTables = tableNames.filter(
-      // If the table is not the primary table 
-      // and the current word is true
+    // Set the existing tables to the existing tables array
+    const existingTables: string[] = [];
+    // Add primary table if available
+    if (primaryTable) {
+      existingTables.push(primaryTable);
+    }
+    // Extract tables from existing JOIN clauses
+    const joinRegex = /\b(?:INNER|LEFT|RIGHT|CROSS|FULL)\s+(?:OUTER\s+)?JOIN\s+((?:"[\w]+"|'[\w]+'|[\w_]+))/gi;
+    let joinMatch;
+    while ((joinMatch = joinRegex.exec(docText)) !== null) {
+      existingTables.push(stripQuotes(joinMatch[1]));
+    }
+
+    // Get compatible tables that share columns with existing tables
+    const compatibleTables = getValidTablesForJoin(
+      tableNames,
+      tableColumns,
+      existingTables
+    );
+
+    // Filter by current word
+    const filteredTables = compatibleTables.filter(
       (table) =>
-        table !== primaryTable &&
-        (currentWord
+        // If the current word is true
+        currentWord
           ? stripQuotes(table)
               .toLowerCase()
               .startsWith(stripQuotes(currentWord).toLowerCase())
-          : true)
+          : true
     );
 
     // Return the options

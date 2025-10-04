@@ -4,7 +4,7 @@ import { Table } from "lucide-react";
 import { QueryResult } from "@/app/types/query";
 import { getPaginatedRows } from "@/app/utils/resultsUtils";
 import PaginationControls from "./PaginationControls";
-import ExportButtons from "./ExportButtons";
+// import ExportButtons from "./ExportButtons";
 
 interface TableViewProps {
   result: QueryResult;
@@ -53,14 +53,14 @@ export default function TableView({
           <Table className="w-5 h-5 text-green-400 mr-2" />
           Query Results
         </h2>
-        <ExportButtons
+        {/* <ExportButtons
           onExportToCsv={onExportToCsv}
           onExportToJson={onExportToJson}
           onExportToMarkdown={onExportToMarkdown}
           totalRows={totalRows}
           currentPage={currentPage}
           pageSize={pageSize}
-        />
+        /> */}
       </div>
       <div className="flex-1 overflow-x-auto max-w-full">
         <table className="w-full text-left text-sm">

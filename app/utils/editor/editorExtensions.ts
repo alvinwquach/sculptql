@@ -32,7 +32,6 @@ export function getEditorExtensions({
 }: EditorExtensionsConfig) {
   return [
     keymap.of([
-      // Format SQL
       {
         key: isMac ? "Cmd-Shift-f" : "Ctrl-Shift-f",
         run: (view) => {
@@ -53,11 +52,8 @@ export function getEditorExtensions({
           return true;
         },
       },
-      // Autocomplete
       { key: "Ctrl-Space", run: startCompletion },
-      // Tab indent
       indentWithTab,
-      // Run query
       {
         key: "Mod-Enter",
         run: (view) => {
@@ -66,7 +62,6 @@ export function getEditorExtensions({
           return true;
         },
       },
-      // Log query result as JSON
       {
         key: isMac ? "Cmd-Shift-j" : "Ctrl-Shift-j",
         run: () => {
@@ -76,7 +71,6 @@ export function getEditorExtensions({
           return true;
         },
       },
-      // Expose query results to console
       {
         key: isMac ? "Cmd-Shift-c" : "Ctrl-Shift-c",
         run: () => {
@@ -93,6 +87,8 @@ export function getEditorExtensions({
       override: [sqlCompletion],
       activateOnTyping: true,
       defaultKeymap: true,
+      closeOnBlur: true,
+      activateOnTypingDelay: 75,
     }),
     drawSelection(),
     createEditorTheme(),

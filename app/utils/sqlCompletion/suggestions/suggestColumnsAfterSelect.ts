@@ -393,6 +393,17 @@ export const suggestColumnsAfterSelect = (
     });
     // Set the options to the options
     const options = [
+      // Show FROM keyword when columns are already selected
+      ...(existingColumns.length > 0
+        ? [
+            {
+              label: "FROM",
+              type: "keyword",
+              apply: "FROM ",
+              detail: "Specify table to select from",
+            },
+          ]
+        : []),
       ...(!isDistinctPresent
         ? [
             {
@@ -490,42 +501,47 @@ export const suggestColumnsAfterSelect = (
               apply: "ROUND(",
               detail: "Round column or aggregate values",
             },
-            {
-              label: "*",
-              type: "field",
-              apply: (view: EditorView) => {
-                // Set the current query to the current query
-                const currentQuery = view.state.doc.toString();
-                // Set the new query to the new query
-                let newQuery = currentQuery;
-                // If the new query match the select regex
-                if (newQuery.match(/^\s*SELECT\s+(DISTINCT\s+)?/i)) {
-                  // Set the new query to the new query
-                  newQuery = newQuery.replace(
-                    /^\s*SELECT\s+(DISTINCT\s+)?/i,
-                    `SELECT ${isDistinctPresent ? "DISTINCT " : ""}* `
-                  );
-                } else {
-                  // Set the new query to the new query
-                  newQuery = `SELECT ${isDistinctPresent ? "DISTINCT " : ""}* `;
-                }
-                // Dispatch the changes
-                view.dispatch({
-                  changes: {
-                    from: 0,
-                    to: view.state.doc.length,
-                    insert: newQuery,
+            // Only show * when NO columns have been selected yet
+            ...(existingColumns.length === 0
+              ? [
+                  {
+                    label: "*",
+                    type: "field",
+                    apply: (view: EditorView) => {
+                      // Set the current query to the current query
+                      const currentQuery = view.state.doc.toString();
+                      // Set the new query to the new query
+                      let newQuery = currentQuery;
+                      // If the new query match the select regex
+                      if (newQuery.match(/^\s*SELECT\s+(DISTINCT\s+)?/i)) {
+                        // Set the new query to the new query
+                        newQuery = newQuery.replace(
+                          /^\s*SELECT\s+(DISTINCT\s+)?/i,
+                          `SELECT ${isDistinctPresent ? "DISTINCT " : ""}* `
+                        );
+                      } else {
+                        // Set the new query to the new query
+                        newQuery = `SELECT ${isDistinctPresent ? "DISTINCT " : ""}* `;
+                      }
+                      // Dispatch the changes
+                      view.dispatch({
+                        changes: {
+                          from: 0,
+                          to: view.state.doc.length,
+                          insert: newQuery,
+                        },
+                      });
+                      // If the on column select is not null
+                      // On column select the all columns
+                      if (onColumnSelect) {
+                        onColumnSelect([{ value: "*", label: "All Columns (*)" }]);
+                      }
+                    },
+                    detail: "All columns",
+                    boost: 10,
                   },
-                });
-                // If the on column select is not null
-                // On column select the all columns
-                if (onColumnSelect) {
-                  onColumnSelect([{ value: "*", label: "All Columns (*)" }]);
-                }
-              },
-              detail: "All columns",
-              boost: 10,
-            },
+                ]
+              : []),
           ]
         : []),
       ...filteredColumns.map((column) => ({

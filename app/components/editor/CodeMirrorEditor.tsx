@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { EditorView } from "@codemirror/view";
 import { EditorState, Compartment } from "@codemirror/state";
 import { Button } from "@/components/ui/button";
@@ -126,18 +126,20 @@ export default function CodeMirrorEditor({
     uniqueValues,
     stripQuotes,
     needsQuotes,
-    onTableSelect,
-    onWhereColumnSelect,
-    onOperatorSelect,
-    onValueSelect,
-    onLogicalOperatorSelect,
-    onOrderBySelect,
-    onColumnSelect,
-    onDistinctSelect,
-    onGroupByColumnSelect,
-    onAggregateColumnSelect,
-    onHavingOperatorSelect,
-    onHavingValueSelect
+    {
+      onTableSelect,
+      onWhereColumnSelect,
+      onOperatorSelect,
+      onValueSelect,
+      onLogicalOperatorSelect,
+      onOrderBySelect,
+      onColumnSelect,
+      onDistinctSelect,
+      onGroupByColumnSelect,
+      onAggregateColumnSelect,
+      onHavingOperatorSelect,
+      onHavingValueSelect,
+    }
   );
 
   const handleFormatSQL = useCallback(() => {
@@ -203,18 +205,44 @@ export default function CodeMirrorEditor({
     }
   }, [activeTab, queryTabs, onQueryChange]);
 
-  const updateListener = EditorView.updateListener.of((update) => {
-    if (update.docChanged) {
-      const newQuery = update.state.doc.toString();
-
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current);
-      }
-
-      updateTabQuery(activeTab, newQuery);
-      onQueryChange(newQuery);
-    }
+  const queryCallbacksRef = useRef({
+    handleQueryChange,
+    runQuery,
+    logQueryResultAsJson,
+    exposeQueryResultsToConsole,
+    updateTabQuery,
+    onQueryChange,
+    getCurrentTab,
+    query,
   });
+
+  queryCallbacksRef.current = {
+    handleQueryChange,
+    runQuery,
+    logQueryResultAsJson,
+    exposeQueryResultsToConsole,
+    updateTabQuery,
+    onQueryChange,
+    getCurrentTab,
+    query,
+  };
+
+  const updateListener = useMemo(
+    () =>
+      EditorView.updateListener.of((update) => {
+        if (update.docChanged) {
+          const newQuery = update.state.doc.toString();
+
+          if (debounceTimerRef.current) {
+            clearTimeout(debounceTimerRef.current);
+          }
+
+          queryCallbacksRef.current.updateTabQuery(activeTab, newQuery);
+          queryCallbacksRef.current.onQueryChange(newQuery);
+        }
+      }),
+    [activeTab]
+  );
 
   useEffect(() => {
     if (!editorMountRef.current || editorRef.current) return;
@@ -224,15 +252,20 @@ export default function CodeMirrorEditor({
       isMac,
       sqlCompletion,
       updateListener,
-      onFormatSql: handleQueryChange,
-      onRunQuery: runQuery,
-      onLogJson: logQueryResultAsJson,
-      onExposeConsole: exposeQueryResultsToConsole,
+      onFormatSql: (formatted: string) =>
+        queryCallbacksRef.current.handleQueryChange(formatted),
+      onRunQuery: (query: string) => queryCallbacksRef.current.runQuery(query),
+      onLogJson: () => queryCallbacksRef.current.logQueryResultAsJson?.(),
+      onExposeConsole: () =>
+        queryCallbacksRef.current.exposeQueryResultsToConsole?.(),
       hasResults,
     });
 
     const state = EditorState.create({
-      doc: getCurrentTab()?.query || query || "",
+      doc:
+        queryCallbacksRef.current.getCurrentTab()?.query ||
+        queryCallbacksRef.current.query ||
+        "",
       extensions,
     });
 
@@ -247,26 +280,9 @@ export default function CodeMirrorEditor({
       editorRef.current = null;
     };
   }, [
-    tableNames,
-    tableColumns,
-    selectedColumns,
-    uniqueValues,
-    onTableSelect,
-    onWhereColumnSelect,
-    onOperatorSelect,
-    onValueSelect,
-    onLogicalOperatorSelect,
-    onOrderBySelect,
-    onColumnSelect,
-    onDistinctSelect,
-    onGroupByColumnSelect,
-    onAggregateColumnSelect,
-    onHavingOperatorSelect,
-    onHavingValueSelect,
     isMac,
     sqlCompletion,
-    logQueryResultAsJson,
-    exposeQueryResultsToConsole,
+    updateListener,
     hasResults,
   ]);
 

@@ -13,22 +13,30 @@ interface ERDExportMenuProps {
 }
 
 export default function ERDExportMenu({ exportFunctions }: ERDExportMenuProps) {
+  // State for showing export menu
   const [showExportMenu, setShowExportMenu] = useState(false);
+  // Export functions
   const { exportToSvg, exportToPng, exportToJpeg, exportToJson } =
     exportFunctions;
 
+  // Handler for exporting
   const handleExport = useCallback(
     (exportFn: () => void) => {
+      // Export the function
       exportFn();
+      // Set the show export menu to false
       setShowExportMenu(false);
     },
     []
   );
 
   useEffect(() => {
+    // Handler for clicking outside
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as HTMLElement;
+      // If the show export menu and the target is not the export menu container
       if (showExportMenu && !target.closest(".export-menu-container")) {
+        // Set the show export menu to false
         setShowExportMenu(false);
       }
     };

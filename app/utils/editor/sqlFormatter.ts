@@ -29,6 +29,7 @@ export function formatSqlQuery(query: string): string | null {
         (window as { DB_DIALECT?: string }).DB_DIALECT) ||
       "postgresql";
 
+      // Map the dialect to the language
     const languageMap: Record<string, SqlLanguage> = {
       sqlite: "sqlite",
       mysql: "mysql",
@@ -36,16 +37,20 @@ export function formatSqlQuery(query: string): string | null {
       postgresql: "postgresql",
     };
 
+    // Map the dialect to the language
     const language: SqlLanguage = languageMap[dialect] || "postgresql";
 
+    // Format the query
     const formatted = formatSQL(query, {
       language,
       keywordCase: "upper",
     });
 
+    // Return the formatted query
     return formatted;
   } catch (err) {
     console.error("SQL formatting failed:", err);
+    // Return null
     return null;
   }
 }

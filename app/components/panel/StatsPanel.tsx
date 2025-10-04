@@ -5,8 +5,6 @@ import { BarChart2, List, FileText } from "lucide-react";
 import { ChartDataItem, QueryResult } from "../../types/query";
 import { formatSize, formatTime } from "../../utils/helpers";
 
-
-// Props for the StatsPanel component
 interface StatsPanelProps {
   result: QueryResult;
   chartData: ChartDataItem[];
@@ -30,7 +28,7 @@ export default function StatsPanel({ result }: StatsPanelProps) {
   ];
 
   return (
-    <div className="space-y-4">
+    <div className="h-full space-y-4">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {stats.map(({ label, value, icon: Icon }) => (
           <Card

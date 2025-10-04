@@ -304,13 +304,11 @@ export default function NaturalLanguageInput({
           onChange={(e) => setInput(e.target.value)}
           onBlur={performValidation}
           placeholder="Show me all users where role is admin"
-          className="w-full bg-gradient-to-br from-[#0a0a0f] to-[#1a1a2e] border-2 text-white placeholder:text-slate-400 rounded-lg focus-visible:ring-2 transition-all duration-200 pr-12 text-sm py-2.5"
+          className="w-full bg-gradient-to-br from-[#0a0a0f] to-[#1a1a2e] border-2 text-white placeholder:text-slate-400 rounded-lg focus-visible:ring-2 transition-all duration-200 pr-12 text-sm py-2.5 shadow-[0_0_20px_rgba(139,92,246,0.15),inset_0_1px_0_rgba(255,255,255,0.05)]"
           style={{
             borderImage:
               "linear-gradient(135deg, #8b5cf6, #f472b6, #10b981, #fbbf24) 1",
             borderImageSlice: 1,
-            boxShadow:
-              "0 0 20px rgba(139, 92, 246, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.05)",
           }}
         />
         <Button
@@ -331,11 +329,9 @@ export default function NaturalLanguageInput({
       </form>
       {showValidation && validationResult.error && (
         <div
-          className="flex items-start gap-2 sm:gap-3 p-3 sm:p-4 rounded-lg border-2 animate-in fade-in slide-in-from-top-1 duration-200 backdrop-blur-sm"
+          className="flex items-start gap-2 sm:gap-3 p-3 sm:p-4 rounded-lg border-2 animate-in fade-in slide-in-from-top-1 duration-200 backdrop-blur-sm border-[rgba(251,191,36,0.4)] shadow-[0_4px_12px_rgba(251,191,36,0.15),inset_0_1px_0_rgba(255,255,255,0.05)]"
           style={{
             background: "linear-gradient(135deg, rgba(251, 191, 36, 0.1), rgba(245, 158, 11, 0.05))",
-            borderColor: "rgba(251, 191, 36, 0.4)",
-            boxShadow: "0 4px 12px rgba(251, 191, 36, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.05)",
           }}
         >
           <AlertCircle className="w-5 h-5 text-yellow-400 flex-shrink-0 mt-0.5" />
@@ -355,12 +351,10 @@ export default function NaturalLanguageInput({
       )}
       {serverError && !showValidation && (
         <div
-          className="flex items-start gap-2 sm:gap-3 p-3 sm:p-4 rounded-lg border-2 animate-in fade-in slide-in-from-top-2 duration-300 backdrop-blur-sm"
+          className="flex items-start gap-2 sm:gap-3 p-3 sm:p-4 rounded-lg border-2 animate-in fade-in slide-in-from-top-2 duration-300 backdrop-blur-sm border-[rgba(239,68,68,0.5)] shadow-[0_4px_12px_rgba(239,68,68,0.2),inset_0_1px_0_rgba(255,255,255,0.05)]"
           style={{
             background:
               "linear-gradient(135deg, rgba(239, 68, 68, 0.15), rgba(220, 38, 38, 0.08))",
-            borderColor: "rgba(239, 68, 68, 0.5)",
-            boxShadow: "0 4px 12px rgba(239, 68, 68, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.05)",
           }}
         >
           <AlertCircle className="w-5 h-5 sm:w-6 sm:h-6 text-red-400 flex-shrink-0 mt-0.5" />

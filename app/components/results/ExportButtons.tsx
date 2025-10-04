@@ -7,7 +7,6 @@ import {
 } from "@/components/ui/tooltip";
 import { Sheet, Braces, FileText } from "lucide-react";
 
-// Props for the ExportButtons component
 interface ExportButtonsProps {
   onExportToCsv: (
     exportAll: boolean,

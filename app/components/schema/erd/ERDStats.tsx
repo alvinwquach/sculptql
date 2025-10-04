@@ -5,7 +5,9 @@ interface ERDStatsProps {
 }
 
 export default function ERDStats({ schema }: ERDStatsProps) {
+  // Count the number of foreign keys
   const linkCount = schema.reduce(
+    // Reduce the schema by the foreign keys length
     (acc, table) => acc + table.foreign_keys.length,
     0
   );

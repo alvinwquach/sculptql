@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useMemo, useRef } from "react";
 import { CompletionContext, CompletionResult } from "@codemirror/autocomplete";
 import { Parser, Select } from "node-sql-parser";
 import { SelectOption, TableColumn } from "@/app/types/query";
@@ -18,8 +18,47 @@ import { suggestJoinClause } from "@/app/utils/sqlCompletion/suggestions/suggest
 import { suggestUnionClause } from "@/app/utils/sqlCompletion/suggestions/suggestUnionClause";
 import { suggestCaseClause } from "@/app/utils/sqlCompletion/suggestions/suggestCaseClause";
 import { suggestWithClause } from "@/app/utils/sqlCompletion/suggestions/suggestWithClause";
-import { EnhancedSQLCompletion } from "@/app/utils/sqlCompletion/enhancedCompletion";
+import { SQLAutoCompletion } from "@/app/utils/sqlCompletion/autoCompletion";
 import { MultiValue, SingleValue } from "react-select";
+
+export interface SqlCompletionCallbacks {
+  onTableSelect?: (value: SelectOption | null) => void;
+  onWhereColumnSelect?: (
+    value: SingleValue<SelectOption>,
+    conditionIndex: number
+  ) => void;
+  onOperatorSelect?: (
+    value: SingleValue<SelectOption>,
+    conditionIndex: number
+  ) => void;
+  onValueSelect?: (
+    value: SingleValue<SelectOption>,
+    conditionIndex: number,
+    isValue2: boolean
+  ) => void;
+  onLogicalOperatorSelect?: (value: SingleValue<SelectOption>) => void;
+  onOrderBySelect?: (
+    column: SingleValue<SelectOption>,
+    direction: SingleValue<SelectOption> | null,
+    limit?: SingleValue<SelectOption>
+  ) => void;
+  onColumnSelect?: (value: MultiValue<SelectOption>) => void;
+  onDistinctSelect?: (value: boolean) => void;
+  onGroupByColumnSelect?: (value: MultiValue<SelectOption>) => void;
+  onAggregateColumnSelect?: (
+    value: SingleValue<SelectOption>,
+    conditionIndex: number
+  ) => void;
+  onHavingOperatorSelect?: (
+    value: SingleValue<SelectOption>,
+    conditionIndex: number
+  ) => void;
+  onHavingValueSelect?: (
+    value: SingleValue<SelectOption>,
+    conditionIndex: number,
+    isValue2: boolean
+  ) => void;
+}
 
 export const useSqlCompletion = (
   tableNames: string[],
@@ -28,119 +67,104 @@ export const useSqlCompletion = (
   uniqueValues: Record<string, SelectOption[]>,
   stripQuotes: (s: string) => string,
   needsQuotes: (id: string) => boolean,
-  onTableSelect?: (value: SelectOption | null) => void,
-  onWhereColumnSelect?: (
-    value: SingleValue<SelectOption>,
-    conditionIndex: number
-  ) => void,
-  onOperatorSelect?: (
-    value: SingleValue<SelectOption>,
-    conditionIndex: number
-  ) => void,
-  onValueSelect?: (
-    value: SingleValue<SelectOption>,
-    conditionIndex: number,
-    isValue2: boolean
-  ) => void,
-  onLogicalOperatorSelect?: (value: SingleValue<SelectOption>) => void,
-  onOrderBySelect?: (
-    column: SingleValue<SelectOption>,
-    direction: SingleValue<SelectOption> | null,
-    limit?: SingleValue<SelectOption>
-  ) => void,
-  onColumnSelect?: (value: MultiValue<SelectOption>) => void,
-  onDistinctSelect?: (value: boolean) => void,
-  onGroupByColumnSelect?: (value: MultiValue<SelectOption>) => void,
-  onAggregateColumnSelect?: (
-    value: SingleValue<SelectOption>,
-    conditionIndex: number
-  ) => void,
-  onHavingOperatorSelect?: (
-    value: SingleValue<SelectOption>,
-    conditionIndex: number
-  ) => void,
-  onHavingValueSelect?: (
-    value: SingleValue<SelectOption>,
-    conditionIndex: number,
-    isValue2: boolean
-  ) => void
+  callbacks: SqlCompletionCallbacks
 ) => {
-  // Get all columns from the table names and table columns
-  const allColumns = getAllColumns(tableNames, tableColumns);
+  // Set the all columns to the all columns
+  const allColumns = useMemo(
+    () => getAllColumns(tableNames, tableColumns),
+    [tableNames, tableColumns]
+  );
+  // Set the parser to the parser
+  const parser = useMemo(() => new Parser(), []);
+  // Set the callbacks ref to the callbacks ref
+  const callbacksRef = useRef(callbacks);
+  // Set the callbacks ref to the callbacks
+  callbacksRef.current = callbacks;
   // Check if the node is a select node
   const isSelectNode = (node: unknown): node is Select =>
     // - The node is an object
-  !!node &&
-  typeof node === "object" &&
-  // - The node has a type property
+    !!node &&
+    typeof node === "object" &&
+    // - The node has a type property
     "type" in node &&
     // - The type property is "select"
     (node as { type: unknown }).type === "select";
-  // Create enhanced completion instance
-  const enhancedCompletion = new EnhancedSQLCompletion(
-    tableNames,
-    tableColumns,
-    stripQuotes,
-    needsQuotes
+// Set the enhanced completion to the enhanced completion
+  const enhancedCompletion = useMemo(
+    () =>
+      new SQLAutoCompletion(
+        tableNames,
+        tableColumns,
+        stripQuotes,
+        needsQuotes,
+        uniqueValues
+      ),
+    [tableNames, tableColumns, uniqueValues]
   );
 
-  // Create the sql completion
+  // Set the sql completion to the sql completion
   const sqlCompletion = useCallback(
     (context: CompletionContext): CompletionResult | null => {
-      // Get the word from the context
+      // Set the char after to the char after
+      const charAfter = context.state.sliceDoc(context.pos, context.pos + 1);
+      // If the char after is a word, return null
+      if (/\w/.test(charAfter)) {
+        return null;
+      }
+      // Set the word to the word
       const word = context.matchBefore(/["'\w.*]+/);
-      // Get the current word from the word
+      // Set the current word to the current word
       const currentWord = word?.text || "";
-      // Get the position from the context
+      // Set the pos to the pos
       const pos = context.pos;
-      // Get the document text from the context
+      // Set the doc text to the doc text
       const docText = context.state.sliceDoc(0, context.pos);
 
-      // Debug: log completion attempts (remove in production)
-      // console.log('SQL completion called:', { currentWord, pos, docText, tableNames: tableNames.length });
-
-      // Try enhanced completion first
       try {
-        const enhancedResult = enhancedCompletion.getCompletion(docText, currentWord, pos, word);
+        // Set the enhanced result to the enhanced result
+        const enhancedResult = enhancedCompletion.getCompletion(
+          docText,
+          currentWord,
+          pos,
+          word
+        );
+        // If the enhanced result is true, 
+        // return the enhanced result
         if (enhancedResult) {
-          // console.log('Enhanced completion returned result:', enhancedResult.options.length, 'options');
           return enhancedResult;
-        } else {
-          // console.log('Enhanced completion returned null');
         }
       } catch (error) {
-        console.warn('Enhanced completion failed, falling back to legacy completion:', error);
+        console.warn(
+          "Enhanced completion failed, falling back to legacy completion:",
+          error
+        );
       }
-
-      // Fallback to legacy completion system
-      // Create the parser
-      const parser = new Parser();
-      // Create the ast
+      // Set the ast to the ast
       let ast: Select | Select[] | null;
+      // Try to parse the ast
       try {
-        // Try to detect database dialect from environment or default to postgresql
-        const dialect = (typeof window !== 'undefined' && (window as { DB_DIALECT?: string }).DB_DIALECT) || "postgresql";
-        // Parse the ast
-        const parsedAst = parser.astify(docText, { database: dialect });
-        // Check if the parsed ast is an array
-        if (Array.isArray(parsedAst)) {
-          // Get the select nodes from the parsed ast
-          const selectNodes = parsedAst.filter(isSelectNode);
-          // Set the ast to the select nodes
-          ast = selectNodes.length > 0 ? selectNodes : null;
+        // If the doc text is less than 5, set the ast to null
+        if (docText.trim().length < 5) {
+          ast = null; 
         } else {
-          // Set the ast to the parsed ast
-          ast = isSelectNode(parsedAst) ? parsedAst : null;
+          const dialect =
+            (typeof window !== "undefined" &&
+              (window as { DB_DIALECT?: string }).DB_DIALECT) ||
+            "postgresql";
+          const parsedAst = parser.astify(docText, { database: dialect });
+          if (Array.isArray(parsedAst)) {
+            const selectNodes = parsedAst.filter(isSelectNode);
+            ast = selectNodes.length > 0 ? selectNodes : null;
+          } else {
+            ast = isSelectNode(parsedAst) ? parsedAst : null;
+          }
         }
       } catch {
-        // Set the ast to null
         ast = null;
       }
-      
+
       return (
-        // Suggest the select clause
         suggestSelect(docText, currentWord, pos, word, ast) ||
-        // Suggest the with clause
         suggestWithClause(
           docText,
           currentWord,
@@ -152,12 +176,11 @@ export const useSqlCompletion = (
           stripQuotes,
           needsQuotes,
           uniqueValues,
-          onWhereColumnSelect,
-          onOperatorSelect,
-          onValueSelect,
-          onLogicalOperatorSelect
+          callbacksRef.current.onWhereColumnSelect,
+          callbacksRef.current.onOperatorSelect,
+          callbacksRef.current.onValueSelect,
+          callbacksRef.current.onLogicalOperatorSelect
         ) ||
-        // Suggest the columns after select
         suggestColumnsAfterSelect(
           docText,
           currentWord,
@@ -167,10 +190,9 @@ export const useSqlCompletion = (
           selectedColumns,
           needsQuotes,
           ast,
-          onColumnSelect,
-          onDistinctSelect
+          callbacksRef.current.onColumnSelect,
+          callbacksRef.current.onDistinctSelect
         ) ||
-        // Suggest the case clause
         suggestCaseClause(
           docText,
           currentWord,
@@ -181,9 +203,7 @@ export const useSqlCompletion = (
           needsQuotes,
           ast
         ) ||
-        // Suggest the as or from keyword
         suggestAsOrFromKeyword(docText, pos, word, ast) ||
-        // Suggest the tables after from
         suggestTablesAfterFrom(
           docText,
           currentWord,
@@ -195,9 +215,9 @@ export const useSqlCompletion = (
           needsQuotes,
           tableColumns,
           ast,
-          onTableSelect
+          callbacksRef.current.onTableSelect,
+          tableNames
         ) ||
-        // Suggest the join clause
         suggestJoinClause(
           docText,
           currentWord,
@@ -209,7 +229,6 @@ export const useSqlCompletion = (
           needsQuotes,
           ast
         ) ||
-        // Suggest the where clause
         suggestWhereClause(
           docText,
           currentWord,
@@ -220,12 +239,11 @@ export const useSqlCompletion = (
           stripQuotes,
           needsQuotes,
           ast,
-          onWhereColumnSelect,
-          onOperatorSelect,
-          onValueSelect,
-          onLogicalOperatorSelect
+          callbacksRef.current.onWhereColumnSelect,
+          callbacksRef.current.onOperatorSelect,
+          callbacksRef.current.onValueSelect,
+          callbacksRef.current.onLogicalOperatorSelect
         ) ||
-        // Suggest the order by clause
         suggestOrderByClause(
           docText,
           currentWord,
@@ -235,9 +253,8 @@ export const useSqlCompletion = (
           stripQuotes,
           needsQuotes,
           ast,
-          onOrderBySelect
+          callbacksRef.current.onOrderBySelect
         ) ||
-        // Suggest the group by clause
         suggestGroupByClause(
           docText,
           currentWord,
@@ -247,9 +264,8 @@ export const useSqlCompletion = (
           stripQuotes,
           needsQuotes,
           ast,
-          onGroupByColumnSelect
+          callbacksRef.current.onGroupByColumnSelect
         ) ||
-        // Suggest the having clause
         suggestHavingClause(
           docText,
           currentWord,
@@ -259,36 +275,24 @@ export const useSqlCompletion = (
           stripQuotes,
           needsQuotes,
           ast,
-          onAggregateColumnSelect,
-          onHavingOperatorSelect,
-          onHavingValueSelect
+          callbacksRef.current.onAggregateColumnSelect,
+          callbacksRef.current.onHavingOperatorSelect,
+          callbacksRef.current.onHavingValueSelect
         ) ||
         suggestUnionClause(docText, currentWord, pos, word, ast)
       );
     },
     [
       allColumns,
+      enhancedCompletion,
+      parser,
       tableNames,
       tableColumns,
       selectedColumns,
       uniqueValues,
       stripQuotes,
       needsQuotes,
-      onTableSelect,
-      onWhereColumnSelect,
-      onOperatorSelect,
-      onValueSelect,
-      onLogicalOperatorSelect,
-      onOrderBySelect,
-      onGroupByColumnSelect,
-      onAggregateColumnSelect,
-      onColumnSelect,
-      onDistinctSelect,
-      onHavingOperatorSelect,
-      onHavingValueSelect,
     ]
   );
-
-  // Return the sql completion
   return sqlCompletion;
 };
