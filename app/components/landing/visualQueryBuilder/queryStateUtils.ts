@@ -130,47 +130,43 @@ type ActionHandler<T extends QueryAction> = (
 ) => QueryState;
 
 const actionHandlers: {
-  [K in QueryAction["type"]]: ActionHandler<Extract<QueryAction, { type: K }>>;
+  [K in QueryAction["type"]]: (
+    state: QueryState,
+    action: Extract<QueryAction, { type: K }>
+  ) => QueryState;
 } = {
   SET_VIEW: (state, action) => getInitialStateForView(action.view),
-
   UPDATE_BASE: (state, action) => ({ ...state, ...action.updates }),
-
   UPDATE_JOIN: (state, action) => ({
     ...state,
     joinClauses: state.joinClauses.map((join, i) =>
       i === action.index ? { ...join, [action.field]: action.value } : join
     ),
   }),
-
   UPDATE_CASE: (state, action) => ({
     ...state,
     caseConditions: state.caseConditions.map((cond, i) =>
       i === action.index ? { ...cond, [action.field]: action.value } : cond
     ),
   }),
-
   UPDATE_HAVING: (state, action) => ({
     ...state,
     havingConditions: state.havingConditions.map((cond, i) =>
       i === action.index ? { ...cond, [action.field]: action.value } : cond
     ),
   }),
-
   UPDATE_UNION: (state, action) => ({
     ...state,
     unionClauses: state.unionClauses.map((union, i) =>
       i === action.index ? { ...union, [action.field]: action.value } : union
     ),
   }),
-
   UPDATE_WITH_ALIAS: (state, action) => ({
     ...state,
     withClauses: state.withClauses.map((c, i) =>
       i === action.index ? { ...c, alias: action.alias } : c
     ),
   }),
-
   UPDATE_WITH_TABLE: (state, action) => ({
     ...state,
     withClauses: state.withClauses.map((c, i) =>
@@ -179,9 +175,15 @@ const actionHandlers: {
   }),
 };
 
-export const queryReducer = (state: QueryState, action: QueryAction): QueryState => {
-  const handler = actionHandlers[action.type];
-  return handler ? handler(state, action as any) : state;
+export const queryReducer = (
+  state: QueryState,
+  action: QueryAction
+): QueryState => {
+  const handler = actionHandlers[action.type] as (
+    state: QueryState,
+    action: QueryAction
+  ) => QueryState;
+  return handler ? handler(state, action) : state;
 };
 
 export const tabs = [
