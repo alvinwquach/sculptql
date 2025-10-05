@@ -1,6 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Trash2, Search } from "lucide-react";
 
 interface QueryHistoryHeaderProps {
@@ -31,7 +32,7 @@ export default function QueryHistoryHeader({
         </Button>
       </div>
       <div className="relative">
-        <input
+        <Input
           type="text"
           value={searchTerm}
           onChange={(e) => onSearchChange(e.target.value)}

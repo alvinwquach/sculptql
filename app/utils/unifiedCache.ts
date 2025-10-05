@@ -2,7 +2,7 @@
 
 import { indexedDBCache } from "./indexedDBCache";
 import { NormalizedCacheObject } from "@apollo/client";
-import { TableSchema } from "@/app/types/query";
+import { TableSchema, QueryTemplate } from "@/app/types/query";
 
 // Class for the unified cache
 class UnifiedCache {
@@ -89,6 +89,42 @@ class UnifiedCache {
     } catch (error) {
       // Log the error
       console.error('❌ Failed to clear Apollo cache from IndexedDB:', error);
+    }
+  }
+
+  async getTemplates(): Promise<QueryTemplate[]> {
+    try {
+      return await indexedDBCache.getAllTemplates<QueryTemplate>();
+    } catch (error) {
+      console.error('Failed to get templates:', error);
+      return [];
+    }
+  }
+
+  async getTemplateById(id: string): Promise<QueryTemplate | null> {
+    try {
+      return await indexedDBCache.getTemplate<QueryTemplate>(id);
+    } catch (error) {
+      console.error(`Failed to get template ${id}:`, error);
+      return null;
+    }
+  }
+
+  async saveTemplate(template: QueryTemplate): Promise<void> {
+    try {
+      await indexedDBCache.saveTemplate(template);
+    } catch (error) {
+      console.error('Failed to save template:', error);
+      throw error;
+    }
+  }
+
+  async deleteTemplate(id: string): Promise<void> {
+    try {
+      await indexedDBCache.deleteTemplate(id);
+    } catch (error) {
+      console.error(`Failed to delete template ${id}:`, error);
+      throw error;
     }
   }
 }

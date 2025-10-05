@@ -13,24 +13,24 @@ interface CacheEntry<T = unknown> {
 // Class for the indexedDB cache
 class IndexedDBCache {
   // Private dbName property
-  private dbName = 'sculptql-cache';
+  private dbName = "sculptql-cache";
   // Private version property
-  private version = 1;
+  private version = 2;
   // Private db property
   private db: IDBDatabase | null = null;
   // Private default TTL property
-  private readonly DEFAULT_TTL = 10 * 60 * 1000; 
+  private readonly DEFAULT_TTL = 10 * 60 * 1000;
   // Init method to initialize the indexedDB cache
   async init(): Promise<void> {
     // If the window is undefined, return
-    if (typeof window === 'undefined') return;
+    if (typeof window === "undefined") return;
     // Return a new promise
     return new Promise((resolve, reject) => {
       // Open the indexedDB cache
       const request = indexedDB.open(this.dbName, this.version);
       // On error, reject the promise
       request.onerror = () => reject(request.error);
-      // On success, set the db to the request result 
+      // On success, set the db to the request result
       // and resolve the promise
       request.onsuccess = () => {
         this.db = request.result;
@@ -41,14 +41,21 @@ class IndexedDBCache {
       request.onupgradeneeded = (event) => {
         const db = (event.target as IDBOpenDBRequest).result;
         // If the apollo cache object store does not exist, create it
-        if (!db.objectStoreNames.contains('apollo-cache')) {
+        if (!db.objectStoreNames.contains("apollo-cache")) {
           // Create the apollo cache object store
-          db.createObjectStore('apollo-cache', { keyPath: 'key' });
+          db.createObjectStore("apollo-cache", { keyPath: "key" });
         }
         // If the schema cache object store does not exist, create it
-        if (!db.objectStoreNames.contains('schema-cache')) {
+        if (!db.objectStoreNames.contains("schema-cache")) {
           // Create the schema cache object store
-          db.createObjectStore('schema-cache', { keyPath: 'key' });
+          db.createObjectStore("schema-cache", { keyPath: "key" });
+        }
+        // If the templates object store does not exist, create it
+        if (!db.objectStoreNames.contains("templates")) {
+          // Create the templates object store with indexes
+          const store = db.createObjectStore("templates", { keyPath: "id" });
+          store.createIndex("name", "name", { unique: false });
+          store.createIndex("createdAt", "createdAt", { unique: false });
         }
       };
     });
@@ -62,7 +69,11 @@ class IndexedDBCache {
     }
   }
   // Set method to set the data, timestamp, and ttl in the indexedDB cache
-  async set<T>(key: string, data: T, ttl: number = this.DEFAULT_TTL): Promise<void> {
+  async set<T>(
+    key: string,
+    data: T,
+    ttl: number = this.DEFAULT_TTL
+  ): Promise<void> {
     // Ensure the indexedDB cache is initialized
     await this.ensureDB();
     // If the db is not initialized, return
@@ -71,14 +82,14 @@ class IndexedDBCache {
     const entry: CacheEntry<T> = {
       data,
       timestamp: Date.now(),
-      ttl
+      ttl,
     };
     // Return a new promise
     return new Promise((resolve, reject) => {
       // Create the transaction with the apollo cache object store
-      const transaction = this.db!.transaction(['apollo-cache'], 'readwrite');
+      const transaction = this.db!.transaction(["apollo-cache"], "readwrite");
       // Get the apollo cache object store
-      const store = transaction.objectStore('apollo-cache');
+      const store = transaction.objectStore("apollo-cache");
       // Put the entry with the key and the entry
       const request = store.put({ key, ...entry });
       // On success, resolve the promise
@@ -96,9 +107,9 @@ class IndexedDBCache {
     // Return a new promise
     return new Promise((resolve, reject) => {
       // Create the transaction with the apollo cache object store
-      const transaction = this.db!.transaction(['apollo-cache'], 'readonly');
+      const transaction = this.db!.transaction(["apollo-cache"], "readonly");
       // Get the apollo cache object store
-      const store = transaction.objectStore('apollo-cache');
+      const store = transaction.objectStore("apollo-cache");
       // Get the entry with the key
       const request = store.get(key);
       // On success, resolve the promise
@@ -119,7 +130,7 @@ class IndexedDBCache {
         // If the entry is expired, delete the entry and resolve the promise
         if (isExpired) {
           // Delete the entry
-          this.delete(key); 
+          this.delete(key);
           // Resolve the promise with null
           resolve(null);
         } else {
@@ -141,9 +152,9 @@ class IndexedDBCache {
     // Return a new promise
     return new Promise((resolve, reject) => {
       // Create the transaction with the apollo cache object store
-      const transaction = this.db!.transaction(['apollo-cache'], 'readwrite');
+      const transaction = this.db!.transaction(["apollo-cache"], "readwrite");
       // Get the apollo cache object store
-      const store = transaction.objectStore('apollo-cache');
+      const store = transaction.objectStore("apollo-cache");
       // Delete the entry with the key
       const request = store.delete(key);
       // On success, resolve the promise
@@ -162,9 +173,9 @@ class IndexedDBCache {
     // Return a new promise
     return new Promise((resolve, reject) => {
       // Create the transaction with the apollo cache object store
-      const transaction = this.db!.transaction(['apollo-cache'], 'readwrite');
+      const transaction = this.db!.transaction(["apollo-cache"], "readwrite");
       // Get the apollo cache object store
-      const store = transaction.objectStore('apollo-cache');
+      const store = transaction.objectStore("apollo-cache");
       // Clear the apollo cache object store
       const request = store.clear();
       // On success, resolve the promise
@@ -181,7 +192,11 @@ class IndexedDBCache {
     return data !== null;
   }
   // Set schema method to set the schema in the indexedDB cache
-  async setSchema(key: string, schema: TableSchema[], ttl: number = this.DEFAULT_TTL): Promise<void> {
+  async setSchema(
+    key: string,
+    schema: TableSchema[],
+    ttl: number = this.DEFAULT_TTL
+  ): Promise<void> {
     // Ensure the indexedDB cache is initialized
     await this.ensureDB();
     // If the db is not initialized, return
@@ -190,14 +205,14 @@ class IndexedDBCache {
     const entry: CacheEntry<TableSchema[]> = {
       data: schema,
       timestamp: Date.now(),
-      ttl
-    };  
+      ttl,
+    };
     // Return a new promise
     return new Promise((resolve, reject) => {
       // Create the transaction with the schema cache object store
-      const transaction = this.db!.transaction(['schema-cache'], 'readwrite');
+      const transaction = this.db!.transaction(["schema-cache"], "readwrite");
       // Get the schema cache object store
-      const store = transaction.objectStore('schema-cache');
+      const store = transaction.objectStore("schema-cache");
       // Put the entry with the key and the entry
       const request = store.put({ key, ...entry });
       // On success, resolve the promise
@@ -215,9 +230,9 @@ class IndexedDBCache {
     // Return a new promise
     return new Promise((resolve, reject) => {
       // Create the transaction with the schema cache object store
-      const transaction = this.db!.transaction(['schema-cache'], 'readonly');
+      const transaction = this.db!.transaction(["schema-cache"], "readonly");
       // Get the schema cache object store
-      const store = transaction.objectStore('schema-cache');
+      const store = transaction.objectStore("schema-cache");
       // Get the entry with the key
       const request = store.get(key);
       // On success, resolve the promise
@@ -238,7 +253,7 @@ class IndexedDBCache {
         // If the entry is expired
         if (isExpired) {
           // Delete the entry
-          this.deleteSchema(key); 
+          this.deleteSchema(key);
           // Resolve the promise with null
           resolve(null);
           // Return
@@ -261,9 +276,9 @@ class IndexedDBCache {
     // Return a new promise
     return new Promise((resolve, reject) => {
       // Create the transaction with the schema cache object store
-      const transaction = this.db!.transaction(['schema-cache'], 'readwrite');
+      const transaction = this.db!.transaction(["schema-cache"], "readwrite");
       // Get the schema cache object store
-      const store = transaction.objectStore('schema-cache');
+      const store = transaction.objectStore("schema-cache");
       // Delete the entry with the key
       const request = store.delete(key);
       // On success, resolve the promise
@@ -281,9 +296,9 @@ class IndexedDBCache {
     // Return a new promise
     return new Promise((resolve, reject) => {
       // Create the transaction with the apollo cache object store
-      const transaction = this.db!.transaction(['apollo-cache'], 'readonly');
+      const transaction = this.db!.transaction(["apollo-cache"], "readonly");
       // Get the apollo cache object store
-      const store = transaction.objectStore('apollo-cache');
+      const store = transaction.objectStore("apollo-cache");
       // Get all keys
       const request = store.getAllKeys();
       // On success, resolve the promise
@@ -304,11 +319,14 @@ class IndexedDBCache {
     // Return a new promise
     return new Promise((resolve, reject) => {
       // Create the transaction with the apollo cache and schema cache object stores
-      const transaction = this.db!.transaction(['apollo-cache', 'schema-cache'], 'readonly');
+      const transaction = this.db!.transaction(
+        ["apollo-cache", "schema-cache"],
+        "readonly"
+      );
       // Get the apollo cache object store
-       const apolloStore = transaction.objectStore('apollo-cache');
+      const apolloStore = transaction.objectStore("apollo-cache");
       // Get the schema cache object store
-      const schemaStore = transaction.objectStore('schema-cache');
+      const schemaStore = transaction.objectStore("schema-cache");
       // Get the apollo count
       const apolloRequest = apolloStore.count();
       // Get the schema count
@@ -347,6 +365,61 @@ class IndexedDBCache {
       apolloRequest.onerror = () => reject(apolloRequest.error);
       // On error, reject the promise
       schemaRequest.onerror = () => reject(schemaRequest.error);
+    });
+  }
+  async getAllTemplates<T>(): Promise<T[]> {
+    await this.ensureDB();
+    if (!this.db) return [];
+
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction(["templates"], "readonly");
+      const store = transaction.objectStore("templates");
+      const request = store.getAll();
+
+      request.onsuccess = () => resolve(request.result || []);
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  async getTemplate<T>(id: string): Promise<T | null> {
+    await this.ensureDB();
+    if (!this.db) return null;
+
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction(["templates"], "readonly");
+      const store = transaction.objectStore("templates");
+      const request = store.get(id);
+
+      request.onsuccess = () => resolve(request.result || null);
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  async saveTemplate<T extends { id: string }>(template: T): Promise<void> {
+    await this.ensureDB();
+    if (!this.db) return;
+
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction(["templates"], "readwrite");
+      const store = transaction.objectStore("templates");
+      const request = store.put(template);
+
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  async deleteTemplate(id: string): Promise<void> {
+    await this.ensureDB();
+    if (!this.db) return;
+
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction(["templates"], "readwrite");
+      const store = transaction.objectStore("templates");
+      const request = store.delete(id);
+
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
     });
   }
 }
