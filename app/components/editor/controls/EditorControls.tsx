@@ -1,4 +1,4 @@
-import { memo } from "react";
+import { memo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Tooltip,
@@ -6,11 +6,19 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import {
-  LucideHistory,
-  LucidePlay,
-  Menu,
-} from "lucide-react";
+import { LucideHistory, LucidePlay, Menu } from "lucide-react";
+import { QueryTemplate, QueryResult } from "@/app/types/query";
+import dynamic from "next/dynamic";
+
+const TemplateManager = dynamic(
+  () => import("@/app/components/editor/templates/TemplateManager"),
+  { ssr: false }
+);
+
+const TemplateExecutor = dynamic(
+  () => import("@/app/components/editor/templates/TemplateExecutor"),
+  { ssr: false }
+);
 
 interface EditorControlsProps {
   showHistory: boolean;
@@ -20,6 +28,8 @@ interface EditorControlsProps {
   runQuery: (query: string) => Promise<void>;
   query: string;
   hasDatabase?: boolean;
+  onTemplateSelect?: (template: QueryTemplate) => void;
+  onTemplateResult?: (result: QueryResult) => void;
 }
 
 const EditorControls = memo(function EditorControls({
@@ -30,7 +40,30 @@ const EditorControls = memo(function EditorControls({
   runQuery,
   query,
   hasDatabase = true,
+  onTemplateSelect,
+  onTemplateResult,
 }: EditorControlsProps) {
+  const [executingTemplate, setExecutingTemplate] =
+    useState<QueryTemplate | null>(null);
+  const [showTemplateExecutor, setShowTemplateExecutor] = useState(false);
+
+  const handleTemplateSelect = (template: QueryTemplate) => {
+    if (onTemplateSelect) {
+      onTemplateSelect(template);
+    }
+  };
+
+  const handleExecuteTemplate = (template: QueryTemplate) => {
+    setExecutingTemplate(template);
+    setShowTemplateExecutor(true);
+  };
+
+  const handleTemplateResult = (result: QueryResult) => {
+    if (onTemplateResult) {
+      onTemplateResult(result);
+    }
+  };
+
   return (
     <TooltipProvider delayDuration={200}>
       <div className="flex items-center justify-between backdrop-blur-sm bg-gradient-to-r from-gray-900/80 via-purple-900/80 to-gray-900/80">
@@ -52,7 +85,9 @@ const EditorControls = memo(function EditorControls({
             </h1>
             <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-purple-500/10 border border-purple-500/30">
               <div className="w-1.5 h-1.5 bg-cyan-400 rounded-full animate-pulse shadow-[0_0_8px_rgba(6,182,212,0.8)]"></div>
-              <span className="text-xs font-semibold text-cyan-300">EDITOR</span>
+              <span className="text-xs font-semibold text-cyan-300">
+                EDITOR
+              </span>
             </div>
           </div>
           {loading && (
@@ -66,6 +101,10 @@ const EditorControls = memo(function EditorControls({
         </div>
         {hasDatabase && (
           <div className="flex items-center gap-1.5 sm:gap-2">
+            <TemplateManager
+              onSelectTemplate={handleTemplateSelect}
+              onExecuteTemplate={handleExecuteTemplate}
+            />
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
@@ -114,13 +153,26 @@ const EditorControls = memo(function EditorControls({
                   sideOffset={8}
                   className="bg-slate-900 border-pink-500/50 text-pink-200 shadow-lg shadow-pink-500/20 z-[100]"
                 >
-                  Run query ({navigator.platform.includes("Mac") ? "⌘+Enter" : "Ctrl+Enter"})
+                  Run query (
+                  {navigator.platform.includes("Mac")
+                    ? "⌘+Enter"
+                    : "Ctrl+Enter"}
+                  )
                 </TooltipContent>
               </Tooltip>
             </div>
           </div>
         )}
       </div>
+      <TemplateExecutor
+        template={executingTemplate}
+        isOpen={showTemplateExecutor}
+        onClose={() => {
+          setShowTemplateExecutor(false);
+          setExecutingTemplate(null);
+        }}
+        onResult={handleTemplateResult}
+      />
     </TooltipProvider>
   );
 });

@@ -4,6 +4,7 @@ import { selectStyles } from "@/app/utils/selectStyles";
 import { SelectOption } from "@/app/types/query";
 import { WithClause as WithClauseType } from "./types";
 import { tableOptions } from "./constants";
+import { Input } from "@/components/ui/input";
 
 interface WithClauseProps {
   withClauses: WithClauseType[];
@@ -14,7 +15,7 @@ interface WithClauseProps {
 export default function WithClause({
   withClauses,
   onAliasUpdate,
-  onTableUpdate
+  onTableUpdate,
 }: WithClauseProps) {
   return (
     <div className="space-y-4">
@@ -23,10 +24,13 @@ export default function WithClause({
         WITH Clause (CTE)
       </h3>
       {withClauses.map((cte, index) => (
-        <div key={index} className="p-4 bg-pink-500/10 rounded-lg border border-pink-500/30 space-y-3">
+        <div
+          key={index}
+          className="p-4 bg-pink-500/10 rounded-lg border border-pink-500/30 space-y-3"
+        >
           <div>
             <Label className="text-xs text-pink-200 mb-1">CTE Alias Name</Label>
-            <input
+            <Input
               type="text"
               value={cte.alias}
               onChange={(e) => onAliasUpdate(index, e.target.value)}

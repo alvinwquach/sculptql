@@ -421,7 +421,6 @@ export interface Database {
   tooltip: string;
 }
 
-// Unified schema format for API communication (same as backend TableSchemaInput)
 export interface ApiTableSchema {
   table_name: string;
   columns: Array<{
@@ -455,4 +454,29 @@ export interface SchemaContext {
       toColumn: string;
     }>;
   }>;
+}
+
+export interface TemplateParameter {
+  name: string;
+  type: "string" | "number" | "boolean" | "date";
+  defaultValue?: string | number | boolean;
+  required?: boolean;
+  description?: string;
+}
+
+export interface QueryTemplate {
+  id: string;
+  name: string;
+  description?: string;
+  query: string;
+  parameters: TemplateParameter[];
+  dialect?: string;
+  tags?: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TemplateExecutionRequest {
+  templateId: string;
+  parameterValues: Record<string, string | number | boolean>;
 }

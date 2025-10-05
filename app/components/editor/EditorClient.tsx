@@ -9,6 +9,7 @@ import {
   SelectOption,
   TableSchema,
   QueryResult,
+  QueryTemplate,
   ViewMode,
   ChartDataItem,
 } from "../../types/query";
@@ -137,6 +138,21 @@ const EditorClient = memo(function EditorClient({
       }
     },
     [runQueryMutation, setQueryError, setQueryResult, addToHistory]
+  );
+
+  const handleTemplateSelect = useCallback(
+    (template: QueryTemplate) => {
+      handleQueryChange(template.query);
+      toast.success(`Template "${template.name}" loaded into editor`);
+    },
+    [handleQueryChange]
+  );
+
+  const handleTemplateResult = useCallback(
+    (result: QueryResult) => {
+      setQueryResult(result);
+    },
+    [setQueryResult]
   );
 
   const logQueryResultAsJson = useCallback(() => {
@@ -311,6 +327,8 @@ const EditorClient = memo(function EditorClient({
             runQuery={runQuery}
             query={query}
             hasDatabase={false}
+            onTemplateSelect={handleTemplateSelect}
+            onTemplateResult={handleTemplateResult}
           />
         </div>
         <div className="flex-1 flex">
@@ -364,6 +382,8 @@ const EditorClient = memo(function EditorClient({
           loading={metadataLoading}
           runQuery={runQuery}
           query={query}
+          onTemplateSelect={handleTemplateSelect}
+          onTemplateResult={handleTemplateResult}
         />
       </div>
       <div className="flex flex-1 w-full min-w-0 overflow-hidden">

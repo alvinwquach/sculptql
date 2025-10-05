@@ -1,0 +1,36 @@
+{
+  "templates": [
+    {
+      "name": "user by Id",
+      "description": "userId",
+      "query": "SELECT * FROM users WHERE id = {{user}}",
+      "dialect": "postgres",
+      "parameters": [
+        {
+          "name": "user",
+          "type": "string",
+          "required": true
+        }
+      ],
+      "id": "template_1759631186756_hvutvj4",
+      "createdAt": "2025-10-05T02:26:26.756Z",
+      "updatedAt": "2025-10-05T02:26:26.756Z"
+    },
+    {
+      "name": "user by Email",
+      "description": "user image",
+      "query": "SELECT * FROM users WHERE email = {{email}}",
+      "dialect": "postgres",
+      "parameters": [
+        {
+          "name": "email",
+          "type": "string",
+          "required": true
+        }
+      ],
+      "id": "template_1759631352336_b4bsq8x",
+      "createdAt": "2025-10-05T02:29:12.336Z",
+      "updatedAt": "2025-10-05T04:29:49.571Z"
+    }
+  ]
+}

@@ -9,6 +9,7 @@ import {
   BookmarkedQuery,
   LabeledQuery,
 } from "@/app/types/query";
+import { Input } from "@/components/ui/input";
 
 interface RecentQueriesSectionProps {
   queryHistory: QueryHistoryItem[];
@@ -43,7 +44,7 @@ export default function RecentQueriesSection({
         // If the input is not empty, add the label
         if (labelInput.trim()) {
           // Add the label in the parent component using the onAddLabel prop
-          onAddLabel(labelInput.trim(), historyItemId); 
+          onAddLabel(labelInput.trim(), historyItemId);
         }
         // Reset the input value and labeling state
         setLabelInput("");
@@ -82,9 +83,11 @@ export default function RecentQueriesSection({
       ) : (
         queryHistory.map((item) => {
           const isPinned = pinnedQueries.some((pin) => pin.id === item.id);
-          const isBookmarked = bookmarkedQueries.some((bm) => bm.id === item.id);
+          const isBookmarked = bookmarkedQueries.some(
+            (bookmark) => bookmark.id === item.id
+          );
           const labeledQuery = labeledQueries.find(
-            (lq) => lq.historyItemId === item.id
+            (labeledQuery) => labeledQuery.historyItemId === item.id
           );
 
           return (
@@ -180,7 +183,7 @@ export default function RecentQueriesSection({
               </div>
               {labelingQuery === item.id && (
                 <div className="mt-1">
-                  <input
+                  <Input
                     type="text"
                     value={labelInput}
                     onChange={(e) => setLabelInput(e.target.value)}

@@ -14,6 +14,23 @@ import * as sqlite3 from "sqlite3";
 import oracledb, { Pool as OraclePool } from "oracledb";
 import { generateSqlFromNaturalLanguage } from "@/app/lib/llm/openai";
 import { ApiTableSchema } from "@/app/types/query";
+import {
+  parseTemplate,
+  extractParametersFromTemplate,
+  validateTemplateSyntax,
+} from "@/app/utils/templateParser";
+import {
+  getTemplates,
+  getTemplateById,
+  createTemplate,
+  updateTemplate,
+  deleteTemplate,
+} from "@/app/actions/templates";
+import {
+  getQueryData,
+  saveQueryData,
+  clearQueryData,
+} from "@/app/actions/queries";
 
 // Interface for the schema cache entry
 interface SchemaCacheEntry {
@@ -299,7 +316,10 @@ type DatabasePool = PgPool | MySqlPool | mssql.ConnectionPool | SqliteDatabase |
 
 // Interface for the database adapter
 interface DatabaseAdapter {
-  query<T = unknown>(text: string, params?: (string | number)[]): Promise<{
+  query<T = unknown>(
+    text: string,
+    params?: (string | number | boolean)[]
+  ): Promise<{
     rows: T[];
     rowCount?: number;
     fields?: { name: string }[];
@@ -310,16 +330,20 @@ interface DatabaseAdapter {
 // PostgreSQL adapter
 class PostgresAdapter implements DatabaseAdapter {
   // Constructor for the postgres adapter
-  constructor(private client: import('pg').PoolClient) {}
+  constructor(private client: import("pg").PoolClient) {}
   // Query method for the postgres adapter
-  async query<T = unknown>(text: string, params?: (string | number)[]) {
+  async query<T = unknown>(
+    text: string,
+    params?: (string | number | boolean)[]
+  ) {
     // Query the client and the text and the params
     const result = await this.client.query(text, params);
     // Return the result
     return {
       rows: result.rows as T[],
       rowCount: result.rowCount ?? undefined,
-      fields: result.fields?.map((field: FieldDef) => ({ name: field.name })) || []
+      fields:
+        result.fields?.map((field: FieldDef) => ({ name: field.name })) || [],
     };
   }
   // Release method for the postgres adapter
@@ -334,16 +358,26 @@ class PostgresAdapter implements DatabaseAdapter {
 // MySQL adapter
 class MySqlAdapter implements DatabaseAdapter {
   // Constructor for the mysql adapter
-  constructor(private connection: import('mysql2/promise').PoolConnection) {}
+  constructor(private connection: import("mysql2/promise").PoolConnection) {}
   // Query method for the mysql adapter
-  async query<T = unknown>(text: string, params?: (string | number)[]) {
+  async query<T = unknown>(
+    text: string,
+    params?: (string | number | boolean)[]
+  ) {
+    // Convert booleans to 1/0 for MySQL
+    const convertedParams = params?.map((p) =>
+      typeof p === "boolean" ? (p ? 1 : 0) : p
+    );
     // Execute the connection and the text and the params
-    const [rows, fields] = await this.connection.execute(text, params) as [RowDataPacket[], FieldPacket[]];
+    const [rows, fields] = (await this.connection.execute(
+      text,
+      convertedParams
+    )) as [RowDataPacket[], FieldPacket[]];
     // Return the result
     return {
       rows: rows as T[],
       rowCount: rows.length,
-      fields: fields.map((field) => ({ name: field.name }))
+      fields: fields.map((field) => ({ name: field.name })),
     };
   }
 
@@ -361,15 +395,20 @@ class SqlServerAdapter implements DatabaseAdapter {
   // Constructor for the sql server adapter
   constructor(private pool: mssql.ConnectionPool) {}
   // Query method for the sql server adapter
-  async query<T = unknown>(text: string, params?: (string | number)[]) {
+  async query<T = unknown>(
+    text: string,
+    params?: (string | number | boolean)[]
+  ) {
     // Create the request from the pool
     const request = this.pool.request();
     // If the params is not null
     if (params) {
       // Loop through the params and set the input
       params.forEach((param, index) => {
+        // Convert booleans to 1/0 for SQL Server
+        const value = typeof param === "boolean" ? (param ? 1 : 0) : param;
         // Set the input
-        request.input(`param${index}`, param);
+        request.input(`param${index}`, value);
       });
     }
     // Execute the request and the text
@@ -378,7 +417,9 @@ class SqlServerAdapter implements DatabaseAdapter {
     return {
       rows: result.recordset as T[],
       rowCount: result.rowsAffected[0] || result.recordset.length,
-      fields: result.recordset.columns ? Object.keys(result.recordset.columns).map(name => ({ name })) : []
+      fields: result.recordset.columns
+        ? Object.keys(result.recordset.columns).map((name) => ({ name }))
+        : [],
     };
   }
   // Release method for the sql server adapter
@@ -395,24 +436,32 @@ class SqliteAdapter implements DatabaseAdapter {
   // Constructor for the sqlite adapter
   constructor(private db: SqliteDatabase) {}
   // Query method for the sqlite adapter
-  async query<T = unknown>(text: string, params?: (string | number)[]) {
+  async query<T = unknown>(
+    text: string,
+    params?: (string | number | boolean)[]
+  ) {
     try {
+      // Convert booleans to 1/0 for SQLite
+      const convertedParams =
+        params?.map((p) => (typeof p === "boolean" ? (p ? 1 : 0) : p)) || [];
       // Execute the db and the text and the params
-      const result = await this.db.all(text, params || []);
+      const result = await this.db.all(text, convertedParams);
       // Set the fields to an empty array
       let fields: { name: string }[] = [];
       // If the result length is greater than 0
       if (result.length > 0) {
-        fields = Object.keys(result[0] as Record<string, unknown>).map(name => ({ name }));
+        fields = Object.keys(result[0] as Record<string, unknown>).map(
+          (name) => ({ name })
+        );
       }
       // Return the result
       return {
         rows: result as T[],
         rowCount: result.length,
-        fields
+        fields,
       };
     } catch (error) {
-      console.error('SQLite query error:', error);
+      console.error("SQLite query error:", error);
       throw error;
     }
   }
@@ -428,20 +477,26 @@ class SqliteAdapter implements DatabaseAdapter {
 // Oracle adapter
 class OracleAdapter implements DatabaseAdapter {
   // Constructor for the oracle adapter
-  constructor(private connection: import('oracledb').Connection) {}
+  constructor(private connection: import("oracledb").Connection) {}
   // Query method for the oracle adapter
-  async query<T = unknown>(text: string, params?: (string | number)[]) {
+  async query<T = unknown>(
+    text: string,
+    params?: (string | number | boolean)[]
+  ) {
     try {
+      // Convert booleans to 1/0 for Oracle
+      const convertedParams =
+        params?.map((p) => (typeof p === "boolean" ? (p ? 1 : 0) : p)) || [];
       // Execute the connection and the text and the params
-      const result = await this.connection.execute(text, params || []);
+      const result = await this.connection.execute(text, convertedParams);
       // Return the result
       return {
         rows: result.rows as T[],
         rowCount: result.rowsAffected || result.rows?.length || 0,
-        fields: result.metaData?.map((field) => ({ name: field.name })) || []
+        fields: result.metaData?.map((field) => ({ name: field.name })) || [],
       };
     } catch (error) {
-      console.error('Oracle query error:', error);
+      console.error("Oracle query error:", error);
       throw error;
     }
   }
@@ -478,8 +533,8 @@ async function createDatabasePool(): Promise<DatabasePool> {
       waitForConnections: true,
       connectionLimit: commonPoolSettings.max,
       queueLimit: 50,
-      charset: 'utf8mb4',
-      timezone: '+00:00',
+      charset: "utf8mb4",
+      timezone: "+00:00",
       multipleStatements: false,
       dateStrings: false,
     });
@@ -490,19 +545,19 @@ async function createDatabasePool(): Promise<DatabasePool> {
       user: process.env.DB_USER,
       password: process.env.DB_PASSWORD,
       database: process.env.DB_DATABASE,
-      options: { 
-        encrypt: true, 
+      options: {
+        encrypt: true,
         trustServerCertificate: true,
         enableArithAbort: true,
-        requestTimeout: 10000, 
+        requestTimeout: 10000,
       },
-      pool: { 
+      pool: {
         max: commonPoolSettings.max,
         min: commonPoolSettings.min,
         idleTimeoutMillis: commonPoolSettings.idleTimeoutMillis,
         acquireTimeoutMillis: commonPoolSettings.acquireTimeoutMillis,
       },
-      connectionTimeout: 5000, 
+      connectionTimeout: 5000,
     };
     return new mssql.ConnectionPool(config);
   } else if (dialect === "sqlite") {
@@ -510,7 +565,9 @@ async function createDatabasePool(): Promise<DatabasePool> {
     const dbFile = process.env.DB_FILE || process.env.DB_DATABASE;
     // If the db file is not found, throw an error
     if (!dbFile) {
-      throw new Error("DB_FILE or DB_DATABASE environment variable is required for SQLite");
+      throw new Error(
+        "DB_FILE or DB_DATABASE environment variable is required for SQLite"
+      );
     }
     // Open the sqlite database with performance settings
     // Return the sqlite database
@@ -523,7 +580,9 @@ async function createDatabasePool(): Promise<DatabasePool> {
     return await oracledb.createPool({
       user: process.env.DB_USER,
       password: process.env.DB_PASSWORD,
-      connectString: `${process.env.DB_HOST}:${process.env.DB_PORT || 1521}/${process.env.DB_DATABASE}`,
+      connectString: `${process.env.DB_HOST}:${process.env.DB_PORT || 1521}/${
+        process.env.DB_DATABASE
+      }`,
       poolMin: commonPoolSettings.min,
       poolMax: commonPoolSettings.max,
       poolIncrement: 1,
@@ -550,7 +609,7 @@ async function createDatabasePool(): Promise<DatabasePool> {
       allowExitOnIdle: true,
     });
   }
-} 
+}
 
 let pool: DatabasePool;
 
@@ -563,7 +622,6 @@ let pool: DatabasePool;
     console.error("Failed to create database pool:", error);
   }
 })();
-
 
 // Set the pool initialized to false
 let poolInitialized = false;
@@ -581,16 +639,16 @@ async function initializePool(): Promise<void> {
   // Set the pool initialization promise
   poolInitializationPromise = (async () => {
     try {
-      console.log('Creating database pool...');
+      console.log("Creating database pool...");
       // Create the database pool
       pool = await createDatabasePool();
       // Set the pool initialized to true
       poolInitialized = true;
       // Log the database pool created successfully
-      console.log('Database pool created successfully');
+      console.log("Database pool created successfully");
     } catch (error) {
       // Log the failed to create database pool error
-      console.error('Failed to create database pool:', error);
+      console.error("Failed to create database pool:", error);
       // Set the pool initialized to false
       poolInitialized = false;
       // Set the pool initialization promise to null
@@ -609,26 +667,28 @@ async function getDatabaseAdapter(): Promise<DatabaseAdapter> {
   await initializePool();
   // If the pool is not available, throw an error
   if (!pool) {
-    throw new Error('Database pool not available');
+    throw new Error("Database pool not available");
   }
-  
+
   // Wait for available connection
   let connectionAcquired = false;
   let retries = 0;
   const maxRetries = 10;
-  
+
   while (!connectionAcquired && retries < maxRetries) {
     connectionAcquired = await connectionManager.acquireConnection();
     if (!connectionAcquired) {
       retries++;
-      await new Promise(resolve => setTimeout(resolve, 50 * retries)); // Exponential backoff
+      await new Promise((resolve) => setTimeout(resolve, 50 * retries)); // Exponential backoff
     }
   }
-  
+
   if (!connectionAcquired) {
-    throw new Error('Failed to acquire database connection after maximum retries');
+    throw new Error(
+      "Failed to acquire database connection after maximum retries"
+    );
   }
-  
+
   try {
     // If the dialect is mysql
     if (dialect === "mysql") {
@@ -661,7 +721,7 @@ async function getDatabaseAdapter(): Promise<DatabaseAdapter> {
       return new PostgresAdapter(client);
     }
   } catch (error) {
-    console.error('Failed to get database adapter:', error);
+    console.error("Failed to get database adapter:", error);
     connectionManager.releaseConnection();
     throw error;
   }
@@ -670,7 +730,10 @@ async function getDatabaseAdapter(): Promise<DatabaseAdapter> {
 // Class for the sql queries
 class SqlQueries {
   // Function to get the tables query
-  static getTablesQuery(dialect: SupportedDialect, tableSearch?: string): { query: string; params: (string | number)[] } {
+  static getTablesQuery(
+    dialect: SupportedDialect,
+    tableSearch?: string
+  ): { query: string; params: (string | number)[] } {
     // Set the params to an empty array
     const params: (string | number)[] = [];
     // If the dialect is mysql
@@ -781,9 +844,13 @@ class SqlQueries {
     }
   }
   // Function to get the columns query
-  static getColumnsQuery(dialect: SupportedDialect, tableName: string, columnSearch?: string): { query: string; params: (string | number)[] } {
+  static getColumnsQuery(
+    dialect: SupportedDialect,
+    tableName: string,
+    columnSearch?: string
+  ): { query: string; params: (string | number)[] } {
     const params: (string | number)[] = [tableName];
-      // If the dialect is mysql
+    // If the dialect is mysql
     if (dialect === "mysql") {
       // Set the query to the mysql columns query
       let query = `
@@ -870,7 +937,9 @@ class SqlQueries {
       // If the column search is not null
       if (columnSearch) {
         // Append the column search to the query
-        query += ` AND (column_name ILIKE $${params.length + 1} OR data_type ILIKE $${params.length + 1})`;
+        query += ` AND (column_name ILIKE $${
+          params.length + 1
+        } OR data_type ILIKE $${params.length + 1})`;
         // Append the column search to the params
         params.push(`%${columnSearch}%`);
       }
@@ -881,7 +950,10 @@ class SqlQueries {
     }
   }
   // Function to get the primary keys query
-  static getPrimaryKeysQuery(dialect: SupportedDialect, tableName: string): { query: string; params: (string | number)[] } {
+  static getPrimaryKeysQuery(
+    dialect: SupportedDialect,
+    tableName: string
+  ): { query: string; params: (string | number)[] } {
     // If the dialect is mysql
     if (dialect === "mysql") {
       // Set the query to the mysql primary keys query
@@ -895,7 +967,7 @@ class SqlQueries {
           ORDER BY ordinal_position
         `,
         // Append the table name to the params
-        params: [tableName]
+        params: [tableName],
       };
     } else if (dialect === "mssql") {
       // Set the query to the mssql primary keys query
@@ -908,7 +980,7 @@ class SqlQueries {
           ORDER BY ORDINAL_POSITION
         `,
         // Append the table name to the params
-        params: [tableName]
+        params: [tableName],
       };
     } else if (dialect === "sqlite") {
       // SQLite
@@ -921,7 +993,7 @@ class SqlQueries {
           ORDER BY cid
         `,
         // Append the table name to the params
-        params: [tableName]
+        params: [tableName],
       };
     } else if (dialect === "oracle") {
       // Set the query to the oracle primary keys query
@@ -934,7 +1006,7 @@ class SqlQueries {
           ORDER BY ucc.position
         `,
         // Append the table name to the params
-        params: [tableName]
+        params: [tableName],
       };
     } else {
       // Set the query to the postgres primary keys query
@@ -949,13 +1021,16 @@ class SqlQueries {
             AND tc.table_schema = 'public'
             AND tc.table_name = $1;
         `,
-        params: [tableName]
+        params: [tableName],
       };
     }
   }
 
   // Function to get the foreign keys query
-  static getForeignKeysQuery(dialect: SupportedDialect, tableName: string): { query: string; params: (string | number)[] } {
+  static getForeignKeysQuery(
+    dialect: SupportedDialect,
+    tableName: string
+  ): { query: string; params: (string | number)[] } {
     // If the dialect is mysql
     if (dialect === "mysql") {
       // Set the query to the mysql foreign keys query
@@ -972,7 +1047,7 @@ class SqlQueries {
             AND kcu.referenced_table_name IS NOT NULL
         `,
         // Append the table name to the params
-        params: [tableName]
+        params: [tableName],
       };
     } else if (dialect === "mssql") {
       // Set the query to the mssql foreign keys query
@@ -992,7 +1067,7 @@ class SqlQueries {
           WHERE kcu.TABLE_NAME = @param0
         `,
         // Append the table name to the params
-        params: [tableName]
+        params: [tableName],
       };
     } else if (dialect === "sqlite") {
       // Set the query to the sqlite foreign keys query
@@ -1006,7 +1081,7 @@ class SqlQueries {
           FROM pragma_foreign_key_list(?)
         `,
         // Append the table name to the params
-        params: [tableName]
+        params: [tableName],
       };
     } else if (dialect === "oracle") {
       // Set the query to the oracle foreign keys query
@@ -1023,7 +1098,7 @@ class SqlQueries {
           WHERE uc.constraint_type = 'R' AND ucc.table_name = :1
         `,
         // Append the table name to the params
-        params: [tableName]
+        params: [tableName],
       };
     } else {
       // Set the query to the postgres foreign keys query
@@ -1043,19 +1118,25 @@ class SqlQueries {
             AND tc.table_name = $1;
         `,
         // Append the table name to the params
-        params: [tableName]
+        params: [tableName],
       };
     }
   }
   // Function to get a combined query for all table metadata
-  static getCombinedTableMetadataQuery(dialect: SupportedDialect, tableNames: string[], columnSearch?: string): { query: string; params: (string | number)[] } {
+  static getCombinedTableMetadataQuery(
+    dialect: SupportedDialect,
+    tableNames: string[],
+    columnSearch?: string
+  ): { query: string; params: (string | number)[] } {
     const params: (string | number)[] = [];
-    
+
     if (dialect === "postgres") {
       // Create a single query that gets all metadata for multiple tables
-      const tableNamesParam = tableNames.map((_, index) => `$${index + 1}`).join(',');
+      const tableNamesParam = tableNames
+        .map((_, index) => `$${index + 1}`)
+        .join(",");
       params.push(...tableNames);
-      
+
       let query = `
         WITH table_columns AS (
           SELECT 
@@ -1078,12 +1159,14 @@ class SqlQueries {
           WHERE c.table_schema = 'public' 
             AND c.table_name IN (${tableNamesParam})
       `;
-      
+
       if (columnSearch) {
-        query += ` AND (c.column_name ILIKE $${params.length + 1} OR c.data_type ILIKE $${params.length + 1})`;
+        query += ` AND (c.column_name ILIKE $${
+          params.length + 1
+        } OR c.data_type ILIKE $${params.length + 1})`;
         params.push(`%${columnSearch}%`);
       }
-      
+
       query += `
         ),
         table_foreign_keys AS (
@@ -1118,16 +1201,20 @@ class SqlQueries {
         LEFT JOIN table_foreign_keys fk ON tc.table_name = fk.table_name AND tc.column_name = fk.column_name
         ORDER BY tc.table_name, tc.ordinal_position
       `;
-      
+
       return { query, params };
     }
-    
+
     // For other dialects, fall back to individual queries
-    return { query: '', params: [] };
+    return { query: "", params: [] };
   }
 
   // Function to get the sample data query
-  static getSampleDataQuery(dialect: SupportedDialect, tableName: string, limit?: number): { query: string; params: (string | number)[] } {
+  static getSampleDataQuery(
+    dialect: SupportedDialect,
+    tableName: string,
+    limit?: number
+  ): { query: string; params: (string | number)[] } {
     // If the dialect is mysql
     if (dialect === "mysql") {
       // Set the query to the mysql sample data query
@@ -1196,7 +1283,10 @@ class SqlQueries {
   }
 
   // Function to get the explain query
-  static getExplainQuery(dialect: SupportedDialect, originalQuery: string): string | null {
+  static getExplainQuery(
+    dialect: SupportedDialect,
+    originalQuery: string
+  ): string | null {
     // If the dialect is mysql
     if (dialect === "mysql") {
       // Set the query to the mysql explain query
@@ -1220,7 +1310,7 @@ class SqlQueries {
 // Interface for the schema args
 interface SchemaArgs {
   tableSearch?: string;
-  columnSearch?: string; 
+  columnSearch?: string;
   limit?: number;
   includeSampleData?: boolean;
 }
@@ -1277,14 +1367,59 @@ const typeDefs = /* GraphQL */ `
     tableCount: Int!
   }
 
-  # Root query type
-  type Query {
-    schema(tableSearch: String, columnSearch: String, limit: Int, includeSampleData: Boolean = false): [Table!]!
-    schemaVersion: SchemaVersion!
-    dialect: String!
+  # Template parameter
+  type TemplateParameter {
+    name: String!
+    type: String!
+    defaultValue: String
+    required: Boolean
+    description: String
   }
 
-  # Input types for mutations
+  # Query template
+  type QueryTemplate {
+    id: String!
+    name: String!
+    description: String
+    query: String!
+    parameters: [TemplateParameter!]!
+    dialect: String
+    tags: [String!]
+    createdAt: String!
+    updatedAt: String!
+  }
+
+  # Query history
+  type QueryHistoryItem {
+    id: String!
+    query: String!
+    timestamp: String!
+  }
+
+  # Query data
+  type QueryData {
+    queryHistory: [QueryHistoryItem!]!
+    pinnedQueries: [QueryHistoryItem!]!
+    bookmarkedQueries: [QueryHistoryItem!]!
+    labeledQueries: [JSON!]!
+    showQueryHistory: Boolean!
+  }
+
+  # Root query type
+  type Query {
+    schema(
+      tableSearch: String
+      columnSearch: String
+      limit: Int
+      includeSampleData: Boolean = false
+    ): [Table!]!
+    schemaVersion: SchemaVersion!
+    dialect: String!
+    templates: [QueryTemplate!]!
+    template(id: String!): QueryTemplate
+    queryData: QueryData!
+  }
+
   input ColumnSchemaInput {
     column_name: String!
     data_type: String!
@@ -1310,14 +1445,63 @@ const typeDefs = /* GraphQL */ `
     sql: String!
   }
 
+  input ParameterValueInput {
+    name: String!
+    value: String!
+  }
+
+  input TemplateParameterInput {
+    name: String!
+    type: String!
+    defaultValue: String
+    required: Boolean
+    description: String
+  }
+
+  input CreateTemplateInput {
+    name: String!
+    description: String
+    query: String!
+    parameters: [TemplateParameterInput!]!
+    dialect: String
+    tags: [String!]
+  }
+
+  input UpdateTemplateInput {
+    id: String!
+    name: String!
+    description: String
+    query: String!
+    parameters: [TemplateParameterInput!]!
+    dialect: String
+    tags: [String!]
+  }
+
+  input QueryDataInput {
+    queryHistory: [JSON!]!
+    pinnedQueries: [JSON!]!
+    bookmarkedQueries: [JSON!]!
+    labeledQueries: [JSON!]!
+    showQueryHistory: Boolean!
+  }
+
   type Mutation {
     runQuery(query: String!): QueryResult!
+    runTemplateQuery(
+      templateQuery: String!
+      parameters: [ParameterValueInput!]!
+    ): QueryResult!
     generateSqlFromNaturalLanguage(
       naturalLanguage: String!
       schema: [TableSchemaInput!]!
       dialect: String
     ): GenerateSqlResult!
     invalidateSchemaCache: Boolean!
+    createTemplate(input: CreateTemplateInput!): QueryTemplate!
+    updateTemplate(input: UpdateTemplateInput!): QueryTemplate!
+    deleteTemplate(id: String!): Boolean!
+    saveQueryData(input: QueryDataInput!): Boolean!
+    clearQueryData: Boolean!
   }
 `;
 
@@ -1328,17 +1512,26 @@ const resolvers = {
     },
     schema: async (
       _: unknown,
-      { tableSearch = "", columnSearch = "", limit, includeSampleData = false }: SchemaArgs
+      {
+        tableSearch = "",
+        columnSearch = "",
+        limit,
+        includeSampleData = false,
+      }: SchemaArgs
     ): Promise<Table[]> => {
       try {
         // Generate the cache key
-        const cacheKey = apiSchemaCache.generateKey(dialect, tableSearch, columnSearch);
+        const cacheKey = apiSchemaCache.generateKey(
+          dialect,
+          tableSearch,
+          columnSearch
+        );
         // Get the cached result from the cache
         const cachedResult = apiSchemaCache.get(cacheKey);
         // If the cached result is not null and the include sample data is false,
         if (cachedResult && !includeSampleData) {
           // Log the schema loaded from the cache
-          console.log('Schema loaded from cache');
+          console.log("Schema loaded from cache");
           // Return the cached result
           return cachedResult;
         }
@@ -1348,7 +1541,7 @@ const resolvers = {
         console.time(timingId);
         // Log the fetching schema with dialect
         console.log(`Fetching schema with dialect: ${dialect}`);
-        
+
         // Performance monitoring
         const performanceStart = performance.now();
         const queryCount = 0;
@@ -1358,298 +1551,424 @@ const resolvers = {
         // If the adapter is not found, throw an error
         if (!adapter) {
           // Log the failed to get database adapter error
-          console.error('Failed to get database adapter');
+          console.error("Failed to get database adapter");
           // Throw the error
-          throw new Error('Failed to get database adapter');
+          throw new Error("Failed to get database adapter");
         }
-        
+
         try {
           // Get the tables query and the tables params
-        const { query: tablesQuery, params: tablesParams } = SqlQueries.getTablesQuery(dialect, tableSearch);
-        // Log the executing tables query
-        console.log(`Executing tables query: ${tablesQuery}`);
-        // Get the tables result from the adapter
-        const tablesResult = await adapter.query<{
-          table_catalog: string;
-          table_schema: string;
-          table_name: string;
-          table_type: string;
-        }>(tablesQuery, tablesParams);
-        // Log the found tables
-        console.log(`Found ${tablesResult.rows.length} tables`);
-        // Set the schema to an empty array
-        const schema: Table[] = [];
-        // Use optimized combined query for PostgreSQL
-        if (dialect === "postgres") {
-          const tableNames = tablesResult.rows.map(table => table.table_name);
-          const { query: combinedQuery, params: combinedParams } = SqlQueries.getCombinedTableMetadataQuery(dialect, tableNames, columnSearch);
-          
-          if (combinedQuery) {
-            console.log('Using optimized combined query for all tables');
-            
-            // Execute the single combined query
-            const combinedResult = await executeQueryWithCache<{
-              table_name: string;
-              column_name: string;
-              data_type: string;
-              is_nullable: string;
-              ordinal_position: number;
-              is_primary_key: boolean;
-              referenced_table: string | null;
-              referenced_column: string | null;
-              constraint_name: string | null;
-            }>(adapter, combinedQuery, combinedParams, 
-               queryResultCache.generateKey(combinedQuery, combinedParams), 300000, 
-               { queryCount, cacheHits });
-            
-            // Group results by table
-            const tableMetadata = new Map<string, {
-              columns: Column[];
-              primaryKeys: string[];
-              foreignKeys: ForeignKey[];
-            }>();
-            
-            for (const row of combinedResult.rows) {
-              if (!tableMetadata.has(row.table_name)) {
-                tableMetadata.set(row.table_name, {
-                  columns: [],
-                  primaryKeys: [],
-                  foreignKeys: []
-                });
-              }
-              
-              const tableData = tableMetadata.get(row.table_name)!;
-              
-              // Add column
-              tableData.columns.push({
-                column_name: row.column_name,
-                data_type: row.data_type,
-                is_nullable: row.is_nullable,
-                is_primary_key: row.is_primary_key
-              });
-              
-              // Add primary key
-              if (row.is_primary_key) {
-                tableData.primaryKeys.push(row.column_name);
-              }
-              
-              // Add foreign key
-              if (row.referenced_table && row.referenced_column && row.constraint_name) {
-                tableData.foreignKeys.push({
+          const { query: tablesQuery, params: tablesParams } =
+            SqlQueries.getTablesQuery(dialect, tableSearch);
+          // Log the executing tables query
+          console.log(`Executing tables query: ${tablesQuery}`);
+          // Get the tables result from the adapter
+          const tablesResult = await adapter.query<{
+            table_catalog: string;
+            table_schema: string;
+            table_name: string;
+            table_type: string;
+          }>(tablesQuery, tablesParams);
+          // Log the found tables
+          console.log(`Found ${tablesResult.rows.length} tables`);
+          // Set the schema to an empty array
+          const schema: Table[] = [];
+          // Use optimized combined query for PostgreSQL
+          if (dialect === "postgres") {
+            const tableNames = tablesResult.rows.map(
+              (table) => table.table_name
+            );
+            const { query: combinedQuery, params: combinedParams } =
+              SqlQueries.getCombinedTableMetadataQuery(
+                dialect,
+                tableNames,
+                columnSearch
+              );
+
+            if (combinedQuery) {
+              console.log("Using optimized combined query for all tables");
+
+              // Execute the single combined query
+              const combinedResult = await executeQueryWithCache<{
+                table_name: string;
+                column_name: string;
+                data_type: string;
+                is_nullable: string;
+                ordinal_position: number;
+                is_primary_key: boolean;
+                referenced_table: string | null;
+                referenced_column: string | null;
+                constraint_name: string | null;
+              }>(
+                adapter,
+                combinedQuery,
+                combinedParams,
+                queryResultCache.generateKey(combinedQuery, combinedParams),
+                300000,
+                { queryCount, cacheHits }
+              );
+
+              // Group results by table
+              const tableMetadata = new Map<
+                string,
+                {
+                  columns: Column[];
+                  primaryKeys: string[];
+                  foreignKeys: ForeignKey[];
+                }
+              >();
+
+              for (const row of combinedResult.rows) {
+                if (!tableMetadata.has(row.table_name)) {
+                  tableMetadata.set(row.table_name, {
+                    columns: [],
+                    primaryKeys: [],
+                    foreignKeys: [],
+                  });
+                }
+
+                const tableData = tableMetadata.get(row.table_name)!;
+
+                // Add column
+                tableData.columns.push({
                   column_name: row.column_name,
-                  referenced_table: row.referenced_table,
-                  referenced_column: row.referenced_column,
-                  constraint_name: row.constraint_name
+                  data_type: row.data_type,
+                  is_nullable: row.is_nullable,
+                  is_primary_key: row.is_primary_key,
                 });
+
+                // Add primary key
+                if (row.is_primary_key) {
+                  tableData.primaryKeys.push(row.column_name);
+                }
+
+                // Add foreign key
+                if (
+                  row.referenced_table &&
+                  row.referenced_column &&
+                  row.constraint_name
+                ) {
+                  tableData.foreignKeys.push({
+                    column_name: row.column_name,
+                    referenced_table: row.referenced_table,
+                    referenced_column: row.referenced_column,
+                    constraint_name: row.constraint_name,
+                  });
+                }
               }
-            }
-            
-            // Process sample data if needed
-            const sampleDataPromises = includeSampleData ?
-              tableNames.map(async (tableName) => {
-                const { query: sampleQuery, params: sampleParams } = SqlQueries.getSampleDataQuery(dialect, tableName, limit);
-                console.log(`Fetching sample data for table: ${tableName}`);
-                console.log(`Sample query: ${sampleQuery}`);
-                const sampleResult = await executeQueryWithCache<Record<string, unknown>>(
-                  adapter, sampleQuery, sampleParams,
-                  queryResultCache.generateKey(sampleQuery, sampleParams), 60000
+
+              // Process sample data if needed
+              const sampleDataPromises = includeSampleData
+                ? tableNames.map(async (tableName) => {
+                    const { query: sampleQuery, params: sampleParams } =
+                      SqlQueries.getSampleDataQuery(dialect, tableName, limit);
+                    console.log(`Fetching sample data for table: ${tableName}`);
+                    console.log(`Sample query: ${sampleQuery}`);
+                    const sampleResult = await executeQueryWithCache<
+                      Record<string, unknown>
+                    >(
+                      adapter,
+                      sampleQuery,
+                      sampleParams,
+                      queryResultCache.generateKey(sampleQuery, sampleParams),
+                      60000
+                    );
+                    console.log(
+                      `Sample data for ${tableName}:`,
+                      sampleResult.rows.length,
+                      "rows"
+                    );
+                    return { tableName, values: sampleResult.rows };
+                  })
+                : tableNames.map((tableName) => ({ tableName, values: [] }));
+
+              const sampleDataResults = await Promise.all(sampleDataPromises);
+              const sampleDataMap = new Map(
+                sampleDataResults.map((result) => [
+                  result.tableName,
+                  result.values,
+                ])
+              );
+
+              // Build final schema
+              for (const table of tablesResult.rows) {
+                const tableData = tableMetadata.get(table.table_name);
+                if (!tableData) continue;
+
+                // Filter columns if column search is active and no matches
+                if (columnSearch && tableData.columns.length === 0) {
+                  continue;
+                }
+
+                const tableValues = sampleDataMap.get(table.table_name) || [];
+                const tableResult: Table = {
+                  table_catalog: table.table_catalog,
+                  table_schema: table.table_schema,
+                  table_name: table.table_name,
+                  table_type: table.table_type,
+                  comment: null,
+                  columns: tableData.columns,
+                  primary_keys: tableData.primaryKeys,
+                  foreign_keys: tableData.foreignKeys,
+                  values: tableValues,
+                };
+
+                console.log(
+                  `Table ${table.table_name} sample data:`,
+                  tableValues.length,
+                  "rows"
                 );
-                console.log(`Sample data for ${tableName}:`, sampleResult.rows.length, 'rows');
-                return { tableName, values: sampleResult.rows };
-              }) :
-              tableNames.map(tableName => ({ tableName, values: [] }));
-            
-            const sampleDataResults = await Promise.all(sampleDataPromises);
-            const sampleDataMap = new Map(sampleDataResults.map(result => [result.tableName, result.values]));
-            
-            // Build final schema
-            for (const table of tablesResult.rows) {
-              const tableData = tableMetadata.get(table.table_name);
-              if (!tableData) continue;
-              
-              // Filter columns if column search is active and no matches
-              if (columnSearch && tableData.columns.length === 0) {
-                continue;
-              }
-              
-              const tableValues = sampleDataMap.get(table.table_name) || [];
-              const tableResult: Table = {
-                table_catalog: table.table_catalog,
-                table_schema: table.table_schema,
-                table_name: table.table_name,
-                table_type: table.table_type,
-                comment: null,
-                columns: tableData.columns,
-                primary_keys: tableData.primaryKeys,
-                foreign_keys: tableData.foreignKeys,
-                values: tableValues
-              };
+                if (tableValues.length > 0) {
+                  console.log(`Sample row:`, tableValues[0]);
+                }
 
-              console.log(`Table ${table.table_name} sample data:`, tableValues.length, 'rows');
-              if (tableValues.length > 0) {
-                console.log(`Sample row:`, tableValues[0]);
+                schema.push(tableResult);
+                console.log(
+                  `Successfully processed table: ${table.table_name} with ${tableData.columns.length} columns`
+                );
               }
-
-              schema.push(tableResult);
-              console.log(`Successfully processed table: ${table.table_name} with ${tableData.columns.length} columns`);
+            } else {
+              // Fallback to individual queries if combined query not supported
+              console.log("Falling back to individual queries");
+              await processTablesIndividually();
             }
           } else {
-            // Fallback to individual queries if combined query not supported
-            console.log('Falling back to individual queries');
+            // For non-PostgreSQL databases, use individual queries
             await processTablesIndividually();
           }
-        } else {
-          // For non-PostgreSQL databases, use individual queries
-          await processTablesIndividually();
-        }
-        
-        async function processTablesIndividually() {
-          try {
-            // Pre-compute all queries to avoid redundant calls
-            const tableQueries = tablesResult.rows.map(table => {
-              const { table_name } = table;
-              return {
-                table,
-                table_name,
-                columnsQuery: SqlQueries.getColumnsQuery(dialect, table_name, columnSearch),
-                primaryKeyQuery: SqlQueries.getPrimaryKeysQuery(dialect, table_name),
-                foreignKeyQuery: SqlQueries.getForeignKeysQuery(dialect, table_name),
-                sampleDataQuery: includeSampleData ? SqlQueries.getSampleDataQuery(dialect, table_name, limit) : null
-              };
-            });
 
-            // Process tables in parallel with optimized batching and connection reuse
-            const BATCH_SIZE = 15; // Increased batch size for better efficiency
-            const tableProcessingPromises = [];
-            
-            for (let i = 0; i < tableQueries.length; i += BATCH_SIZE) {
-              const batch = tableQueries.slice(i, i + BATCH_SIZE);
-              
-              // Get a shared adapter for this batch
-              const batchAdapter = await batchConnectionPool.getAdapter();
-              
-              const batchPromises = batch.map(async ({ table, table_name, columnsQuery, primaryKeyQuery, foreignKeyQuery, sampleDataQuery }) => {
-                try {
-                  // Log the processing table
-                  console.log(`Processing table: ${table_name}`);
-                  
-                  // Execute all queries for this table in parallel with caching
-                  const [columnsResult, primaryKeyResult, foreignKeyResult, valuesResult] = await Promise.all([
-                    executeQueryWithCache<{
-                      column_name: string;
-                      data_type: string;
-                      is_nullable: string;
-                    }>(batchAdapter, columnsQuery.query, columnsQuery.params, 
-                       queryResultCache.generateKey(columnsQuery.query, columnsQuery.params), 300000, 
-                       { queryCount, cacheHits }), // 5 min cache
-                    executeQueryWithCache<{ column_name: string }>(batchAdapter, primaryKeyQuery.query, primaryKeyQuery.params,
-                       queryResultCache.generateKey(primaryKeyQuery.query, primaryKeyQuery.params), 300000, 
-                       { queryCount, cacheHits }), // 5 min cache
-                    executeQueryWithCache<Record<string, unknown>>(batchAdapter, foreignKeyQuery.query, foreignKeyQuery.params,
-                       queryResultCache.generateKey(foreignKeyQuery.query, foreignKeyQuery.params), 300000, 
-                       { queryCount, cacheHits }), // 5 min cache
-                    sampleDataQuery 
-                      ? executeQueryWithCache<Record<string, unknown>>(batchAdapter, sampleDataQuery.query, sampleDataQuery.params,
-                         queryResultCache.generateKey(sampleDataQuery.query, sampleDataQuery.params), 60000, 
-                         { queryCount, cacheHits }) // 1 min cache for sample data
-                      : Promise.resolve({ rows: [] })
-                  ]);
-                  // If the column search is not null and the columns result rows length is 0,
-                  if (columnSearch && columnsResult.rows.length === 0) {
-                    // Return null
-                    return null;
-                  }
-                  // Get the primary keys from the primary key result rows
-                  const primaryKeys = primaryKeyResult.rows.map((r) => r.column_name);
-                  // Get the values from the values result rows 
-                  // and the include sample data is true 
-                  // or an empty array if the include sample data is false
-                  const values = includeSampleData ? valuesResult.rows : [];
-                  // Get the columns from the columns result rows
-                  // and the primary keys includes the column name
-                  const columns: Column[] = columnsResult.rows.map((col) => ({
-                    ...col,
-                    is_primary_key: primaryKeys.includes(col.column_name),
-                  }));
-                  // Get the table result
-                  const tableResult: Table = {
-                    table_catalog: table.table_catalog,
-                    table_schema: table.table_schema,
-                    table_name: table.table_name,
-                    table_type: table.table_type,
-                    comment: null, 
-                    columns,
-                    primary_keys: primaryKeys,
-                    foreign_keys: foreignKeyResult.rows as unknown as ForeignKey[],
-                    values,
-                  };
-                  // Log the successfully processed table
-                  console.log(`Successfully processed table: ${table_name} with ${columns.length} columns`);
-                  return tableResult;
-                } catch (error) {
-                  console.error(`Error processing table ${table.table_name}:`, error);
-                  return null; 
-                }
+          async function processTablesIndividually() {
+            try {
+              // Pre-compute all queries to avoid redundant calls
+              const tableQueries = tablesResult.rows.map((table) => {
+                const { table_name } = table;
+                return {
+                  table,
+                  table_name,
+                  columnsQuery: SqlQueries.getColumnsQuery(
+                    dialect,
+                    table_name,
+                    columnSearch
+                  ),
+                  primaryKeyQuery: SqlQueries.getPrimaryKeysQuery(
+                    dialect,
+                    table_name
+                  ),
+                  foreignKeyQuery: SqlQueries.getForeignKeysQuery(
+                    dialect,
+                    table_name
+                  ),
+                  sampleDataQuery: includeSampleData
+                    ? SqlQueries.getSampleDataQuery(dialect, table_name, limit)
+                    : null,
+                };
               });
-              
-              // Wait for this batch to complete
-              const batchResults = await Promise.all(batchPromises);
-              tableProcessingPromises.push(...batchResults);
-              
-              // Release the batch adapter back to the pool
-              batchConnectionPool.releaseAdapter(batchAdapter);
+
+              // Process tables in parallel with optimized batching and connection reuse
+              const BATCH_SIZE = 15; // Increased batch size for better efficiency
+              const tableProcessingPromises = [];
+
+              for (let i = 0; i < tableQueries.length; i += BATCH_SIZE) {
+                const batch = tableQueries.slice(i, i + BATCH_SIZE);
+
+                // Get a shared adapter for this batch
+                const batchAdapter = await batchConnectionPool.getAdapter();
+
+                const batchPromises = batch.map(
+                  async ({
+                    table,
+                    table_name,
+                    columnsQuery,
+                    primaryKeyQuery,
+                    foreignKeyQuery,
+                    sampleDataQuery,
+                  }) => {
+                    try {
+                      // Log the processing table
+                      console.log(`Processing table: ${table_name}`);
+
+                      // Execute all queries for this table in parallel with caching
+                      const [
+                        columnsResult,
+                        primaryKeyResult,
+                        foreignKeyResult,
+                        valuesResult,
+                      ] = await Promise.all([
+                        executeQueryWithCache<{
+                          column_name: string;
+                          data_type: string;
+                          is_nullable: string;
+                        }>(
+                          batchAdapter,
+                          columnsQuery.query,
+                          columnsQuery.params,
+                          queryResultCache.generateKey(
+                            columnsQuery.query,
+                            columnsQuery.params
+                          ),
+                          300000,
+                          { queryCount, cacheHits }
+                        ), // 5 min cache
+                        executeQueryWithCache<{ column_name: string }>(
+                          batchAdapter,
+                          primaryKeyQuery.query,
+                          primaryKeyQuery.params,
+                          queryResultCache.generateKey(
+                            primaryKeyQuery.query,
+                            primaryKeyQuery.params
+                          ),
+                          300000,
+                          { queryCount, cacheHits }
+                        ), 
+                        executeQueryWithCache<Record<string, unknown>>(
+                          batchAdapter,
+                          foreignKeyQuery.query,
+                          foreignKeyQuery.params,
+                          queryResultCache.generateKey(
+                            foreignKeyQuery.query,
+                            foreignKeyQuery.params
+                          ),
+                          300000,
+                          { queryCount, cacheHits }
+                        ),
+                        sampleDataQuery
+                          ? executeQueryWithCache<Record<string, unknown>>(
+                              batchAdapter,
+                              sampleDataQuery.query,
+                              sampleDataQuery.params,
+                              queryResultCache.generateKey(
+                                sampleDataQuery.query,
+                                sampleDataQuery.params
+                              ),
+                              60000,
+                              { queryCount, cacheHits }
+                            ) 
+                          : Promise.resolve({ rows: [] }),
+                      ]);
+                      // If the column search is not null and the columns result rows length is 0,
+                      if (columnSearch && columnsResult.rows.length === 0) {
+                        // Return null
+                        return null;
+                      }
+                      // Get the primary keys from the primary key result rows
+                      const primaryKeys = primaryKeyResult.rows.map(
+                        (r) => r.column_name
+                      );
+                      // Get the values from the values result rows
+                      // and the include sample data is true
+                      // or an empty array if the include sample data is false
+                      const values = includeSampleData ? valuesResult.rows : [];
+                      // Get the columns from the columns result rows
+                      // and the primary keys includes the column name
+                      const columns: Column[] = columnsResult.rows.map(
+                        (col) => ({
+                          ...col,
+                          is_primary_key: primaryKeys.includes(col.column_name),
+                        })
+                      );
+                      // Get the table result
+                      const tableResult: Table = {
+                        table_catalog: table.table_catalog,
+                        table_schema: table.table_schema,
+                        table_name: table.table_name,
+                        table_type: table.table_type,
+                        comment: null,
+                        columns,
+                        primary_keys: primaryKeys,
+                        foreign_keys:
+                          foreignKeyResult.rows as unknown as ForeignKey[],
+                        values,
+                      };
+                      // Log the successfully processed table
+                      console.log(
+                        `Successfully processed table: ${table_name} with ${columns.length} columns`
+                      );
+                      return tableResult;
+                    } catch (error) {
+                      console.error(
+                        `Error processing table ${table.table_name}:`,
+                        error
+                      );
+                      return null;
+                    }
+                  }
+                );
+
+                // Wait for this batch to complete
+                const batchResults = await Promise.all(batchPromises);
+                tableProcessingPromises.push(...batchResults);
+
+                // Release the batch adapter back to the pool
+                batchConnectionPool.releaseAdapter(batchAdapter);
+              }
+
+              // Filter out null results (failed tables)
+              // Push the table results to the schema
+              schema.push(
+                ...tableProcessingPromises.filter(
+                  (result): result is Table => result !== null
+                )
+              );
+            } finally {
+              // Clean up batch connection pool
+              await batchConnectionPool.releaseAll();
             }
-            
-            // Filter out null results (failed tables)
-            // Push the table results to the schema
-            schema.push(...tableProcessingPromises.filter((result): result is Table => result !== null));
-          } finally {
-            // Clean up batch connection pool
-            await batchConnectionPool.releaseAll();
           }
-        }
-        // Cache the result (only if not including sample data)
-        if (!includeSampleData) {
-          // Set the schema to the cache
-          apiSchemaCache.set(cacheKey, schema);
-        }
-        // End the timing 
-        console.timeEnd(timingId);
-        
-        // Log performance metrics
-        const performanceEnd = performance.now();
-        const totalTime = performanceEnd - performanceStart;
-        console.log(`🚀 Performance Metrics:`);
-        console.log(`   Total time: ${totalTime.toFixed(2)}ms`);
-        console.log(`   Database queries: ${queryCount}`);
-        console.log(`   Cache hits: ${cacheHits}`);
-        console.log(`   Cache hit rate: ${queryCount > 0 ? ((cacheHits / queryCount) * 100).toFixed(1) : 0}%`);
-        console.log(`   Tables processed: ${schema.length}`);
-        console.log(`   Average time per table: ${schema.length > 0 ? (totalTime / schema.length).toFixed(2) : 0}ms`);
-        
-        // Return the schema
-        return schema;
+          // Cache the result (only if not including sample data)
+          if (!includeSampleData) {
+            // Set the schema to the cache
+            apiSchemaCache.set(cacheKey, schema);
+          }
+          // End the timing
+          console.timeEnd(timingId);
+
+          // Log performance metrics
+          const performanceEnd = performance.now();
+          const totalTime = performanceEnd - performanceStart;
+          console.log(`🚀 Performance Metrics:`);
+          console.log(`   Total time: ${totalTime.toFixed(2)}ms`);
+          console.log(`   Database queries: ${queryCount}`);
+          console.log(`   Cache hits: ${cacheHits}`);
+          console.log(
+            `   Cache hit rate: ${
+              queryCount > 0 ? ((cacheHits / queryCount) * 100).toFixed(1) : 0
+            }%`
+          );
+          console.log(`   Tables processed: ${schema.length}`);
+          console.log(
+            `   Average time per table: ${
+              schema.length > 0 ? (totalTime / schema.length).toFixed(2) : 0
+            }ms`
+          );
+
+          // Return the schema
+          return schema;
         } finally {
           // Release the adapter
           adapter.release();
         }
       } catch (error) {
-        console.error('Schema resolver error:', error);
+        console.error("Schema resolver error:", error);
         // Return empty schema on error instead of throwing
         return [];
       }
     },
-    schemaVersion: async (): Promise<{ version: string; lastModified: string; tableCount: number }> => {
+    schemaVersion: async (): Promise<{
+      version: string;
+      lastModified: string;
+      tableCount: number;
+    }> => {
       try {
         // Get the database adapter
         const adapter = await getDatabaseAdapter();
         if (!adapter) {
-          throw new Error('Failed to get database adapter');
+          throw new Error("Failed to get database adapter");
         }
-        
+
         try {
           // Get table count to detect schema changes
-          const { query: tablesQuery, params: tablesParams } = SqlQueries.getTablesQuery(dialect, "");
+          const { query: tablesQuery, params: tablesParams } =
+            SqlQueries.getTablesQuery(dialect, "");
           const tablesResult = await adapter.query<{
             table_catalog: string;
             table_schema: string;
@@ -1657,43 +1976,64 @@ const resolvers = {
             table_type: string;
           }>(tablesQuery, tablesParams);
           const tableCount = tablesResult.rows.length;
-          
+
           // Get total column count across all tables in parallel
           const columnCountPromises = tablesResult.rows.map(async (table) => {
-            const { query: columnsQuery, params: columnsParams } = SqlQueries.getColumnsQuery(dialect, table.table_name);
-            const columnsResult = await adapter.query(columnsQuery, columnsParams);
+            const { query: columnsQuery, params: columnsParams } =
+              SqlQueries.getColumnsQuery(dialect, table.table_name);
+            const columnsResult = await adapter.query(
+              columnsQuery,
+              columnsParams
+            );
             return columnsResult.rows.length;
           });
-          
+
           const columnCounts = await Promise.all(columnCountPromises);
-          const totalColumnCount = columnCounts.reduce((sum, count) => sum + count, 0);
-          
+          const totalColumnCount = columnCounts.reduce(
+            (sum, count) => sum + count,
+            0
+          );
+
           // Create a version hash based on table count, column count, and current timestamp
           const version = `${tableCount}-${totalColumnCount}-${Date.now()}`;
           const lastModified = new Date().toISOString();
-          
+
           return {
             version,
             lastModified,
-            tableCount
+            tableCount,
           };
         } finally {
           adapter.release();
         }
       } catch (error) {
-        console.error('Failed to get schema version:', error);
+        console.error("Failed to get schema version:", error);
         return {
-          version: 'error',
+          version: "error",
           lastModified: new Date().toISOString(),
-          tableCount: 0
+          tableCount: 0,
         };
       }
+    },
+    templates: async () => {
+      const data = await getTemplates();
+      return data.templates;
+    },
+    template: async (_: unknown, { id }: { id: string }) => {
+      return await getTemplateById(id);
+    },
+    queryData: async () => {
+      return await getQueryData();
     },
   },
   Mutation: {
     generateSqlFromNaturalLanguage: async (
       _: unknown,
-      { naturalLanguage, schema, dialect }: {
+      {
+        naturalLanguage,
+        schema,
+        dialect,
+      }: {
         naturalLanguage: string;
         schema: ApiTableSchema[];
         dialect?: string;
@@ -1702,26 +2042,28 @@ const resolvers = {
       try {
         // If the natural language is not null and the natural language is not empty, throw an error
         if (!naturalLanguage?.trim()) {
-          throw new Error('Natural language query is required');
+          throw new Error("Natural language query is required");
         }
 
         // If the schema is not null and the schema length is 0, throw an error
         if (!schema || schema.length === 0) {
-          throw new Error('Database schema is required');
+          throw new Error("Database schema is required");
         }
 
         // Schema is already processed and in correct format
 
         // Log the generating sql from natural language
-        console.log(`Generating SQL from natural language: "${naturalLanguage}"`);
+        console.log(
+          `Generating SQL from natural language: "${naturalLanguage}"`
+        );
         // Log the using dialect
-        console.log(`Using dialect: ${dialect || 'postgres'}`);
+        console.log(`Using dialect: ${dialect || "postgres"}`);
 
         // Generate the sql from natural language
         const generatedSql = await generateSqlFromNaturalLanguage({
           naturalLanguage,
           schema,
-          dialect: dialect || 'postgres'
+          dialect: dialect || "postgres",
         });
         // Log the generated sql
         console.log(`Generated SQL: ${generatedSql}`);
@@ -1729,7 +2071,7 @@ const resolvers = {
         return { sql: generatedSql };
       } catch (error) {
         // Log the error generating sql from natural language
-        console.error('Error generating SQL from natural language:', error);
+        console.error("Error generating SQL from natural language:", error);
         // Throw the error
         throw new Error(`Failed to generate SQL: ${(error as Error).message}`);
       }
@@ -1782,7 +2124,10 @@ const resolvers = {
             } else {
               // PostgreSQL
               // Get the explain row from the explain result rows
-              const explainRow = explainResult.rows[0] as Record<string, unknown>;
+              const explainRow = explainResult.rows[0] as Record<
+                string,
+                unknown
+              >;
               // Get the plans from the explain row
               const plans = explainRow["QUERY PLAN"] as ExplainAnalyzeJSON[];
               // Get the plan from the plans
@@ -1807,7 +2152,8 @@ const resolvers = {
         return {
           rows: response.rows as Record<string, unknown>[],
           rowCount: response.rowCount ?? undefined,
-          fields: (response.fields?.map((field) => field.name) || []) as string[],
+          fields: (response.fields?.map((field) => field.name) ||
+            []) as string[],
           payloadSize: Number(payloadSize.toFixed(4)),
           totalTime: Number(totalTime.toFixed(4)),
           errorsCount,
@@ -1830,18 +2176,163 @@ const resolvers = {
         adapter.release();
       }
     },
+    runTemplateQuery: async (
+      _: unknown,
+      {
+        templateQuery,
+        parameters,
+      }: {
+        templateQuery: string;
+        parameters: Array<{ name: string; value: string }>;
+      }
+    ): Promise<QueryResult> => {
+      const validation = validateTemplateSyntax(templateQuery);
+      if (!validation.valid) {
+        return {
+          error: `Template syntax errors: ${validation.errors.join(", ")}`,
+          errorsCount: validation.errors.length,
+          rows: [],
+          fields: [],
+          rowCount: 0,
+          payloadSize: 0,
+          totalTime: 0,
+        };
+      }
+
+      const extractedParams = extractParametersFromTemplate(templateQuery);
+
+      const paramDefinitions = extractedParams.map((name) => {
+        const value = parameters.find((p) => p.name === name)?.value;
+        let type: "string" | "number" | "boolean" | "date" = "string";
+
+        if (value !== undefined) {
+          if (!isNaN(Number(value)) && value.trim() !== "") {
+            type = "number";
+          } else if (value === "true" || value === "false") {
+            type = "boolean";
+          } else if (/^\d{4}-\d{2}-\d{2}/.test(value)) {
+            type = "date";
+          }
+        }
+
+        return {
+          name,
+          type,
+          required: true,
+        };
+      });
+
+      const paramValues: Record<string, string | number | boolean> = {};
+      for (const param of parameters) {
+        paramValues[param.name] = param.value;
+      }
+
+      try {
+        const parsed = parseTemplate(
+          templateQuery,
+          paramDefinitions,
+          paramValues,
+          dialect
+        );
+
+        console.log("[runTemplateQuery] Parsed template:");
+        console.log("Query:", parsed.query);
+        console.log("Params:", parsed.params);
+        console.log("Parameter order:", parsed.parameterOrder);
+
+        const adapter = await getDatabaseAdapter();
+        let errorsCount = 0;
+
+        try {
+          const response = await adapter.query(parsed.query, parsed.params);
+
+          let planningTime = 0;
+          let executionTimeFromExplain = 0;
+          try {
+            const explainQuery = SqlQueries.getExplainQuery(
+              dialect,
+              parsed.query
+            );
+            if (explainQuery) {
+              const explainResult = await adapter.query(
+                explainQuery,
+                parsed.params
+              );
+              if (dialect === "postgres") {
+                const explainRow = explainResult.rows[0] as Record<
+                  string,
+                  unknown
+                >;
+                const plans = explainRow["QUERY PLAN"] as ExplainAnalyzeJSON[];
+                const plan = plans[0];
+                planningTime = plan.PlanningTime ?? 0;
+                executionTimeFromExplain = plan.ExecutionTime ?? 0;
+              }
+            }
+          } catch {
+            errorsCount += 1;
+          }
+
+          const payloadString = JSON.stringify(response.rows);
+          const payloadSize = Buffer.byteLength(payloadString, "utf8") / 1024;
+          const totalTime = planningTime + executionTimeFromExplain;
+
+          return {
+            rows: response.rows as Record<string, unknown>[],
+            rowCount: response.rowCount ?? undefined,
+            fields: (response.fields?.map((field) => field.name) ||
+              []) as string[],
+            payloadSize: Number(payloadSize.toFixed(4)),
+            totalTime: Number(totalTime.toFixed(4)),
+            errorsCount,
+          };
+        } finally {
+          adapter.release();
+        }
+      } catch (error) {
+        return {
+          error: (error as Error).message || "Unknown error",
+          errorsCount: 1,
+          rows: [],
+          fields: [],
+          rowCount: 0,
+          payloadSize: 0,
+          totalTime: 0,
+        };
+      }
+    },
     invalidateSchemaCache: async (): Promise<boolean> => {
       try {
         // Clear the API schema cache
         apiSchemaCache.clear();
         // Clear the query result cache
         queryResultCache.clear();
-        console.log('✅ Schema cache and query result cache invalidated successfully');
+        console.log(
+          "✅ Schema cache and query result cache invalidated successfully"
+        );
         return true;
       } catch (error) {
-        console.error('❌ Failed to invalidate schema cache:', error);
+        console.error("❌ Failed to invalidate schema cache:", error);
         return false;
       }
+    },
+    createTemplate: async (_: unknown, { input }: { input: any }) => {
+      return await createTemplate(input);
+    },
+    updateTemplate: async (_: unknown, { input }: { input: any }) => {
+      return await updateTemplate(input);
+    },
+    deleteTemplate: async (_: unknown, { id }: { id: string }) => {
+      await deleteTemplate(id);
+      return true;
+    },
+    saveQueryData: async (_: unknown, { input }: { input: any }) => {
+      await saveQueryData(input);
+      return true;
+    },
+    clearQueryData: async () => {
+      await clearQueryData();
+      return true;
     },
   },
 };

@@ -4,6 +4,7 @@ import { useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Tag, Play, Pencil } from "lucide-react";
 import { LabeledQuery, QueryHistoryItem } from "@/app/types/query";
+import { Input } from "@/components/ui/input";
 
 interface LabeledQueriesSectionProps {
   labeledQueries: LabeledQuery[];
@@ -91,7 +92,7 @@ export default function LabeledQueriesSection({
                 <Tag className="w-4 h-4 mr-1 text-purple-400 mt-1 flex-shrink-0 hover:text-purple-500" />
                 <div className="flex-1">
                   {editingQuery === item.historyItemId ? (
-                    <input
+                    <Input
                       type="text"
                       value={labelInput}
                       onChange={(e) => setLabelInput(e.target.value)}
