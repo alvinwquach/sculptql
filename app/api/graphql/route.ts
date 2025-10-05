@@ -4,6 +4,7 @@ import {
   ForeignKey,
   Table,
   QueryResult,
+  QueryTemplate,
 } from "@/app/types/query";
 import { createSchema, createYoga } from "graphql-yoga";
 import { FieldDef, Pool as PgPool } from "pg";
@@ -30,6 +31,7 @@ import {
   getQueryData,
   saveQueryData,
   clearQueryData,
+  QueryData,
 } from "@/app/actions/queries";
 
 // Interface for the schema cache entry
@@ -2316,17 +2318,17 @@ const resolvers = {
         return false;
       }
     },
-    createTemplate: async (_: unknown, { input }: { input: any }) => {
+    createTemplate: async (_: unknown, { input }: { input: Omit<QueryTemplate, "id" | "createdAt" | "updatedAt"> }) => {
       return await createTemplate(input);
     },
-    updateTemplate: async (_: unknown, { input }: { input: any }) => {
+    updateTemplate: async (_: unknown, { input }: { input: QueryTemplate }) => {
       return await updateTemplate(input);
     },
     deleteTemplate: async (_: unknown, { id }: { id: string }) => {
       await deleteTemplate(id);
       return true;
     },
-    saveQueryData: async (_: unknown, { input }: { input: any }) => {
+    saveQueryData: async (_: unknown, { input }: { input: QueryData }) => {
       await saveQueryData(input);
       return true;
     },
