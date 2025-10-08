@@ -742,22 +742,22 @@ class SqlQueries {
     if (dialect === "mysql") {
       // Set the query to the mysql tables query
       let query = `
-        SELECT 
-          table_catalog,
-          table_schema,
-          table_name,
-          table_type
+        SELECT
+          TABLE_CATALOG as table_catalog,
+          TABLE_SCHEMA as table_schema,
+          TABLE_NAME as table_name,
+          TABLE_TYPE as table_type
         FROM information_schema.tables
         WHERE table_schema = DATABASE()
       `;
       // If the table search is not null
       if (tableSearch) {
-        query += ` AND table_name LIKE ?`;
+        query += ` AND TABLE_NAME LIKE ?`;
         // Append the table search to the params
         params.push(`%${tableSearch}%`);
       }
       // Append the order by table name
-      query += ` ORDER BY table_name`;
+      query += ` ORDER BY TABLE_NAME`;
       // Return the query and the params
       return { query, params };
     } else if (dialect === "mssql") {
@@ -1566,18 +1566,31 @@ const resolvers = {
           console.log(`Executing tables query: ${tablesQuery}`);
           // Get the tables result from the adapter
           const tablesResult = await adapter.query<{
-            table_catalog: string;
-            table_schema: string;
-            table_name: string;
-            table_type: string;
+            table_catalog?: string;
+            table_schema?: string;
+            table_name?: string;
+            table_type?: string;
+            TABLE_CATALOG?: string;
+            TABLE_SCHEMA?: string;
+            TABLE_NAME?: string;
+            TABLE_TYPE?: string;
           }>(tablesQuery, tablesParams);
+
+          // Normalize table results to lowercase for MySQL compatibility
+          const normalizedTables = tablesResult.rows.map(row => ({
+            table_catalog: row.table_catalog || row.TABLE_CATALOG || '',
+            table_schema: row.table_schema || row.TABLE_SCHEMA || '',
+            table_name: row.table_name || row.TABLE_NAME || '',
+            table_type: row.table_type || row.TABLE_TYPE || '',
+          }));
+
           // Log the found tables
-          console.log(`Found ${tablesResult.rows.length} tables`);
+          console.log(`Found ${normalizedTables.length} tables`);
           // Set the schema to an empty array
           const schema: Table[] = [];
           // Use optimized combined query for PostgreSQL
           if (dialect === "postgres") {
-            const tableNames = tablesResult.rows.map(
+            const tableNames = normalizedTables.map(
               (table) => table.table_name
             );
             const { query: combinedQuery, params: combinedParams } =
@@ -1693,7 +1706,7 @@ const resolvers = {
               );
 
               // Build final schema
-              for (const table of tablesResult.rows) {
+              for (const table of normalizedTables) {
                 const tableData = tableMetadata.get(table.table_name);
                 if (!tableData) continue;
 
@@ -1742,7 +1755,7 @@ const resolvers = {
           async function processTablesIndividually() {
             try {
               // Pre-compute all queries to avoid redundant calls
-              const tableQueries = tablesResult.rows.map((table) => {
+              const tableQueries = normalizedTables.map((table) => {
                 const { table_name } = table;
                 return {
                   table,
@@ -1972,15 +1985,28 @@ const resolvers = {
           const { query: tablesQuery, params: tablesParams } =
             SqlQueries.getTablesQuery(dialect, "");
           const tablesResult = await adapter.query<{
-            table_catalog: string;
-            table_schema: string;
-            table_name: string;
-            table_type: string;
+            table_catalog?: string;
+            table_schema?: string;
+            table_name?: string;
+            table_type?: string;
+            TABLE_CATALOG?: string;
+            TABLE_SCHEMA?: string;
+            TABLE_NAME?: string;
+            TABLE_TYPE?: string;
           }>(tablesQuery, tablesParams);
-          const tableCount = tablesResult.rows.length;
+
+          // Normalize table results to lowercase for MySQL compatibility
+          const normalizedTables = tablesResult.rows.map(row => ({
+            table_catalog: row.table_catalog || row.TABLE_CATALOG || '',
+            table_schema: row.table_schema || row.TABLE_SCHEMA || '',
+            table_name: row.table_name || row.TABLE_NAME || '',
+            table_type: row.table_type || row.TABLE_TYPE || '',
+          }));
+
+          const tableCount = normalizedTables.length;
 
           // Get total column count across all tables in parallel
-          const columnCountPromises = tablesResult.rows.map(async (table) => {
+          const columnCountPromises = normalizedTables.map(async (table) => {
             const { query: columnsQuery, params: columnsParams } =
               SqlQueries.getColumnsQuery(dialect, table.table_name);
             const columnsResult = await adapter.query(
