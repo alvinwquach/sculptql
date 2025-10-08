@@ -11,6 +11,11 @@ import { config as dotenvConfig } from "dotenv";
 import openUrl from "open";
 import { createServer } from "http";
 import next from "next";
+import { fileURLToPath } from "url";
+import { dirname, join } from "path";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 dotenvConfig({ path: ".env" });
 
@@ -137,10 +142,9 @@ async function main() {
 
   const dev = process.env.NODE_ENV !== "production";
   // Create the next app
-  // with the current working directory
-  const app = next({ 
+  const app = next({
     dev,
-    dir: process.cwd()
+    dir: join(__dirname, ".."),
   });
   const handle = app.getRequestHandler();
 
