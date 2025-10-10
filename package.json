@@ -1,12 +1,13 @@
 {
   "name": "sculptql",
-  "version": "4.0.2",
+  "version": "4.1.0",
   "type": "module",
   "bin": {
     "sculptql": "./dist/index.js"
   },
   "files": [
-    "dist/**/*"
+    "dist/**/*",
+    ".next/standalone/**/*"
   ],
   "scripts": {
     "dev": "next dev",
@@ -15,6 +16,8 @@
     "perf:test": "node scripts/performance-test.js",
     "start": "NODE_ENV=production node server.js",
     "build:cli": "tsc -p tsconfig.cli.json && chmod +x dist/index.js",
+    "build:prod": "NODE_ENV=production npm run build && npm run build:cli && cp -r .next/static .next/standalone/.next/static && cp -r public .next/standalone/public",
+    "prepublishOnly": "npm run build:prod",
     "lint": "next lint",
     "test": "jest --no-cache",
     "test:watch": "jest --watch",

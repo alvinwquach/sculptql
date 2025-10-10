@@ -141,27 +141,49 @@ async function main() {
   );
 
   const dev = process.env.NODE_ENV !== "production";
-  // Create the next app
-  const app = next({
-    dev,
-    dir: join(__dirname, ".."),
-  });
-  const handle = app.getRequestHandler();
 
-  await app.prepare();
-  const server = createServer((req, res) => {
-    handle(req, res);
-  });
+  let server: any;
 
-  server.listen(serverPort, () => {
+  if (dev) {
+    const app = next({
+      dev: true,
+      dir: join(__dirname, ".."),
+    });
+    const handle = app.getRequestHandler();
+
+    await app.prepare();
+    server = createServer((req, res) => {
+      handle(req, res);
+    });
+
+    server.listen(serverPort, () => {
+      console.log(
+        chalk.green(
+          `> Server listening at http://localhost:${serverPort} as development`
+        )
+      );
+    });
+  } else {
+    const { startServer } = await import(
+      "next/dist/server/lib/start-server.js"
+    );
+
+    const standaloneDir = join(__dirname, "..", ".next", "standalone");
+
+    server = await startServer({
+      dir: standaloneDir,
+      isDev: false,
+      hostname: "0.0.0.0",
+      port: serverPort,
+      allowRetry: false,
+    });
+
     console.log(
       chalk.green(
-        `> Server listening at http://localhost:${serverPort} as ${
-          dev ? "development" : process.env.NODE_ENV
-        }`
+        `> Server listening at http://localhost:${serverPort} as production`
       )
     );
-  });
+  }
 
   const webUrl =
     (dev
@@ -198,9 +220,13 @@ async function main() {
         console.error(chalk.red(" Error closing pool:"), err);
       }
     }
-    server.close(() => {
+    if (server && typeof server.close === "function") {
+      server.close(() => {
+        console.log(chalk.green(" Web server closed"));
+      });
+    } else {
       console.log(chalk.green(" Web server closed"));
-    });
+    }
   };
 
   process.on("SIGINT", async () => {
