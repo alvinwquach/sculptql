@@ -440,24 +440,6 @@ export interface ApiTableSchema {
   }>;
 }
 
-// Schema context for AI prompts - optimized format for LLM understanding
-export interface SchemaContext {
-  tables: Array<{
-    name: string;
-    columns: Array<{
-      name: string;
-      type: string;
-      nullable: boolean;
-      primaryKey: boolean;
-    }>;
-    relationships: Array<{
-      fromColumn: string;
-      toTable: string;
-      toColumn: string;
-    }>;
-  }>;
-}
-
 export interface TemplateParameter {
   name: string;
   type: "string" | "number" | "boolean" | "date";
@@ -481,4 +463,21 @@ export interface QueryTemplate {
 export interface TemplateExecutionRequest {
   templateId: string;
   parameterValues: Record<string, string | number | boolean>;
+}
+
+export interface SchemaContext {
+  tables: Array<{
+    name: string;
+    columns: Array<{
+      name: string;
+      type: string;
+      nullable: boolean;
+      primaryKey: boolean;
+    }>;
+    relationships: Array<{
+      fromColumn: string;
+      toTable: string;
+      toColumn: string;
+    }>;
+  }>;
 }
