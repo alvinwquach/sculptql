@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { Braces } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
+import { Braces, Copy } from "lucide-react";
+import { toast } from "react-toastify";
 import { QueryResult, JsonFilter } from "@/app/types/query";
 import { filterJsonData, getPaginatedRows } from "@/app/utils/resultsUtils";
 import { Input } from "@/components/ui/input";
@@ -54,12 +55,49 @@ export default function JsonView({
     value: undefined,
   });
 
-  // Create the filtered rows by the result rows and the filter 
+  // Ref for the JSON pre element
+  const jsonPreRef = useRef<HTMLPreElement>(null);
+
+  // Create the filtered rows by the result rows and the filter
   // by filtering the rows by the field and the value
   const filteredRows = filterJsonData(result.rows, filter);
+
   // Create the paginated rows by the filtered rows and the current page and the page size
   // by getting the paginated rows from the filtered rows
   const paginatedRows = getPaginatedRows(filteredRows, currentPage, pageSize);
+
+  // Handle Ctrl+A/Cmd+A to select all JSON text
+  useEffect(() => {
+    const handleSelectAll = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "a") {
+        if (
+          jsonPreRef.current &&
+          document.activeElement === jsonPreRef.current
+        ) {
+          e.preventDefault();
+          const range = document.createRange();
+          range.selectNodeContents(jsonPreRef.current);
+          const selection = window.getSelection();
+          selection?.removeAllRanges();
+          selection?.addRange(range);
+        }
+      }
+    };
+
+    document.addEventListener("keydown", handleSelectAll);
+    return () => document.removeEventListener("keydown", handleSelectAll);
+  }, []);
+
+  const copyToClipboard = async () => {
+    const jsonString = JSON.stringify(paginatedRows, null, 2);
+    try {
+      await navigator.clipboard.writeText(jsonString);
+      toast.success("JSON copied to clipboard!");
+    } catch (err) {
+      console.error("Failed to copy:", err);
+      toast.error("Failed to copy JSON");
+    }
+  };
 
   // Function to handle the field change
   const handleFieldChange = (value: string) => {
@@ -92,6 +130,15 @@ export default function JsonView({
           <Braces className="w-5 h-5 text-green-400 mr-2" />
           JSON Results
         </h2>
+        <Button
+          onClick={copyToClipboard}
+          variant="outline"
+          size="sm"
+          className="flex items-center gap-1.5 px-3 py-1.5 text-emerald-300 border-emerald-500/50 bg-gradient-to-r from-emerald-950/50 to-teal-950/50 hover:emerald-700 hover:text-emerald-200 hover:border-emerald-400/70 transition-all duration-200 rounded-full shadow-md text-xs sm:text-sm font-medium"
+        >
+          <Copy className="w-4 h-4" />
+          Copy JSON
+        </Button>
         {/* <ExportButtons
           onExportToCsv={onExportToCsv}
           onExportToJson={onExportToJson}
@@ -134,7 +181,11 @@ export default function JsonView({
           Clear Filter
         </Button>
       </div>
-      <pre className="flex-1 bg-gradient-to-r from-[#0f0f23] to-[#1e1b4b] text-green-400 p-4 rounded-md font-mono text-xs sm:text-sm whitespace-pre-wrap break-words overflow-y-auto">
+      <pre
+        ref={jsonPreRef}
+        tabIndex={0}
+        className="flex-1 bg-gradient-to-r from-[#0f0f23] to-[#1e1b4b] text-green-400 p-4 rounded-md font-mono text-xs sm:text-sm whitespace-pre-wrap break-words overflow-y-auto focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
+      >
         {JSON.stringify(paginatedRows, null, 2)}
       </pre>
       {filteredRows.length > 0 && (
