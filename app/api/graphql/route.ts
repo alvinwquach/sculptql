@@ -13,7 +13,6 @@ import * as mssql from "mssql";
 import { open, Database as SqliteDatabase } from "sqlite";
 import * as sqlite3 from "sqlite3";
 import oracledb, { Pool as OraclePool } from "oracledb";
-import { generateSqlFromNaturalLanguage } from "@/app/lib/llm/openai";
 import { ApiTableSchema } from "@/app/types/query";
 import {
   parseTemplate,
@@ -48,11 +47,15 @@ class ApiSchemaCache {
   // Private default ttl is 10 minutes
   private readonly DEFAULT_TTL = 10 * 60 * 1000;
   // Private max cache size
-  private readonly MAX_CACHE_SIZE = 50; 
+  private readonly MAX_CACHE_SIZE = 50;
   // Generate the key
-  generateKey(dialect: string, tableSearch?: string, columnSearch?: string): string {
+  generateKey(
+    dialect: string,
+    tableSearch?: string,
+    columnSearch?: string
+  ): string {
     // Return the key
-    return `schema_${dialect}_${tableSearch ?? 'all'}_${columnSearch ?? 'all'}`;
+    return `schema_${dialect}_${tableSearch ?? "all"}_${columnSearch ?? "all"}`;
   }
   // Get the data from the cache
   get(key: string): Table[] | null {
@@ -61,7 +64,7 @@ class ApiSchemaCache {
     // If the entry is not found, return null
     if (!entry) return null;
     // Get the current time
-    // If the current time is greater than the timestamp plus the ttl, 
+    // If the current time is greater than the timestamp plus the ttl,
     // delete the entry and return null
     const now = Date.now();
     if (now - entry.timestamp > entry.ttl) {
@@ -88,7 +91,7 @@ class ApiSchemaCache {
     this.cache.set(key, {
       data,
       timestamp: Date.now(),
-      ttl
+      ttl,
     });
   }
   // Clear the cache
@@ -101,7 +104,7 @@ class ApiSchemaCache {
     // Return the size and the keys
     return {
       size: this.cache.size,
-      keys: Array.from(this.cache.keys())
+      keys: Array.from(this.cache.keys()),
     };
   }
 }
@@ -111,29 +114,34 @@ const apiSchemaCache = new ApiSchemaCache();
 
 // Query result cache for frequently accessed data
 class QueryResultCache {
-  // Private cache 
-  private cache: Map<string, { data: QueryResult; timestamp: number; ttl: number }> = new Map();
+  // Private cache
+  private cache: Map<
+    string,
+    { data: QueryResult; timestamp: number; ttl: number }
+  > = new Map();
   // Default ttl for the query result cache
   // Max cache size for the query result cache
-  private readonly DEFAULT_TTL = 5 * 60 * 1000; 
+  private readonly DEFAULT_TTL = 5 * 60 * 1000;
   // Max cache size for the query result cache
   private readonly MAX_CACHE_SIZE = 100;
 
   // Generate the key for the query result cache
   generateKey(query: string, params: (string | number)[]): string {
     // Generate the key for the query result cache
-    return `query_${Buffer.from(query + JSON.stringify(params)).toString('base64')}`;
+    return `query_${Buffer.from(query + JSON.stringify(params)).toString(
+      "base64"
+    )}`;
   }
 
   // Get the data from the query result cache
   get(key: string): QueryResult | null {
     // Get the entry from the cache
     const entry = this.cache.get(key);
-    // If the entry is not found, return null 
+    // If the entry is not found, return null
     if (!entry) return null;
     // Get the current time
     const now = Date.now();
-    // If the current time is greater than the timestamp plus the ttl, 
+    // If the current time is greater than the timestamp plus the ttl,
     // delete the entry and return null
     if (now - entry.timestamp > entry.ttl) {
       // Delete the entry and return null
@@ -144,7 +152,7 @@ class QueryResultCache {
     return entry.data;
   }
 
-  // Set the data to the query result cache   
+  // Set the data to the query result cache
   set(key: string, data: QueryResult, ttl: number = this.DEFAULT_TTL): void {
     // If the cache size is greater than the max cache size,
     if (this.cache.size >= this.MAX_CACHE_SIZE) {
@@ -159,7 +167,7 @@ class QueryResultCache {
     this.cache.set(key, {
       data,
       timestamp: Date.now(),
-      ttl
+      ttl,
     });
   }
 
@@ -171,7 +179,6 @@ class QueryResultCache {
 
 // Create the query result cache
 const queryResultCache = new QueryResultCache();
-
 
 // Class for the connection pool manager
 class ConnectionPoolManager {
@@ -193,7 +200,7 @@ class ConnectionPoolManager {
   async acquireConnection(): Promise<boolean> {
     if (this.activeConnections >= this.maxConcurrentConnections) {
       // Wait a bit before retrying
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise((resolve) => setTimeout(resolve, 100));
       return false;
     }
     this.activeConnections++;
@@ -223,13 +230,13 @@ class BatchConnectionPool {
     if (this.availableAdapters.length > 0) {
       return this.availableAdapters.pop()!;
     }
-    
+
     if (this.adapters.length < this.maxAdapters) {
       const adapter = await getDatabaseAdapter();
       this.adapters.push(adapter);
       return adapter;
     }
-    
+
     // If pool is full, create a new adapter
     return await getDatabaseAdapter();
   }
@@ -244,10 +251,12 @@ class BatchConnectionPool {
 
   async releaseAll(): Promise<void> {
     const allAdapters = [...this.adapters, ...this.availableAdapters];
-    await Promise.all(allAdapters.map(adapter => {
-      adapter.release();
-      return Promise.resolve();
-    }));
+    await Promise.all(
+      allAdapters.map((adapter) => {
+        adapter.release();
+        return Promise.resolve();
+      })
+    );
     this.adapters = [];
     this.availableAdapters = [];
   }
@@ -274,7 +283,7 @@ async function executeQueryWithCache<T extends Record<string, unknown>>(
       return {
         rows: cached.rows as T[],
         rowCount: cached.rowCount,
-        fields: cached.fields?.map(name => ({ name }))
+        fields: cached.fields?.map((name) => ({ name })),
       };
     }
   }
@@ -292,7 +301,7 @@ async function executeQueryWithCache<T extends Record<string, unknown>>(
     const cacheResult: QueryResult = {
       rows: result.rows as Record<string, unknown>[],
       rowCount: result.rowCount,
-      fields: result.fields?.map(field => field.name) || []
+      fields: result.fields?.map((field) => field.name) || [],
     };
     queryResultCache.set(cacheKey, cacheResult, ttl);
   }
@@ -314,7 +323,12 @@ const CustomResponse = Response as typeof Response & {
 type SupportedDialect = "postgres" | "mysql" | "mssql" | "sqlite" | "oracle";
 
 // Database pool
-type DatabasePool = PgPool | MySqlPool | mssql.ConnectionPool | SqliteDatabase | OraclePool;
+type DatabasePool =
+  | PgPool
+  | MySqlPool
+  | mssql.ConnectionPool
+  | SqliteDatabase
+  | OraclePool;
 
 // Interface for the database adapter
 interface DatabaseAdapter {
@@ -1443,10 +1457,6 @@ const typeDefs = /* GraphQL */ `
     foreign_keys: [ForeignKeySchemaInput!]!
   }
 
-  type GenerateSqlResult {
-    sql: String!
-  }
-
   input ParameterValueInput {
     name: String!
     value: String!
@@ -1493,11 +1503,6 @@ const typeDefs = /* GraphQL */ `
       templateQuery: String!
       parameters: [ParameterValueInput!]!
     ): QueryResult!
-    generateSqlFromNaturalLanguage(
-      naturalLanguage: String!
-      schema: [TableSchemaInput!]!
-      dialect: String
-    ): GenerateSqlResult!
     invalidateSchemaCache: Boolean!
     createTemplate(input: CreateTemplateInput!): QueryTemplate!
     updateTemplate(input: UpdateTemplateInput!): QueryTemplate!
@@ -1577,11 +1582,11 @@ const resolvers = {
           }>(tablesQuery, tablesParams);
 
           // Normalize table results to lowercase for MySQL compatibility
-          const normalizedTables = tablesResult.rows.map(row => ({
-            table_catalog: row.table_catalog || row.TABLE_CATALOG || '',
-            table_schema: row.table_schema || row.TABLE_SCHEMA || '',
-            table_name: row.table_name || row.TABLE_NAME || '',
-            table_type: row.table_type || row.TABLE_TYPE || '',
+          const normalizedTables = tablesResult.rows.map((row) => ({
+            table_catalog: row.table_catalog || row.TABLE_CATALOG || "",
+            table_schema: row.table_schema || row.TABLE_SCHEMA || "",
+            table_name: row.table_name || row.TABLE_NAME || "",
+            table_type: row.table_type || row.TABLE_TYPE || "",
           }));
 
           // Log the found tables
@@ -1834,7 +1839,7 @@ const resolvers = {
                           ),
                           300000,
                           { queryCount, cacheHits }
-                        ), 
+                        ),
                         executeQueryWithCache<Record<string, unknown>>(
                           batchAdapter,
                           foreignKeyQuery.query,
@@ -1857,7 +1862,7 @@ const resolvers = {
                               ),
                               60000,
                               { queryCount, cacheHits }
-                            ) 
+                            )
                           : Promise.resolve({ rows: [] }),
                       ]);
                       // If the column search is not null and the columns result rows length is 0,
@@ -1996,11 +2001,11 @@ const resolvers = {
           }>(tablesQuery, tablesParams);
 
           // Normalize table results to lowercase for MySQL compatibility
-          const normalizedTables = tablesResult.rows.map(row => ({
-            table_catalog: row.table_catalog || row.TABLE_CATALOG || '',
-            table_schema: row.table_schema || row.TABLE_SCHEMA || '',
-            table_name: row.table_name || row.TABLE_NAME || '',
-            table_type: row.table_type || row.TABLE_TYPE || '',
+          const normalizedTables = tablesResult.rows.map((row) => ({
+            table_catalog: row.table_catalog || row.TABLE_CATALOG || "",
+            table_schema: row.table_schema || row.TABLE_SCHEMA || "",
+            table_name: row.table_name || row.TABLE_NAME || "",
+            table_type: row.table_type || row.TABLE_TYPE || "",
           }));
 
           const tableCount = normalizedTables.length;
@@ -2055,55 +2060,6 @@ const resolvers = {
     },
   },
   Mutation: {
-    generateSqlFromNaturalLanguage: async (
-      _: unknown,
-      {
-        naturalLanguage,
-        schema,
-        dialect,
-      }: {
-        naturalLanguage: string;
-        schema: ApiTableSchema[];
-        dialect?: string;
-      }
-    ): Promise<{ sql: string }> => {
-      try {
-        // If the natural language is not null and the natural language is not empty, throw an error
-        if (!naturalLanguage?.trim()) {
-          throw new Error("Natural language query is required");
-        }
-
-        // If the schema is not null and the schema length is 0, throw an error
-        if (!schema || schema.length === 0) {
-          throw new Error("Database schema is required");
-        }
-
-        // Schema is already processed and in correct format
-
-        // Log the generating sql from natural language
-        console.log(
-          `Generating SQL from natural language: "${naturalLanguage}"`
-        );
-        // Log the using dialect
-        console.log(`Using dialect: ${dialect || "postgres"}`);
-
-        // Generate the sql from natural language
-        const generatedSql = await generateSqlFromNaturalLanguage({
-          naturalLanguage,
-          schema,
-          dialect: dialect || "postgres",
-        });
-        // Log the generated sql
-        console.log(`Generated SQL: ${generatedSql}`);
-        // Return the generated sql
-        return { sql: generatedSql };
-      } catch (error) {
-        // Log the error generating sql from natural language
-        console.error("Error generating SQL from natural language:", error);
-        // Throw the error
-        throw new Error(`Failed to generate SQL: ${(error as Error).message}`);
-      }
-    },
     runQuery: async (
       _: unknown,
       { query }: { query: string }
@@ -2344,7 +2300,12 @@ const resolvers = {
         return false;
       }
     },
-    createTemplate: async (_: unknown, { input }: { input: Omit<QueryTemplate, "id" | "createdAt" | "updatedAt"> }) => {
+    createTemplate: async (
+      _: unknown,
+      {
+        input,
+      }: { input: Omit<QueryTemplate, "id" | "createdAt" | "updatedAt"> }
+    ) => {
       return await createTemplate(input);
     },
     updateTemplate: async (_: unknown, { input }: { input: QueryTemplate }) => {
