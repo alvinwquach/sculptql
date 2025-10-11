@@ -1,14 +1,13 @@
 {
   "name": "sculptql",
-  "version": "4.4.0",
+  "version": "4.4.1",
   "type": "module",
   "bin": {
     "sculptql": "./dist/index.js"
   },
   "files": [
     "dist/index.js",
-    ".next/standalone/**/*",
-    "public/**/*",
+    ".next/standalone",
     ".env.example"
   ],
   "scripts": {

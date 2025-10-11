@@ -264,25 +264,21 @@ async function main() {
       );
     });
   } else {
-    const { startServer } = await import(
-      "next/dist/server/lib/start-server.js"
-    );
-
     const standaloneDir = join(__dirname, "..", ".next", "standalone");
+    process.env.PORT = serverPort.toString();
+    process.env.HOSTNAME = "0.0.0.0";
 
-    server = await startServer({
-      dir: standaloneDir,
-      isDev: false,
-      hostname: "0.0.0.0",
-      port: serverPort,
-      allowRetry: false,
-    });
+    const { default: standaloneServer } = await import(
+      join(standaloneDir, "server.js")
+    );
 
     console.log(
       chalk.green(
         `> Server listening at http://localhost:${serverPort} as production`
       )
     );
+
+    server = { close: () => {} };
   }
 
   const webUrl =
