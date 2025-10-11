@@ -6,12 +6,15 @@ export const autocompleteEditorTheme = EditorView.theme({
     color: "#e0e6ed",
     fontSize: "clamp(14px, 2.5vw, 16px)",
     height: "100%",
-    border: "2px solid transparent",
-    borderRadius: "16px",
-    background: "linear-gradient(#0a0a0f, #0a0a0f) padding-box, linear-gradient(135deg, #8b5cf6, #f472b6, #10b981, #fbbf24) border-box",
-    boxShadow: "0 0 40px rgba(139, 92, 246, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.1)",
+    background: "#0a0a0f",
     position: "relative",
     overflow: "hidden",
+  },
+  ".cm-scroller": {
+    backgroundColor: "#0a0a0f",
+  },
+  ".cm-editor": {
+    backgroundColor: "#0a0a0f",
   },
   "&::before": {
     content: '""',
@@ -32,7 +35,7 @@ export const autocompleteEditorTheme = EditorView.theme({
     lineHeight: "1.7",
     position: "relative",
     zIndex: 1,
-    background: "transparent",
+    backgroundColor: "#0a0a0f",
   },
   ".cm-line": {
     backgroundColor: "transparent",

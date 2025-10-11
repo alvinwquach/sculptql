@@ -22,6 +22,11 @@ import { stripQuotes } from "@/app/utils/helpers";
 import { getEditorExtensions } from "@/app/utils/editor/editorExtensions";
 import { formatSqlQuery } from "@/app/utils/editor/sqlFormatter";
 import { parseSelectedTable, parseSelectedColumns } from "@/app/utils/queryParser";
+import { toast } from "react-toastify";
+import {
+  validateSqlForToast,
+  getClientPermissionMode,
+} from "@/app/utils/editor/sqlPermissionLinter";
 
 interface CodeMirrorEditorProps {
   query: string;
@@ -105,6 +110,8 @@ export default function CodeMirrorEditor({
   const languageCompartment = useRef(new Compartment());
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const isTabSwitchingRef = useRef(false);
+  const validationTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const lastShownErrorRef = useRef<string | null>(null);
 
   const { isFullscreen, toggleFullscreen } = useFullscreen(containerRef);
   const {
@@ -176,6 +183,32 @@ export default function CodeMirrorEditor({
     [activeTab, updateTabQuery, onQueryChange]
   );
 
+  // Handle permission violations with debounced toast
+  const handlePermissionViolation = useCallback((message: string) => {
+    // Clear any existing validation timer
+    if (validationTimerRef.current) {
+      clearTimeout(validationTimerRef.current);
+    }
+
+    // Debounce the toast 
+    validationTimerRef.current = setTimeout(() => {
+      // Only show toast if it's a different error than last time
+      if (message !== lastShownErrorRef.current) {
+        toast.error(message, {
+          toastId: "sql-permission-violation",
+          autoClose: 5000,
+          position: "top-right",
+        });
+        lastShownErrorRef.current = message;
+
+        // Reset the last shown error after a delay
+        setTimeout(() => {
+          lastShownErrorRef.current = null;
+        }, 6000);
+      }
+    }, 300);
+  }, []);
+
   const queryCallbacksRef = useRef({
     handleQueryChange,
     runQuery,
@@ -242,13 +275,18 @@ export default function CodeMirrorEditor({
         const parsedColumns = parseSelectedColumns(tabQuery);
 
         // Use parsed table if we don't have one saved or if it's different
-        if (parsedTable && (!tableToSync || tableToSync.value !== parsedTable.value)) {
+        if (
+          parsedTable &&
+          (!tableToSync || tableToSync.value !== parsedTable.value)
+        ) {
           tableToSync = parsedTable;
         }
         // Use parsed columns if we don't have any saved or if they're different
-        if (parsedColumns.length > 0 &&
-            (columnsToSync.length === 0 ||
-             JSON.stringify(columnsToSync) !== JSON.stringify(parsedColumns))) {
+        if (
+          parsedColumns.length > 0 &&
+          (columnsToSync.length === 0 ||
+            JSON.stringify(columnsToSync) !== JSON.stringify(parsedColumns))
+        ) {
           columnsToSync = parsedColumns;
         }
       }
@@ -273,8 +311,11 @@ export default function CodeMirrorEditor({
     const currentTab = queryTabs.find((tab) => tab.id === activeTab);
     if (!currentTab) return;
 
-    const tableChanged = currentTab.selectedTable?.value !== selectedTable?.value;
-    const columnsChanged = JSON.stringify(currentTab.selectedColumns) !== JSON.stringify(selectedColumns);
+    const tableChanged =
+      currentTab.selectedTable?.value !== selectedTable?.value;
+    const columnsChanged =
+      JSON.stringify(currentTab.selectedColumns) !==
+      JSON.stringify(selectedColumns);
 
     if (tableChanged || columnsChanged) {
       updateTabState(activeTab, { selectedTable, selectedColumns });
@@ -289,14 +330,13 @@ export default function CodeMirrorEditor({
 
     const currentEditorContent = editorRef.current.state.doc.toString();
     const currentTab = queryTabs.find((tab) => tab.id === activeTab);
-    const currentTabQuery = currentTab?.query || '';
+    const currentTabQuery = currentTab?.query || "";
 
     // Only update if:
     // 1. Query prop exists and is different from current editor content
     // 2. Query prop is different from the current tab's saved query
-    const shouldUpdate = query &&
-                        query !== currentEditorContent &&
-                        query !== currentTabQuery;
+    const shouldUpdate =
+      query && query !== currentEditorContent && query !== currentTabQuery;
 
     if (shouldUpdate) {
       editorRef.current.dispatch({
@@ -321,8 +361,11 @@ export default function CodeMirrorEditor({
             clearTimeout(debounceTimerRef.current);
           }
 
-          // Use the ref to get the current activeTab instead of capturing it
-          queryCallbacksRef.current.updateTabQuery(queryCallbacksRef.current.activeTab, newQuery);
+          // Use the ref to get the current activeTab
+          queryCallbacksRef.current.updateTabQuery(
+            queryCallbacksRef.current.activeTab,
+            newQuery
+          );
           queryCallbacksRef.current.onQueryChange(newQuery);
         }
       }),
@@ -344,6 +387,7 @@ export default function CodeMirrorEditor({
       onExposeConsole: () =>
         queryCallbacksRef.current.exposeQueryResultsToConsole?.(),
       hasResults,
+      onPermissionViolation: handlePermissionViolation,
     });
 
     const state = EditorState.create({
@@ -361,6 +405,9 @@ export default function CodeMirrorEditor({
       if (debounceTimerRef.current) {
         clearTimeout(debounceTimerRef.current);
       }
+      if (validationTimerRef.current) {
+        clearTimeout(validationTimerRef.current);
+      }
       view.destroy();
       editorRef.current = null;
     };
@@ -369,22 +416,15 @@ export default function CodeMirrorEditor({
     sqlCompletion,
     updateListener,
     hasResults,
+    handlePermissionViolation,
   ]);
 
   return (
     <div
       ref={containerRef}
       className={`flex flex-col h-full ${
-        isFullscreen ? "fixed inset-0 z-50 bg-[#0f172a] p-4" : ""
+        isFullscreen ? "fixed inset-0 z-[100]" : "relative z-0"
       }`}
-      style={
-        !isFullscreen
-          ? {
-              background: "linear-gradient(135deg, #0a0a0f, #1a1a2e)",
-              boxShadow: "inset 0 0 60px rgba(139, 92, 246, 0.08)",
-            }
-          : undefined
-      }
     >
       {loading && (
         <div className="absolute inset-0 bg-gradient-to-br from-slate-900/90 to-slate-800/90 backdrop-blur-md z-10 flex items-center justify-center">

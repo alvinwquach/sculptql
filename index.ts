@@ -36,11 +36,16 @@ program
   .option("-p, --password <password>", "Database password")
   .option("-f, --file <path>", "SQLite database file path")
   .option("-s, --server-port <port>", "Server port (default: 3000)")
+  .option(
+    "-m, --mode <mode>",
+    "Permission mode: read-only (SELECT only), read-write (SELECT/INSERT/UPDATE), full (all operations including DELETE/DROP)"
+  )
   .parse();
 
 const options = program.opts();
 
 type SupportedDialect = "postgres" | "mysql" | "sqlite" | "mssql" | "oracle";
+type PermissionMode = "read-only" | "read-write" | "full";
 
 const dialect = (options.dialect || process.env.DB_DIALECT) as
   | SupportedDialect
@@ -55,11 +60,22 @@ const serverPort = parseInt(
   options.serverPort || process.env.PORT || "3000",
   10
 );
+const mode = (options.mode || process.env.DB_MODE || "full") as PermissionMode;
 
 const missingFields: string[] = [];
 
 if (!dialect) {
   missingFields.push("DB_DIALECT");
+}
+
+// Validate permission mode
+if (!["read-only", "read-write", "full"].includes(mode)) {
+  console.error(
+    chalk.red(
+      `❌ Invalid permission mode: ${mode}\n   Valid values: read-only, read-write, full`
+    )
+  );
+  process.exit(1);
 }
 
 if (dialect === "sqlite") {
@@ -85,14 +101,14 @@ if (missingFields.length > 0) {
   console.log(chalk.yellow("1. Using environment variables:"));
   console.log(
     chalk.gray(
-      "   DB_DIALECT=postgres DB_HOST=localhost DB_PORT=5432 DB_DATABASE=mydb DB_USER=user DB_PASSWORD=pass npx sculptql\n"
+      "   DB_DIALECT=postgres DB_HOST=localhost DB_PORT=5432 DB_DATABASE=mydb DB_USER=user DB_PASSWORD=pass DB_MODE=read-only npx sculptql\n"
     )
   );
 
   console.log(chalk.yellow("2. Using CLI arguments:"));
   console.log(
     chalk.gray(
-      "   npx sculptql -d postgres -h localhost -P 5432 -D mydb -u user -p pass\n"
+      "   npx sculptql -d postgres -h localhost -P 5432 -D mydb -u user -p pass -m read-only\n"
     )
   );
 
@@ -104,13 +120,30 @@ if (missingFields.length > 0) {
   console.log(chalk.gray("   DB_DATABASE=mydb"));
   console.log(chalk.gray("   DB_USER=user"));
   console.log(chalk.gray("   DB_PASSWORD=pass"));
+  console.log(chalk.gray("   DB_MODE=read-only"));
   console.log(chalk.gray("   \n   Then run: npx sculptql\n"));
+
+  console.log(chalk.cyan("💡 Permission Modes:"));
+  console.log(
+    chalk.gray(
+      "   • read-only:  Only SELECT queries (prevents accidental data modification)"
+    )
+  );
+  console.log(
+    chalk.gray("   • read-write: SELECT, INSERT, and UPDATE (no DELETE/DROP)")
+  );
+  console.log(
+    chalk.gray("   • full:       All operations allowed (default)\n")
+  );
 
   console.log(chalk.cyan("Run 'npx sculptql --help' for more options"));
   process.exit(1);
 }
 
 async function main() {
+  // Set mode as environment variable for API access
+  process.env.DB_MODE = mode;
+
   console.log("Connecting with environment variables:", {
     dialect,
     host,
@@ -120,6 +153,7 @@ async function main() {
     password: password ? "******" : "",
     db_file,
     serverPort,
+    mode,
   });
 
   let pool:
@@ -191,6 +225,20 @@ async function main() {
       `✅ ${dialect} connection pool is active. Press Ctrl+C to exit.`
     )
   );
+
+  // Display permission mode information
+  const modeDescriptions = {
+    "read-only": "Read-only mode: Only SELECT queries allowed",
+    "read-write": "Read-write mode: SELECT, INSERT, and UPDATE allowed",
+    full: "Full mode: All operations allowed (including DELETE/DROP)",
+  };
+  const modeColor =
+    mode === "read-only"
+      ? chalk.green
+      : mode === "read-write"
+        ? chalk.yellow
+        : chalk.red;
+  console.log(modeColor(`🔒 ${modeDescriptions[mode]}`));
 
   const dev = process.env.NODE_ENV !== "production";
 

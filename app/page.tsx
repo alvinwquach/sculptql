@@ -19,6 +19,7 @@ import DemoSection from "./components/landing/DemoSection";
 import SchemaSection from "./components/landing/SchemaSection";
 import AnimatedSqlTooltips from "./components/landing/AnimatedSqlTooltips";
 import BackgroundBlurs from "./components/landing/BackgroundBlurs";
+import PermissionModesDemo from "./components/landing/PermissionModesDemo";
 import { Database, LucideGithub } from "lucide-react";
 import Link from "next/link";
 
@@ -78,6 +79,12 @@ export default function Home() {
           </div>
           <nav className="hidden md:flex items-center gap-8">
             <a
+              href="#permission-modes"
+              className="text-pink-200 hover:text-pink-400 transition-colors"
+            >
+              Permission Modes
+            </a>
+            <a
               href="#query-builder"
               className="text-pink-200 hover:text-pink-400 transition-colors"
             >
@@ -115,6 +122,7 @@ export default function Home() {
       </header>
       <HeroSection />
       <AnimatedSqlTooltips />
+      <PermissionModesDemo />
       <section
         id="query-builder"
         className="py-20 px-4 sm:px-8 lg:px-16 bg-gradient-to-br from-cyan-900/20 to-pink-900/20"
