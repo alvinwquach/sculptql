@@ -14,6 +14,7 @@ import { createServer } from "http";
 import next from "next";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
+import { existsSync } from "fs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -226,7 +227,6 @@ async function main() {
     )
   );
 
-  // Display permission mode information
   const modeDescriptions = {
     "read-only": "Read-only mode: Only SELECT queries allowed",
     "read-write": "Read-write mode: SELECT, INSERT, and UPDATE allowed",
@@ -236,11 +236,16 @@ async function main() {
     mode === "read-only"
       ? chalk.green
       : mode === "read-write"
-        ? chalk.yellow
-        : chalk.red;
+      ? chalk.yellow
+      : chalk.red;
   console.log(modeColor(`🔒 ${modeDescriptions[mode]}`));
 
-  const dev = process.env.NODE_ENV !== "production";
+  // Check if standalone build exists - if it does, use production mode
+  const standaloneDir = join(__dirname, "..", ".next", "standalone");
+  const hasStandaloneBuild = existsSync(standaloneDir);
+
+  // Use development mode only if no standalone build exists AND not in production env
+  const dev = !hasStandaloneBuild && process.env.NODE_ENV !== "production";
 
   let server: any;
 
@@ -264,7 +269,7 @@ async function main() {
       );
     });
   } else {
-    const standaloneDir = join(__dirname, "..", ".next", "standalone");
+    // Use the standalone server (path already defined above)
     process.env.PORT = serverPort.toString();
     process.env.HOSTNAME = "0.0.0.0";
 
