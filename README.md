@@ -10,6 +10,10 @@ The CLI sets up a persistent database connection and launches a web app for inte
 
 - Persistent connection pool to your database.
 - Launch a **local web app** to query and explore your data.
+- **Three permission modes** for safe query execution:
+  - **Read-Only**: Only SELECT and read operations allowed
+  - **Read-Write**: SELECT, INSERT, and UPDATE operations allowed
+  - **Full Access**: All SQL operations allowed
 - Supports connection via environment variables.
 - Secure handling of credentials.
 - Graceful pool cleanup when exiting.
@@ -162,3 +166,45 @@ npm run dev
 ```
 
 </details> 
+
+---
+
+## 🔒 Permission Modes
+
+SculptQL offers three permission modes to control what SQL operations are allowed, providing an extra layer of safety when working with your database:
+
+### Read-Only Mode
+- **Allowed Operations**: SELECT, SHOW, DESCRIBE, EXPLAIN
+- **Blocked Operations**: INSERT, UPDATE, DELETE, DROP, ALTER, CREATE, TRUNCATE, and other write operations
+- **Use Case**: Perfect for exploring and analyzing data without risk of modifications
+- **Environment Variables**:
+  ```bash
+  DB_MODE=read-only
+  NEXT_PUBLIC_DB_MODE=read-only
+  ```
+
+### Read-Write Mode
+- **Allowed Operations**: SELECT, INSERT, UPDATE, and read operations
+- **Blocked Operations**: DELETE, DROP, ALTER, CREATE, TRUNCATE, and other destructive operations
+- **Use Case**: Safe for data entry and updates while protecting against accidental data loss
+- **Environment Variables**:
+  ```bash
+  DB_MODE=read-write
+  NEXT_PUBLIC_DB_MODE=read-write
+  ```
+
+### Full Access Mode
+- **Allowed Operations**: All SQL operations including DROP, DELETE, ALTER, CREATE, TRUNCATE
+- **Blocked Operations**: None
+- **Use Case**: For database administrators who need complete control
+- **Environment Variables**:
+  ```bash
+  DB_MODE=full
+  NEXT_PUBLIC_DB_MODE=full
+  ```
+
+> 💡 **Tip**: You can switch between permission modes directly in the web interface using the permission mode selector in the editor toolbar. The mode is validated both client-side and server-side for security.
+
+> ⚠️ **Note**: Permission modes provide an additional safety layer but should not replace proper database user permissions and access controls.
+
+---

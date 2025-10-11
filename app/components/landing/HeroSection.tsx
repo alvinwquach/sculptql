@@ -44,7 +44,7 @@ export default function HeroSection() {
           <div className="relative z-10">
             <div className="inline-flex items-center px-3 py-1 rounded-full bg-pink-500/20 text-pink-300 text-sm font-medium mb-4 border border-pink-500/30">
               <span className="w-2 h-2 bg-green-400 rounded-full mr-2 animate-pulse"></span>
-              Read-Only Database Interface
+              Flexible Permission Modes
             </div>
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold mb-6 text-white leading-tight">
               Build SQL queries with
@@ -58,9 +58,9 @@ export default function HeroSection() {
               and visualize your data with context-aware autocomplete and
               visual query building.{" "}
               <span className="text-cyan-300 font-semibold">
-                Read-only access
+                Choose your permission mode
               </span>{" "}
-              keeps your data safe.
+              (read-only, read-write, or full access) and switch anytime to keep your data safe.
             </p>
             <div className="flex flex-col sm:flex-row gap-4">
               <Button

@@ -1,4 +1,4 @@
-import { memo, useState } from "react";
+import { memo, useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Tooltip,
@@ -6,9 +6,81 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { LucideHistory, LucidePlay, Menu } from "lucide-react";
+import {
+  LucideHistory,
+  LucidePlay,
+  Menu,
+  Shield,
+  ShieldAlert,
+  ShieldCheck,
+  ChevronDown,
+  LucideIcon,
+} from "lucide-react";
 import { QueryTemplate, QueryResult } from "@/app/types/query";
 import dynamic from "next/dynamic";
+import {
+  getClientPermissionMode,
+  setClientPermissionMode,
+  PermissionMode,
+} from "@/app/utils/editor/sqlPermissionLinter";
+import { toast } from "react-toastify";
+
+interface ModeConfig {
+  label: string;
+  icon: LucideIcon;
+  bgColor: string;
+  borderColor: string;
+  textColor: string;
+  glowColor: string;
+  description: string;
+}
+
+interface ModeOptionProps {
+  mode: PermissionMode;
+  config: ModeConfig;
+  isActive: boolean;
+  onSelect: (mode: PermissionMode) => void;
+}
+
+const ModeOption = memo(function ModeOption({
+  mode,
+  config,
+  isActive,
+  onSelect,
+}: ModeOptionProps) {
+  return (
+    <button
+      onClick={() => onSelect(mode)}
+      className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-md transition-all ${
+        isActive
+          ? `${config.bgColor} ${config.borderColor} border`
+          : "hover:bg-slate-800"
+      }`}
+    >
+      <config.icon
+        className={`w-4 h-4 ${config.textColor} ${
+          isActive ? config.glowColor : ""
+        }`}
+      />
+      <div className="flex-1 text-left">
+        <div className={`text-xs font-bold ${config.textColor}`}>
+          {config.label}
+        </div>
+        <div className="text-[10px] text-slate-400 mt-0.5">
+          {config.description}
+        </div>
+      </div>
+      {isActive && (
+        <div
+          className={`w-2 h-2 rounded-full ${config.textColor.replace(
+            "text-",
+            "bg-"
+          )}`}
+        />
+      )}
+    </button>
+  );
+});
 
 const TemplateManager = dynamic(
   () => import("@/app/components/editor/templates/TemplateManager"),
@@ -46,6 +118,73 @@ const EditorControls = memo(function EditorControls({
   const [executingTemplate, setExecutingTemplate] =
     useState<QueryTemplate | null>(null);
   const [showTemplateExecutor, setShowTemplateExecutor] = useState(false);
+  const [permissionMode, setPermissionMode] = useState<PermissionMode>(
+    getClientPermissionMode()
+  );
+  const [showModeDropdown, setShowModeDropdown] = useState(false);
+
+  const handleDropdownToggle = () => {
+    setShowModeDropdown(!showModeDropdown);
+  };
+
+  useEffect(() => {
+    const handleModeChange = () => {
+      setPermissionMode(getClientPermissionMode());
+    };
+
+    window.addEventListener("permissionModeChanged", handleModeChange);
+    return () =>
+      window.removeEventListener("permissionModeChanged", handleModeChange);
+  }, []);
+
+  const modeConfig: Record<PermissionMode, ModeConfig> = {
+    "read-only": {
+      label: "READ-ONLY",
+      icon: ShieldAlert,
+      bgColor: "bg-red-500/10",
+      borderColor: "border-red-500/30",
+      textColor: "text-red-300",
+      glowColor: "shadow-[0_0_8px_rgba(239,68,68,0.8)]",
+      description: "Only SELECT and read operations allowed",
+    },
+    "read-write": {
+      label: "READ-WRITE",
+      icon: Shield,
+      bgColor: "bg-amber-500/10",
+      borderColor: "border-amber-500/30",
+      textColor: "text-amber-300",
+      glowColor: "shadow-[0_0_8px_rgba(245,158,11,0.8)]",
+      description: "SELECT, INSERT, and UPDATE operations allowed",
+    },
+    full: {
+      label: "FULL ACCESS",
+      icon: ShieldCheck,
+      bgColor: "bg-emerald-500/10",
+      borderColor: "border-emerald-500/30",
+      textColor: "text-emerald-300",
+      glowColor: "shadow-[0_0_8px_rgba(16,185,129,0.8)]",
+      description: "All SQL operations allowed",
+    },
+  };
+
+  const currentModeConfig = modeConfig[permissionMode];
+
+  const handleModeSwitch = (newMode: PermissionMode) => {
+    setClientPermissionMode(newMode);
+    setPermissionMode(newMode);
+    setShowModeDropdown(false);
+
+    const modeLabels = {
+      "read-only": "Read-Only",
+      "read-write": "Read-Write",
+      full: "Full Access",
+    };
+
+    toast.success(`Switched to ${modeLabels[newMode]} mode`, {
+      position: "top-right",
+      autoClose: 3000,
+    });
+  };
 
   const handleTemplateSelect = (template: QueryTemplate) => {
     if (onTemplateSelect) {
@@ -66,7 +205,7 @@ const EditorControls = memo(function EditorControls({
 
   return (
     <TooltipProvider delayDuration={200}>
-      <div className="flex items-center justify-between backdrop-blur-sm bg-gradient-to-r from-gray-900/80 via-purple-900/80 to-gray-900/80">
+      <div className="flex items-center justify-between backdrop-blur-sm bg-gradient-to-r from-gray-900/80 via-purple-900/80 to-gray-900/80 relative z-[100000]">
         <div className="flex items-center gap-2 sm:gap-4">
           {hasDatabase && (
             <Button
@@ -89,6 +228,72 @@ const EditorControls = memo(function EditorControls({
                 EDITOR
               </span>
             </div>
+            {hasDatabase && (
+              <div
+                className="relative"
+                style={{ zIndex: 9999999 }}
+                id="permission-mode-anchor"
+              >
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      onClick={handleDropdownToggle}
+                      className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl ${currentModeConfig.bgColor} border ${currentModeConfig.borderColor} hover:opacity-80 transition-all`}
+                    >
+                      <currentModeConfig.icon
+                        className={`w-3.5 h-3.5 ${currentModeConfig.textColor} ${currentModeConfig.glowColor}`}
+                      />
+                      <span
+                        className={`text-[10px] font-bold ${currentModeConfig.textColor} tracking-wide hidden lg:inline`}
+                      >
+                        {currentModeConfig.label}
+                      </span>
+                      <ChevronDown
+                        className={`w-3 h-3 ${
+                          currentModeConfig.textColor
+                        } transition-transform ${
+                          showModeDropdown ? "rotate-180" : ""
+                        }`}
+                      />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent
+                    side="bottom"
+                    sideOffset={8}
+                    className={`bg-slate-900 ${currentModeConfig.borderColor} ${currentModeConfig.textColor} shadow-lg z-[100]`}
+                  >
+                    Change permission mode • {currentModeConfig.description}
+                  </TooltipContent>
+                </Tooltip>
+                {showModeDropdown && (
+                  <>
+                    <div
+                      className="fixed inset-0"
+                      style={{ zIndex: 9999998 }}
+                      onClick={() => setShowModeDropdown(false)}
+                    />
+                    <div
+                      className="absolute top-full mt-2 right-0 w-60 rounded-lg bg-slate-900 border border-purple-500/30 shadow-xl shadow-purple-500/20 overflow-hidden"
+                      style={{ zIndex: 9999999 }}
+                    >
+                      <div className="p-1.5">
+                        {(Object.keys(modeConfig) as PermissionMode[]).map(
+                          (mode) => (
+                            <ModeOption
+                              key={mode}
+                              mode={mode}
+                              config={modeConfig[mode]}
+                              isActive={mode === permissionMode}
+                              onSelect={handleModeSwitch}
+                            />
+                          )
+                        )}
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
           </div>
           {loading && (
             <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-yellow-500/10 border border-yellow-500/30">
@@ -100,7 +305,7 @@ const EditorControls = memo(function EditorControls({
           )}
         </div>
         {hasDatabase && (
-          <div className="flex items-center gap-1.5 sm:gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2 z-[100000]">
             <TemplateManager
               onSelectTemplate={handleTemplateSelect}
               onExecuteTemplate={handleExecuteTemplate}

@@ -315,10 +315,19 @@ const EditorClient = memo(function EditorClient({
     }
     return (
       <div className="flex flex-col bg-gradient-to-br from-[#0a0a0f] via-[#1a1a2e] to-[#16213e] text-white min-h-screen">
-        <ToastContainer />
-        <div
-          className="flex-shrink-0 border-b border-purple-500/20 bg-gradient-to-r from-[#1a1a2e]/80 to-[#16213e]/80 backdrop-blur-sm px-4 py-3 shadow-[0_4px_20px_rgba(139,92,246,0.1)]"
-        >
+        <ToastContainer
+          position="top-right"
+          style={{ zIndex: 99999999 }}
+          toastStyle={{
+            backgroundColor: "rgba(15, 23, 42, 0.95)",
+            color: "#e2e8f0",
+            border: "1px solid rgba(139, 92, 246, 0.4)",
+            boxShadow: "0 10px 40px rgba(139, 92, 246, 0.4)",
+            backdropFilter: "blur(10px)",
+            fontWeight: 500,
+          }}
+        />
+        <div className="flex-shrink-0 border-b border-purple-500/20 bg-gradient-to-r from-[#1a1a2e]/80 to-[#16213e]/80 backdrop-blur-sm px-4 py-3 shadow-[0_4px_20px_rgba(139,92,246,0.1)] relative w-full h-full z-[100000]">
           <EditorControls
             showHistory={showHistory}
             onToggleHistory={() => setShowHistory(!showHistory)}
@@ -371,10 +380,19 @@ const EditorClient = memo(function EditorClient({
 
   return (
     <div className="flex flex-col bg-gradient-to-br from-[#0a0a0f] via-[#1a1a2e] to-[#16213e] text-white h-screen font-sans">
-      <ToastContainer />
-      <div
-        className="flex-shrink-0 border-b border-purple-500/20 bg-gradient-to-r from-[#1a1a2e]/80 to-[#16213e]/80 backdrop-blur-sm px-4 py-3 shadow-[0_4px_20px_rgba(139,92,246,0.1)]"
-      >
+      <ToastContainer
+        position="top-right"
+        style={{ zIndex: 99999999 }}
+        toastStyle={{
+          backgroundColor: "rgba(15, 23, 42, 0.95)",
+          color: "#e2e8f0",
+          border: "1px solid rgba(139, 92, 246, 0.4)",
+          boxShadow: "0 10px 40px rgba(139, 92, 246, 0.4)",
+          backdropFilter: "blur(10px)",
+          fontWeight: 500,
+        }}
+      />
+      <div className="flex-shrink-0 border-b border-purple-500/20 bg-gradient-to-r from-[#1a1a2e]/80 to-[#16213e]/80 backdrop-blur-sm px-4 py-3 shadow-[0_4px_20px_rgba(139,92,246,0.1)] relative z-[100000]">
         <EditorControls
           showHistory={showHistory}
           onToggleHistory={() => setShowHistory(!showHistory)}
@@ -388,7 +406,7 @@ const EditorClient = memo(function EditorClient({
       </div>
       <div className="flex flex-1 w-full min-w-0 overflow-hidden">
         <div
-          className={`hidden lg:block lg:w-80 xl:w-96 border-r border-purple-500/20 bg-gradient-to-br from-[#0f0f23] to-[#1a1a2e] overflow-y-auto ${
+          className={`hidden lg:block lg:w-80 xl:w-96 border-r border-purple-500/20 bg-gradient-to-br from-[#0f0f23] to-[#1a1a2e] overflow-y-auto relative z-0 ${
             showHistory ? "hidden" : ""
           }`}
         >
@@ -424,9 +442,7 @@ const EditorClient = memo(function EditorClient({
                     onWhereColumnSelect={handleWhereColumnSelectWrapper}
                     onOperatorSelect={handleOperatorSelectWrapper}
                     onValueSelect={handleValueSelectWrapper}
-                    onLogicalOperatorSelect={
-                      handleLogicalOperatorSelectWrapper
-                    }
+                    onLogicalOperatorSelect={handleLogicalOperatorSelectWrapper}
                     onOrderBySelect={() => {}}
                     onColumnSelect={handleColumnSelectWrapper}
                     onDistinctSelect={handleDistinctChange}

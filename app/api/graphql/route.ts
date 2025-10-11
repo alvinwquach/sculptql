@@ -32,6 +32,10 @@ import {
   clearQueryData,
   QueryData,
 } from "@/app/actions/queries";
+import {
+  validateSqlPermission,
+  getPermissionMode,
+} from "@/app/utils/sqlPermissionValidator";
 
 // Interface for the schema cache entry
 interface SchemaCacheEntry {
@@ -2077,6 +2081,23 @@ const resolvers = {
           totalTime: 0,
         };
       }
+
+      const permissionMode = getPermissionMode();
+      const permissionCheck = validateSqlPermission(query, permissionMode);
+
+      if (!permissionCheck.allowed) {
+        console.warn(`🚫 Query blocked: ${permissionCheck.error}`);
+        return {
+          error: permissionCheck.error,
+          errorsCount: 1,
+          rows: [],
+          fields: [],
+          rowCount: 0,
+          payloadSize: 0,
+          totalTime: 0,
+        };
+      }
+
       // Get the database adapter
       const adapter = await getDatabaseAdapter();
       // Set the errors count to 0
@@ -2223,6 +2244,22 @@ const resolvers = {
         console.log("Query:", parsed.query);
         console.log("Params:", parsed.params);
         console.log("Parameter order:", parsed.parameterOrder);
+
+        const permissionMode = getPermissionMode();
+        const permissionCheck = validateSqlPermission(parsed.query, permissionMode);
+
+        if (!permissionCheck.allowed) {
+          console.warn(`🚫 Template query blocked: ${permissionCheck.error}`);
+          return {
+            error: permissionCheck.error,
+            errorsCount: 1,
+            rows: [],
+            fields: [],
+            rowCount: 0,
+            payloadSize: 0,
+            totalTime: 0,
+          };
+        }
 
         const adapter = await getDatabaseAdapter();
         let errorsCount = 0;

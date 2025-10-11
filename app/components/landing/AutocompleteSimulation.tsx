@@ -30,11 +30,13 @@ export default function AutocompleteSimulation({
   return (
     <div
       ref={editorRef}
-      className={`autocomplete-simulation relative w-full max-w-full shadow-2xl overflow-hidden bg-[#0f0f23] border-2 border-transparent rounded-none ${className}`}
+      className={`autocomplete-simulation relative w-full max-w-full shadow-2xl overflow-hidden bg-[#0f0f23] border-2 border-transparent rounded-2xl ${className}`}
       style={{
         minHeight: height,
-        background: "linear-gradient(#0f0f23, #0f0f23) padding-box, linear-gradient(135deg, #8b5cf6, #f472b6, #10b981, #fbbf24) border-box",
-        boxShadow: "0 0 40px rgba(139, 92, 246, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.1)",
+        background:
+          "linear-gradient(#0f0f23, #0f0f23) padding-box, linear-gradient(135deg, #8b5cf6, #f472b6, #10b981, #fbbf24) border-box",
+        boxShadow:
+          "0 0 40px rgba(139, 92, 246, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.1)",
       }}
     >
       <div className="flex items-center justify-between bg-[#0f0f23] px-2 sm:px-4 py-2 border-b border-purple-500/30">
@@ -45,7 +47,7 @@ export default function AutocompleteSimulation({
         </div>
         <Input
           type="text"
-          value="EDITOR"
+          value="https://sculptql.com/editor"
           disabled
           className="w-full max-w-sm px-3 py-1 rounded-md bg-[#1e1b4b] text-[#e0e6ed] text-xs sm:text-sm font-mono border border-purple-500/30 text-center cursor-default mx-2 sm:mx-6"
         />
@@ -59,7 +61,7 @@ export default function AutocompleteSimulation({
           extensions={[
             sql(),
             autocompleteEditorTheme,
-            syntaxHighlighting(defaultHighlightStyle, { fallback: true })
+            syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
           ]}
           editable={false}
           basicSetup={{
