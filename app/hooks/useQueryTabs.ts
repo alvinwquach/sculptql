@@ -1,20 +1,38 @@
+"use client"
+
 import { useState, useEffect } from "react";
-import { Tab } from "@/app/types/query";
+import { Tab, SelectOption } from "@/app/types/query";
 import {
   getLocalStorageItem,
   setLocalStorageItem,
 } from "@/app/utils/localStorageUtils";
 
-export function useQueryTabs(initialQuery: string) {
+export function useQueryTabs(
+  initialQuery: string,
+  initialTable: SelectOption | null = null,
+  initialColumns: SelectOption[] = []
+) {
   const [queryTabs, setQueryTabs] = useState<Tab[]>(() => {
-    const defaultTab = { id: 1, title: "Query 1", query: initialQuery || "" };
+    const defaultTab = {
+      id: 1,
+      title: "Query 1",
+      query: initialQuery || "",
+      selectedTable: initialTable,
+      selectedColumns: initialColumns,
+    };
     return getLocalStorageItem<Tab[]>("queryTabs", [defaultTab]);
   });
 
   const [activeTab, setActiveTab] = useState<number>(() => {
     const savedActiveTab = getLocalStorageItem<number>("activeTab", 1);
     const savedTabs = getLocalStorageItem<Tab[]>("queryTabs", [
-      { id: 1, title: "Query 1", query: initialQuery || "" },
+      {
+        id: 1,
+        title: "Query 1",
+        query: initialQuery || "",
+        selectedTable: initialTable,
+        selectedColumns: initialColumns,
+      },
     ]);
     return savedTabs.some((tab) => tab.id === savedActiveTab)
       ? savedActiveTab
@@ -50,7 +68,13 @@ export function useQueryTabs(initialQuery: string) {
 
   const addNewTab = () => {
     const newId = Math.max(...queryTabs.map((tab) => tab.id), 0) + 1;
-    const newTab = { id: newId, title: `Query ${newId}`, query: "" };
+    const newTab = {
+      id: newId,
+      title: `Query ${newId}`,
+      query: "",
+      selectedTable: null,
+      selectedColumns: [],
+    };
     setQueryTabs([...queryTabs, newTab]);
     setActiveTab(newId);
   };
@@ -58,6 +82,15 @@ export function useQueryTabs(initialQuery: string) {
   const updateTabQuery = (id: number, query: string) => {
     setQueryTabs((prevTabs) =>
       prevTabs.map((tab) => (tab.id === id ? { ...tab, query } : tab))
+    );
+  };
+
+  const updateTabState = (
+    id: number,
+    updates: Partial<Pick<Tab, "query" | "selectedTable" | "selectedColumns">>
+  ) => {
+    setQueryTabs((prevTabs) =>
+      prevTabs.map((tab) => (tab.id === id ? { ...tab, ...updates } : tab))
     );
   };
 
@@ -73,6 +106,7 @@ export function useQueryTabs(initialQuery: string) {
     handleTabReorder,
     addNewTab,
     updateTabQuery,
+    updateTabState,
     getCurrentTab,
   };
 }

@@ -172,6 +172,8 @@ export interface Tab {
   id: number;
   title: string;
   query: string;
+  selectedTable: SelectOption | null;
+  selectedColumns: SelectOption[];
 }
 
 // Interface for the sql column
