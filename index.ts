@@ -8,6 +8,7 @@ import * as mssql from "mssql";
 import oracledb, { Pool as OraclePool } from "oracledb";
 import chalk from "chalk";
 import { config as dotenvConfig } from "dotenv";
+import { Command } from "commander";
 import openUrl from "open";
 import { createServer } from "http";
 import next from "next";
@@ -19,16 +20,41 @@ const __dirname = dirname(__filename);
 
 dotenvConfig({ path: ".env" });
 
+const program = new Command();
+program
+  .name("sculptql")
+  .description("Visual SQL Query Builder with database connection")
+  .version("4.2.0")
+  .option(
+    "-d, --dialect <type>",
+    "Database dialect (postgres|mysql|sqlite|mssql|oracle)"
+  )
+  .option("-h, --host <host>", "Database host")
+  .option("-P, --port <port>", "Database port")
+  .option("-D, --database <name>", "Database name")
+  .option("-u, --user <username>", "Database username")
+  .option("-p, --password <password>", "Database password")
+  .option("-f, --file <path>", "SQLite database file path")
+  .option("-s, --server-port <port>", "Server port (default: 3000)")
+  .parse();
+
+const options = program.opts();
+
 type SupportedDialect = "postgres" | "mysql" | "sqlite" | "mssql" | "oracle";
 
-const dialect = process.env.DB_DIALECT as SupportedDialect | undefined;
-const host = process.env.DB_HOST;
-const port = process.env.DB_PORT;
-const database = process.env.DB_DATABASE;
-const user = process.env.DB_USER;
-const password = process.env.DB_PASSWORD;
-const db_file = process.env.DB_FILE;
-const serverPort = parseInt(process.env.PORT ?? "3000", 10);
+const dialect = (options.dialect || process.env.DB_DIALECT) as
+  | SupportedDialect
+  | undefined;
+const host = options.host || process.env.DB_HOST;
+const port = options.port || process.env.DB_PORT;
+const database = options.database || process.env.DB_DATABASE;
+const user = options.user || process.env.DB_USER;
+const password = options.password || process.env.DB_PASSWORD;
+const db_file = options.file || process.env.DB_FILE;
+const serverPort = parseInt(
+  options.serverPort || process.env.PORT || "3000",
+  10
+);
 
 const missingFields: string[] = [];
 
@@ -51,10 +77,36 @@ if (dialect === "sqlite") {
 if (missingFields.length > 0) {
   console.error(
     chalk.red(
-      "❌ Missing required environment variables:\n  " +
-        missingFields.join("\n  ")
+      "❌ Missing required configuration:\n  " + missingFields.join("\n  ")
     )
   );
+  console.log(chalk.cyan("\n💡 You can configure SculptQL in three ways:\n"));
+
+  console.log(chalk.yellow("1. Using environment variables:"));
+  console.log(
+    chalk.gray(
+      "   DB_DIALECT=postgres DB_HOST=localhost DB_PORT=5432 DB_DATABASE=mydb DB_USER=user DB_PASSWORD=pass npx sculptql\n"
+    )
+  );
+
+  console.log(chalk.yellow("2. Using CLI arguments:"));
+  console.log(
+    chalk.gray(
+      "   npx sculptql -d postgres -h localhost -P 5432 -D mydb -u user -p pass\n"
+    )
+  );
+
+  console.log(chalk.yellow("3. Using a .env file:"));
+  console.log(chalk.gray("   Create a .env file with:"));
+  console.log(chalk.gray("   DB_DIALECT=postgres"));
+  console.log(chalk.gray("   DB_HOST=localhost"));
+  console.log(chalk.gray("   DB_PORT=5432"));
+  console.log(chalk.gray("   DB_DATABASE=mydb"));
+  console.log(chalk.gray("   DB_USER=user"));
+  console.log(chalk.gray("   DB_PASSWORD=pass"));
+  console.log(chalk.gray("   \n   Then run: npx sculptql\n"));
+
+  console.log(chalk.cyan("Run 'npx sculptql --help' for more options"));
   process.exit(1);
 }
 
