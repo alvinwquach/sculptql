@@ -2,7 +2,6 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
 type SectionKey =
-  | "naturalLanguage"
   | "queryBuilder"
   | "filters"
   | "grouping"
@@ -29,7 +28,6 @@ const initialState = {
   isManualEdit: false,
   showMobileSidebar: false,
   sectionsExpanded: {
-    naturalLanguage: true,
     queryBuilder: true,
     filters: true,
     grouping: true,

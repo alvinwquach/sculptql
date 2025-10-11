@@ -19,7 +19,6 @@ import JoinSelect from "../JoinSelect";
 import UnionSelect from "../UnionSelect";
 import CaseSelect from "../CaseSelect";
 import WithSelect from "../WithSelect";
-import NaturalLanguageInput from "../input/NaturalLanguageInput";
 
 // Simple section header for always-visible sections
 const SectionHeader = ({ title, color }: { title: string; color: string }) => {
@@ -326,17 +325,7 @@ const QueryBuilderSections = memo(function QueryBuilderSections({
             metadataLoading={metadataLoading}
           />
         </div>
-      </CollapsibleSection>
-
-      {/* Natural Language - Separate at Bottom */}
-      <div className="border-t border-purple-500/20 pt-6 space-y-4">
-        <SectionHeader title="Natural Language" color="purple" />
-        <NaturalLanguageInput
-          schema={schema}
-          onSqlGenerated={handleQueryChangeWithDrawerClose || (() => {})}
-          dialect={dialect}
-        />
-      </div>
+      </CollapsibleSection>      
     </div>
   );
 });

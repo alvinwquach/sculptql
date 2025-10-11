@@ -1,6 +1,6 @@
 {
   "name": "sculptql",
-  "version": "4.1.0",
+  "version": "4.2.0",
   "type": "module",
   "bin": {
     "sculptql": "./dist/index.js"
