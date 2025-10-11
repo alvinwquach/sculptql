@@ -78,12 +78,6 @@ export default function Home() {
           </div>
           <nav className="hidden md:flex items-center gap-8">
             <a
-              href="#ai-natural-language"
-              className="text-pink-200 hover:text-pink-400 transition-colors"
-            >
-              AI Queries
-            </a>
-            <a
               href="#query-builder"
               className="text-pink-200 hover:text-pink-400 transition-colors"
             >
@@ -121,14 +115,6 @@ export default function Home() {
       </header>
       <HeroSection />
       <AnimatedSqlTooltips />
-      <section
-        id="ai-natural-language"
-        className="py-20 px-4 sm:px-8 lg:px-16 bg-gradient-to-br from-purple-900/30 to-pink-900/20"
-      >
-        <div className="max-w-7xl mx-auto">
-          <NaturalLanguageDemo className="max-w-6xl mx-auto" />
-        </div>
-      </section>
       <section
         id="query-builder"
         className="py-20 px-4 sm:px-8 lg:px-16 bg-gradient-to-br from-cyan-900/20 to-pink-900/20"
