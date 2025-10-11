@@ -21,6 +21,7 @@ import {
 import { stripQuotes } from "@/app/utils/helpers";
 import { getEditorExtensions } from "@/app/utils/editor/editorExtensions";
 import { formatSqlQuery } from "@/app/utils/editor/sqlFormatter";
+import { parseSelectedTable, parseSelectedColumns } from "@/app/utils/queryParser";
 
 interface CodeMirrorEditorProps {
   query: string;
@@ -77,6 +78,7 @@ export default function CodeMirrorEditor({
   tableNames,
   tableColumns,
   selectedColumns,
+  selectedTable,
   uniqueValues,
   onQueryChange,
   loading = false,
@@ -102,6 +104,7 @@ export default function CodeMirrorEditor({
   const editorMountRef = useRef<HTMLDivElement | null>(null);
   const languageCompartment = useRef(new Compartment());
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const isTabSwitchingRef = useRef(false);
 
   const { isFullscreen, toggleFullscreen } = useFullscreen(containerRef);
   const {
@@ -112,8 +115,9 @@ export default function CodeMirrorEditor({
     handleTabReorder,
     addNewTab,
     updateTabQuery,
+    updateTabState,
     getCurrentTab,
-  } = useQueryTabs(query);
+  } = useQueryTabs(query, selectedTable, selectedColumns);
 
   const [error, setError] = useState<string | null>(null);
   const isMac =
@@ -172,48 +176,21 @@ export default function CodeMirrorEditor({
     [activeTab, updateTabQuery, onQueryChange]
   );
 
-  useEffect(() => {
-    updateTabQuery(activeTab, query);
-    if (editorRef.current) {
-      const currentEditorContent = editorRef.current.state.doc.toString();
-      if (currentEditorContent !== query) {
-        editorRef.current.dispatch({
-          changes: {
-            from: 0,
-            to: editorRef.current.state.doc.length,
-            insert: query,
-          },
-        });
-      }
-    }
-  }, [query, activeTab]);
-
-  useEffect(() => {
-    const currentTab = getCurrentTab();
-    if (currentTab && editorRef.current) {
-      const currentEditorContent = editorRef.current.state.doc.toString();
-      if (currentTab.query !== currentEditorContent) {
-        editorRef.current.dispatch({
-          changes: {
-            from: 0,
-            to: editorRef.current.state.doc.length,
-            insert: currentTab.query,
-          },
-        });
-        onQueryChange(currentTab.query);
-      }
-    }
-  }, [activeTab, queryTabs, onQueryChange]);
-
   const queryCallbacksRef = useRef({
     handleQueryChange,
     runQuery,
     logQueryResultAsJson,
     exposeQueryResultsToConsole,
     updateTabQuery,
+    updateTabState,
     onQueryChange,
+    onTableSelect,
+    onColumnSelect,
     getCurrentTab,
     query,
+    selectedTable,
+    selectedColumns,
+    activeTab,
   });
 
   queryCallbacksRef.current = {
@@ -222,10 +199,117 @@ export default function CodeMirrorEditor({
     logQueryResultAsJson,
     exposeQueryResultsToConsole,
     updateTabQuery,
+    updateTabState,
     onQueryChange,
+    onTableSelect,
+    onColumnSelect,
     getCurrentTab,
     query,
+    selectedTable,
+    selectedColumns,
+    activeTab,
   };
+
+  // Handle tab switching - update editor content and sync global state
+  useEffect(() => {
+    isTabSwitchingRef.current = true;
+
+    // Find the current tab directly to avoid closure issues
+    const currentTab = queryTabs.find((tab) => tab.id === activeTab);
+    if (currentTab && editorRef.current) {
+      const currentEditorContent = editorRef.current.state.doc.toString();
+      const tabQuery = currentTab.query || "";
+      // When switching tabs, load the tab's saved query into the editor
+      if (tabQuery !== currentEditorContent) {
+        editorRef.current.dispatch({
+          changes: {
+            from: 0,
+            to: editorRef.current.state.doc.length,
+            insert: tabQuery,
+          },
+        });
+      }
+      // Always update the parent's query state to match the active tab
+      queryCallbacksRef.current.onQueryChange(tabQuery);
+
+      // Parse query to extract table and columns if not already saved in tab
+      let tableToSync = currentTab.selectedTable;
+      let columnsToSync = currentTab.selectedColumns;
+
+      // Always parse query if it exists to ensure syncing
+      if (tabQuery) {
+        const parsedTable = parseSelectedTable(tabQuery);
+        const parsedColumns = parseSelectedColumns(tabQuery);
+
+        // Use parsed table if we don't have one saved or if it's different
+        if (parsedTable && (!tableToSync || tableToSync.value !== parsedTable.value)) {
+          tableToSync = parsedTable;
+        }
+        // Use parsed columns if we don't have any saved or if they're different
+        if (parsedColumns.length > 0 &&
+            (columnsToSync.length === 0 ||
+             JSON.stringify(columnsToSync) !== JSON.stringify(parsedColumns))) {
+          columnsToSync = parsedColumns;
+        }
+      }
+
+      // Sync table and column selections
+      if (queryCallbacksRef.current.onTableSelect) {
+        queryCallbacksRef.current.onTableSelect(tableToSync);
+      }
+      if (queryCallbacksRef.current.onColumnSelect) {
+        queryCallbacksRef.current.onColumnSelect(columnsToSync);
+      }
+    }
+
+    // Reset flag after a short delay to allow state updates to propagate
+    setTimeout(() => {
+      isTabSwitchingRef.current = false;
+    }, 100);
+  }, [activeTab, queryTabs]);
+
+  // Save table and column changes to the current tab
+  useEffect(() => {
+    const currentTab = queryTabs.find((tab) => tab.id === activeTab);
+    if (!currentTab) return;
+
+    const tableChanged = currentTab.selectedTable?.value !== selectedTable?.value;
+    const columnsChanged = JSON.stringify(currentTab.selectedColumns) !== JSON.stringify(selectedColumns);
+
+    if (tableChanged || columnsChanged) {
+      updateTabState(activeTab, { selectedTable, selectedColumns });
+    }
+  }, [selectedTable, selectedColumns, activeTab, queryTabs, updateTabState]);
+
+  // Sync query prop changes from parent (generated by dropdown selections) to editor
+  // This handles when dropdowns generate a new query
+  useEffect(() => {
+    // Don't sync during tab switching to avoid conflicts
+    if (!editorRef.current || isTabSwitchingRef.current) return;
+
+    const currentEditorContent = editorRef.current.state.doc.toString();
+    const currentTab = queryTabs.find((tab) => tab.id === activeTab);
+    const currentTabQuery = currentTab?.query || '';
+
+    // Only update if:
+    // 1. Query prop exists and is different from current editor content
+    // 2. Query prop is different from the current tab's saved query
+    const shouldUpdate = query &&
+                        query !== currentEditorContent &&
+                        query !== currentTabQuery;
+
+    if (shouldUpdate) {
+      editorRef.current.dispatch({
+        changes: {
+          from: 0,
+          to: editorRef.current.state.doc.length,
+          insert: query,
+        },
+      });
+      // Update the tab's query to match
+      updateTabQuery(activeTab, query);
+    }
+  }, [query, activeTab, queryTabs, updateTabQuery]);
 
   const updateListener = useMemo(
     () =>
@@ -237,11 +321,12 @@ export default function CodeMirrorEditor({
             clearTimeout(debounceTimerRef.current);
           }
 
-          queryCallbacksRef.current.updateTabQuery(activeTab, newQuery);
+          // Use the ref to get the current activeTab instead of capturing it
+          queryCallbacksRef.current.updateTabQuery(queryCallbacksRef.current.activeTab, newQuery);
           queryCallbacksRef.current.onQueryChange(newQuery);
         }
       }),
-    [activeTab]
+    []
   );
 
   useEffect(() => {
