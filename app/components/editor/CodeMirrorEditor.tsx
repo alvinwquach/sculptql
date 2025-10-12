@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { EditorView } from "@codemirror/view";
 import { EditorState, Compartment } from "@codemirror/state";
-import { Button } from "@/components/ui/button";
 import { useSqlCompletion } from "@/app/hooks/useSqlCompletion";
 import { useQueryTabs } from "@/app/hooks/useQueryTabs";
 import { needsQuotes } from "@/app/utils/sqlCompletion/needsQuotes";
@@ -19,8 +18,8 @@ import {
 } from "@/app/utils/queryParser";
 import { toast } from "react-toastify";
 import {
-  validateSqlForToast,
   getClientPermissionMode,
+  createSqlPermissionLinter,
 } from "@/app/utils/editor/sqlPermissionLinter";
 
 interface CodeMirrorEditorProps {
@@ -102,13 +101,16 @@ export default function CodeMirrorEditor({
   isFullscreen = false,
 }: CodeMirrorEditorProps) {
   const editorRef = useRef<EditorView | null>(null);
-  const containerRef = useRef<HTMLDivElement | null>(null);
   const editorMountRef = useRef<HTMLDivElement | null>(null);
   const languageCompartment = useRef(new Compartment());
+  const linterCompartment = useRef(new Compartment());
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const isTabSwitchingRef = useRef(false);
   const validationTimerRef = useRef<NodeJS.Timeout | null>(null);
   const lastShownErrorRef = useRef<string | null>(null);
+  const [permissionMode, setPermissionMode] = useState(
+    getClientPermissionMode()
+  );
 
   const {
     queryTabs,
@@ -158,6 +160,27 @@ export default function CodeMirrorEditor({
       }
     };
   }, [handleFormatSQL, onFormatSqlHandlerReady]);
+
+  useEffect(() => {
+    const handleModeChange = () => {
+      const newMode = getClientPermissionMode();
+      setPermissionMode(newMode);
+    };
+
+    window.addEventListener("permissionModeChanged", handleModeChange);
+    return () =>
+      window.removeEventListener("permissionModeChanged", handleModeChange);
+  }, []);
+
+  useEffect(() => {
+    if (editorRef.current && linterCompartment.current) {
+      editorRef.current.dispatch({
+        effects: linterCompartment.current.reconfigure(
+          createSqlPermissionLinter(permissionMode)
+        ),
+      });
+    }
+  }, [permissionMode]);
 
   const sqlCompletion = useSqlCompletion(
     tableNames,
@@ -383,6 +406,7 @@ export default function CodeMirrorEditor({
 
     const extensions = getEditorExtensions({
       languageCompartment: languageCompartment.current,
+      linterCompartment: linterCompartment.current,
       isMac,
       sqlCompletion,
       updateListener,
@@ -394,6 +418,7 @@ export default function CodeMirrorEditor({
         queryCallbacksRef.current.exposeQueryResultsToConsole?.(),
       hasResults,
       onPermissionViolation: handlePermissionViolation,
+      permissionMode,
     });
 
     const state = EditorState.create({
@@ -423,6 +448,7 @@ export default function CodeMirrorEditor({
     updateListener,
     hasResults,
     handlePermissionViolation,
+    permissionMode,
   ]);
 
   return (

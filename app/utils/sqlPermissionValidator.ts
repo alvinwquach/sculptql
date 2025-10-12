@@ -138,10 +138,21 @@ export function validateSqlPermission(
   };
 }
 
+// Runtime permission mode storage
+let runtimePermissionMode: PermissionMode | null = null;
+
 export function getPermissionMode(): PermissionMode {
+  // If runtime mode is set, use it (explicit null check)
+  if (runtimePermissionMode !== null) {
+    console.log(`[Permission] Using runtime mode: ${runtimePermissionMode}`);
+    return runtimePermissionMode;
+  }
+
+  // Otherwise, fall back to environment variable
   const mode = process.env.DB_MODE as PermissionMode | undefined;
 
   if (!mode) {
+    console.log(`[Permission] No mode set, defaulting to "full"`);
     return "full";
   }
 
@@ -152,7 +163,26 @@ export function getPermissionMode(): PermissionMode {
     return "full";
   }
 
+  console.log(`[Permission] Using environment mode: ${mode}`);
   return mode;
+}
+
+export function setPermissionMode(mode: PermissionMode): boolean {
+  if (!["read-only", "read-write", "full"].includes(mode)) {
+    console.warn(
+      `Invalid permission mode: ${mode}. Valid values: read-only, read-write, full`
+    );
+    return false;
+  }
+
+  const previousMode = runtimePermissionMode;
+  runtimePermissionMode = mode;
+  console.log(`[Permission] Mode updated: ${previousMode} -> ${mode}`);
+  return true;
+}
+
+export function getCurrentPermissionMode(): PermissionMode | null {
+  return runtimePermissionMode;
 }
 
 export function getPermissionDescription(mode: PermissionMode): string {
