@@ -12,6 +12,8 @@ interface UIState {
   showHistory: boolean;
   isManualEdit: boolean;
   showMobileSidebar: boolean;
+  isEditorFullscreen: boolean;
+  showQueryBuilder: boolean;
   sectionsExpanded: Record<SectionKey, boolean>;
 
   // Actions
@@ -20,6 +22,10 @@ interface UIState {
   toggleHistory: () => void;
   setShowMobileSidebar: (show: boolean) => void;
   toggleMobileSidebar: () => void;
+  setIsEditorFullscreen: (isFullscreen: boolean) => void;
+  toggleEditorFullscreen: () => void;
+  setShowQueryBuilder: (show: boolean) => void;
+  toggleQueryBuilder: () => void;
   toggleSection: (section: SectionKey) => void;
 }
 
@@ -27,6 +33,8 @@ const initialState = {
   showHistory: false,
   isManualEdit: false,
   showMobileSidebar: false,
+  isEditorFullscreen: false,
+  showQueryBuilder: true,
   sectionsExpanded: {
     queryBuilder: true,
     filters: true,
@@ -46,6 +54,12 @@ export const useUIStore = create<UIState>()(
       setShowMobileSidebar: (showMobileSidebar) => set({ showMobileSidebar }),
       toggleMobileSidebar: () =>
         set((state) => ({ showMobileSidebar: !state.showMobileSidebar })),
+      setIsEditorFullscreen: (isEditorFullscreen) => set({ isEditorFullscreen }),
+      toggleEditorFullscreen: () =>
+        set((state) => ({ isEditorFullscreen: !state.isEditorFullscreen })),
+      setShowQueryBuilder: (showQueryBuilder) => set({ showQueryBuilder }),
+      toggleQueryBuilder: () =>
+        set((state) => ({ showQueryBuilder: !state.showQueryBuilder })),
       toggleSection: (section) =>
         set((state) => ({
           sectionsExpanded: {

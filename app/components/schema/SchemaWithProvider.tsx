@@ -16,7 +16,6 @@ export default function SchemaWithProvider({
 }: SchemaWithProviderProps) {
   // Use unified schema loading with caching
   const { schema, loading, error } = useUnifiedSchema({
-    includeSampleData: true,
     tableSearch: initialTableSearch,
     columnSearch: initialColumnSearch,
     limit: 100,

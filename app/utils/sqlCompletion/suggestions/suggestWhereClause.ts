@@ -6,14 +6,13 @@ import { EditorView } from "codemirror";
 import { SingleValue } from "react-select";
 
 export const suggestWhereClause = (
-  docText: string, 
-  currentWord: string, 
+  docText: string,
+  currentWord: string,
   pos: number,
-  word: { from: number } | null, 
-  tableColumns: TableColumn, 
-  uniqueValues: Record<string, SelectOption[]>, 
-  stripQuotes: (s: string) => string, 
-  needsQuotes: (id: string) => boolean, 
+  word: { from: number } | null,
+  tableColumns: TableColumn,
+  stripQuotes: (s: string) => string,
+  needsQuotes: (id: string) => boolean,
   ast: Select | Select[] | null, 
   onWhereColumnSelect?: (
     value: SingleValue<SelectOption>,
@@ -351,12 +350,6 @@ export const suggestWhereClause = (
     // Set the condition index to the condition index 0 
     // or the length of the doc text match 
     // const conditionIndex = docText.match(/\b(AND|OR)\b/gi)?.length || 0;
-    // Set the value key to the value key selected table and stripped column
-    const valueKey = `${stripQuotes(selectedTable!)}.${strippedColumn}`;
-    // Set the value options to the value options unique values value key 
-    // or empty array
-    const valueOptions = uniqueValues[valueKey] || [];
-
     // If the columns some the stripped column
     if (
       columns.some(
@@ -407,46 +400,10 @@ export const suggestWhereClause = (
         },
       ];
 
-      // Set the filtered value options to the filtered value options
-      const filteredValueOptions = valueOptions.filter((opt) =>
-        // If the current word is true
-      currentWord
-      // Strip the quotes from the opt label
-        ? stripQuotes(opt.label)
-        // Lowercase the opt label
-        .toLowerCase()
-        // Start with the strip quotes current word
-              .startsWith(stripQuotes(currentWord).toLowerCase())
-          : true
-      );
-
       // Return the options
       return {
         from: word ? word.from : pos,
-        options:
-          filteredValueOptions.length > 0
-            ? filteredValueOptions.map((opt) => ({
-                label: opt.label,
-                type: "text",
-                apply: (view: EditorView) => {
-                  const value = needsQuotes(opt.value)
-                    ? `'${opt.value}'`
-                    : opt.value;
-                  // Dispatch the changes
-                  view.dispatch({
-                    changes: {
-                      from: word ? word.from : pos,
-                      to: pos,
-                      insert: `${value} `,
-                    },
-                  });
-                  // If the on value select is not null
-                  // On value select the value
-                  onValueSelect?.(opt, 0, false); // conditionIndex
-                },
-                detail: "Value",
-              }))
-            : fallbackOptions,
+        options: fallbackOptions,
         filter: true,
         validFor: /^['"\d]*$/,
       };
@@ -496,14 +453,9 @@ export const suggestWhereClause = (
   if (afterBetweenAndRegex.test(docText)) {
     // Set the column to the column
     const [, , column] = afterBetweenAndRegex.exec(docText)!;
-    // Set the condition index to the condition index 0 
-    // or the length of the doc text match 
+    // Set the condition index to the condition index 0
+    // or the length of the doc text match
     // const conditionIndex = docText.match(/\b(AND|OR)\b/gi)?.length || 0;
-    // Set the value key to the value key selected table and stripped column
-    const valueKey = `${stripQuotes(selectedTable!)}.${stripQuotes(column)}`;
-    // Set the value options to the value options unique values value key 
-    // or empty array
-    const valueOptions = uniqueValues[valueKey] || [];
 
     // If the columns some the stripped column
     if (
@@ -518,74 +470,51 @@ export const suggestWhereClause = (
     ) {
       return {
         from: word ? word.from : pos,
-        options:
-          valueOptions.length > 0
-            ? valueOptions.map((opt) => ({
-                label: opt.label,
-                type: "text",
-                apply: (view: EditorView) => {
-                  const value = needsQuotes(opt.value)
-                    ? `'${opt.value}'`
-                    : opt.value;
-                  // Dispatch the changes
-                  view.dispatch({
-                    changes: {
-                      from: word ? word.from : pos,
-                      to: pos,
-                      insert: `${value} `,
-                    },
-                  });
-                  // If the on value select is not null
-                  // On value select the value
-                  onValueSelect?.(opt, 0, true); // conditionIndex
+        options: [
+          {
+            label: "'value'",
+            type: "text",
+            apply: (view: EditorView) => {
+              view.dispatch({
+                changes: {
+                  from: word ? word.from : pos,
+                  to: pos,
+                  insert: "'value' ",
                 },
-                detail: "Second value",
-              }))
-            : [
-                {
-                  label: "'value'",
-                  type: "text",
-                  apply: (view: EditorView) => {
-                    view.dispatch({
-                      changes: {
-                        from: word ? word.from : pos,
-                        to: pos,
-                        insert: "'value' ",
-                      },
-                    });
-                    // If the on value select is not null
-                    // On value select the value
-                    onValueSelect?.(
-                      { value: "'value'", label: "'value'" },
-                      0, // conditionIndex
-                      true
-                    );
-                  },
-                  detail: "Enter second value",
+              });
+              // If the on value select is not null
+              // On value select the value
+              onValueSelect?.(
+                { value: "'value'", label: "'value'" },
+                0, // conditionIndex
+                true
+              );
+            },
+            detail: "Enter second value",
+          },
+          {
+            label: "0",
+            type: "text",
+            apply: (view: EditorView) => {
+              // Dispatch the changes
+              view.dispatch({
+                changes: {
+                  from: word ? word.from : pos,
+                  to: pos,
+                  insert: "0 ",
                 },
-                {
-                  label: "0",
-                  type: "text",
-                  apply: (view: EditorView) => {
-                    // Dispatch the changes
-                    view.dispatch({
-                      changes: {
-                        from: word ? word.from : pos,
-                        to: pos,
-                        insert: "0 ",
-                      },
-                    });
-                    // If the on value select is not null
-                    // On value select the value
-                    onValueSelect?.(
-                      { value: "0", label: "0" },
-                      0, // conditionIndex
-                      true
-                    );
-                  },
-                  detail: "Numeric value",
-                },
-              ],
+              });
+              // If the on value select is not null
+              // On value select the value
+              onValueSelect?.(
+                { value: "0", label: "0" },
+                0, // conditionIndex
+                true
+              );
+            },
+            detail: "Numeric value",
+          },
+        ],
         filter: true,
         validFor: /^['"\d]*$/,
       };

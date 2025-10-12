@@ -286,10 +286,7 @@ async function main() {
     server = { close: () => {} };
   }
 
-  const webUrl =
-    (dev
-      ? `http://localhost:${serverPort}`
-      : process.env.NEXT_PUBLIC_BASE_URL ?? "https://sculptql.com") + "/editor";
+  const webUrl = `http://localhost:${serverPort}/editor`;
   console.log(chalk.cyan(` Open the web interface: ${webUrl}`));
 
   try {

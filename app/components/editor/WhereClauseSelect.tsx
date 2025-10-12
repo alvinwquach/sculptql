@@ -17,7 +17,6 @@ interface WhereClauseSelectProps {
   metadataLoading: boolean;
   joinClauses: JoinClause[];
   tableColumns: Record<string, string[]>;
-  uniqueValues: Record<string, SelectOption[]>;
   operatorOptions: SelectOption[];
   logicalOperatorOptions: SelectOption[];
 }
@@ -25,7 +24,6 @@ interface WhereClauseSelectProps {
 export default function WhereClauseSelect({
   metadataLoading,
   tableColumns,
-  uniqueValues,
   operatorOptions,
   logicalOperatorOptions,
 }: WhereClauseSelectProps) {
@@ -84,16 +82,7 @@ export default function WhereClauseSelect({
     <div className="space-y-2">
       {whereClause.conditions.map((condition, index) => {
         // Create the value options
-        const valueOptions =
-          // If the selected table is not null and the condition column is not null
-          selectedTable && condition.column
-            ? // Create the value options
-              uniqueValues[
-                `${stripQuotes(selectedTable.value)}.${stripQuotes(
-                  condition.column.value
-                )}`
-              ] || []
-            : [];
+        const valueOptions: SelectOption[] = [];
 
         return (
           <div key={index} className="flex flex-col gap-2">

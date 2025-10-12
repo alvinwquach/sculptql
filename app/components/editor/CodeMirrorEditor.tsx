@@ -4,24 +4,19 @@ import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { EditorView } from "@codemirror/view";
 import { EditorState, Compartment } from "@codemirror/state";
 import { Button } from "@/components/ui/button";
-import { Maximize2, Minimize2, Wand2 } from "lucide-react";
 import { useSqlCompletion } from "@/app/hooks/useSqlCompletion";
-import { useFullscreen } from "@/app/hooks/useFullscreen";
 import { useQueryTabs } from "@/app/hooks/useQueryTabs";
 import { needsQuotes } from "@/app/utils/sqlCompletion/needsQuotes";
 import { TableColumn, SelectOption } from "@/app/types/query";
 import { MultiValue, SingleValue } from "react-select";
 import QueryTabs from "./QueryTabs";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import { stripQuotes } from "@/app/utils/helpers";
 import { getEditorExtensions } from "@/app/utils/editor/editorExtensions";
 import { formatSqlQuery } from "@/app/utils/editor/sqlFormatter";
-import { parseSelectedTable, parseSelectedColumns } from "@/app/utils/queryParser";
+import {
+  parseSelectedTable,
+  parseSelectedColumns,
+} from "@/app/utils/queryParser";
 import { toast } from "react-toastify";
 import {
   validateSqlForToast,
@@ -34,7 +29,6 @@ interface CodeMirrorEditorProps {
   tableColumns: TableColumn;
   selectedColumns: SelectOption[];
   selectedTable: SelectOption | null;
-  uniqueValues: Record<string, SelectOption[]>;
   runQuery: (query: string) => Promise<void>;
   onQueryChange: (query: string) => void;
   loading?: boolean;
@@ -76,6 +70,8 @@ interface CodeMirrorEditorProps {
   logQueryResultAsJson?: () => void;
   exposeQueryResultsToConsole?: () => void;
   hasResults?: boolean;
+  onFormatSqlHandlerReady?: (handler: (() => void) | null) => void;
+  isFullscreen?: boolean;
 }
 
 export default function CodeMirrorEditor({
@@ -84,7 +80,6 @@ export default function CodeMirrorEditor({
   tableColumns,
   selectedColumns,
   selectedTable,
-  uniqueValues,
   onQueryChange,
   loading = false,
   onTableSelect,
@@ -103,6 +98,8 @@ export default function CodeMirrorEditor({
   logQueryResultAsJson,
   exposeQueryResultsToConsole,
   hasResults = false,
+  onFormatSqlHandlerReady,
+  isFullscreen = false,
 }: CodeMirrorEditorProps) {
   const editorRef = useRef<EditorView | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -113,7 +110,6 @@ export default function CodeMirrorEditor({
   const validationTimerRef = useRef<NodeJS.Timeout | null>(null);
   const lastShownErrorRef = useRef<string | null>(null);
 
-  const { isFullscreen, toggleFullscreen } = useFullscreen(containerRef);
   const {
     queryTabs,
     activeTab,
@@ -129,29 +125,6 @@ export default function CodeMirrorEditor({
   const [error, setError] = useState<string | null>(null);
   const isMac =
     typeof navigator !== "undefined" && /Mac/i.test(navigator.platform);
-
-  const sqlCompletion = useSqlCompletion(
-    tableNames,
-    tableColumns,
-    selectedColumns,
-    uniqueValues,
-    stripQuotes,
-    needsQuotes,
-    {
-      onTableSelect,
-      onWhereColumnSelect,
-      onOperatorSelect,
-      onValueSelect,
-      onLogicalOperatorSelect,
-      onOrderBySelect,
-      onColumnSelect,
-      onDistinctSelect,
-      onGroupByColumnSelect,
-      onAggregateColumnSelect,
-      onHavingOperatorSelect,
-      onHavingValueSelect,
-    }
-  );
 
   const handleFormatSQL = useCallback(() => {
     const editor = editorRef.current;
@@ -175,6 +148,39 @@ export default function CodeMirrorEditor({
     }
   }, []);
 
+  useEffect(() => {
+    if (onFormatSqlHandlerReady) {
+      onFormatSqlHandlerReady(handleFormatSQL);
+    }
+    return () => {
+      if (onFormatSqlHandlerReady) {
+        onFormatSqlHandlerReady(null);
+      }
+    };
+  }, [handleFormatSQL, onFormatSqlHandlerReady]);
+
+  const sqlCompletion = useSqlCompletion(
+    tableNames,
+    tableColumns,
+    selectedColumns,
+    stripQuotes,
+    needsQuotes,
+    {
+      onTableSelect,
+      onWhereColumnSelect,
+      onOperatorSelect,
+      onValueSelect,
+      onLogicalOperatorSelect,
+      onOrderBySelect,
+      onColumnSelect,
+      onDistinctSelect,
+      onGroupByColumnSelect,
+      onAggregateColumnSelect,
+      onHavingOperatorSelect,
+      onHavingValueSelect,
+    }
+  );
+
   const handleQueryChange = useCallback(
     (newQuery: string) => {
       updateTabQuery(activeTab, newQuery);
@@ -190,7 +196,7 @@ export default function CodeMirrorEditor({
       clearTimeout(validationTimerRef.current);
     }
 
-    // Debounce the toast 
+    // Debounce the toast
     validationTimerRef.current = setTimeout(() => {
       // Only show toast if it's a different error than last time
       if (message !== lastShownErrorRef.current) {
@@ -421,7 +427,6 @@ export default function CodeMirrorEditor({
 
   return (
     <div
-      ref={containerRef}
       className={`flex flex-col h-full ${
         isFullscreen ? "fixed inset-0 z-[100]" : "relative z-0"
       }`}
@@ -444,69 +449,6 @@ export default function CodeMirrorEditor({
           </div>
         </div>
       )}
-      <TooltipProvider delayDuration={150}>
-        <div
-          className="flex items-center justify-between p-4 backdrop-blur-sm border-b flex-shrink-0"
-          style={{
-            background:
-              "linear-gradient(135deg, rgba(26, 26, 46, 0.6), rgba(15, 15, 35, 0.6))",
-            borderColor: "rgba(139, 92, 246, 0.2)",
-            boxShadow: "0 1px 20px rgba(139, 92, 246, 0.1)",
-          }}
-        >
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={addNewTab}
-            className="text-cyan-300 hover:bg-gradient-to-r hover:from-cyan-500/20 hover:to-blue-500/20 hover:text-cyan-200 transition-all duration-300 font-medium px-4 py-2 rounded-lg border border-cyan-500/30 hover:border-cyan-400/50 hover:shadow-lg hover:shadow-cyan-500/20"
-          >
-            <span className="text-lg mr-2">+</span>
-            New Tab
-          </Button>
-          <div className="flex gap-3">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={toggleFullscreen}
-                  className="text-pink-300 hover:bg-gradient-to-r hover:from-pink-500/20 hover:to-purple-500/20 hover:text-pink-200 transition-all duration-300 w-10 h-10 rounded-lg border border-pink-500/30 hover:border-pink-400/50 hover:shadow-lg hover:shadow-pink-500/20"
-                  aria-label={
-                    isFullscreen
-                      ? "Exit editor fullscreen"
-                      : "Enter editor fullscreen"
-                  }
-                >
-                  {isFullscreen ? (
-                    <Minimize2 className="w-5 h-5" />
-                  ) : (
-                    <Maximize2 className="w-5 h-5" />
-                  )}
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent className="bg-slate-800 border-purple-500/50 text-cyan-200">
-                {isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
-              </TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={handleFormatSQL}
-                  className="text-emerald-300 hover:bg-gradient-to-r hover:from-emerald-500/20 hover:to-teal-500/20 hover:text-emerald-200 transition-all duration-300 w-10 h-10 rounded-lg border border-emerald-500/30 hover:border-emerald-400/50 hover:shadow-lg hover:shadow-emerald-500/20"
-                  aria-label="Format SQL"
-                >
-                  <Wand2 className="w-5 h-5" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent className="bg-slate-800 border-purple-500/50 text-cyan-200">
-                Format SQL ({isMac ? "⌘+⇧+F" : "Ctrl+Shift+F"})
-              </TooltipContent>
-            </Tooltip>
-          </div>
-        </div>
-      </TooltipProvider>
       <div className="flex items-center flex-shrink-0">
         <QueryTabs
           queryTabs={queryTabs}
@@ -514,6 +456,7 @@ export default function CodeMirrorEditor({
           onTabClick={handleTabClick}
           onTabClose={handleTabClose}
           onTabReorder={handleTabReorder}
+          onAddTab={addNewTab}
         />
       </div>
       <div ref={editorMountRef} className="flex-1 overflow-auto" />

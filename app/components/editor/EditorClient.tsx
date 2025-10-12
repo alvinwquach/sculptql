@@ -17,7 +17,6 @@ import EditorSkeleton from "./EditorSkeleton";
 import NoDatabaseConnected from "./NoDatabaseConnected";
 import ResultsPane from "./ResultsPane";
 import Sidebar from "../common/Sidebar";
-import ResizablePanel from "../common/ResizablePanel";
 import { LoadingSkeleton } from "../ui/LoadingSkeleton";
 import { useQueryStore } from "@/app/stores/useQueryStore";
 import { useUIStore } from "@/app/stores/useUIStore";
@@ -26,17 +25,14 @@ import { useHistoryStore } from "@/app/stores/useHistoryStore";
 import { useQueryActionsStore } from "@/app/stores/useQueryActionsStore";
 import { useComputedValues } from "@/app/context/hooks/useComputedValues";
 import { useExportFunctions } from "@/app/context/hooks/useExportFunctions";
-import { useJoinHandlers } from "@/app/hooks/useJoinHandlers";
-import { useUnionHandlers } from "@/app/hooks/useUnionHandlers";
-import { useCteHandlers } from "@/app/hooks/useCteHandlers";
-import { useCaseHandlers } from "@/app/hooks/useCaseHandlers";
 import { RUN_QUERY } from "@/app/graphql/mutations/runQuery";
 import { GET_DIALECT } from "@/app/graphql/queries/getSchema";
 import EditorControls from "./controls/EditorControls";
-import QueryBuilderSections from "./sections/QueryBuilderSections";
-import MobileQueryBuilderDrawer from "./sections/MobileQueryBuilderDrawer";
 import QueryHistory from "../history/QueryHistory";
 import CodeMirrorEditor from "./CodeMirrorEditor";
+import HorizontalResizablePanel from "../common/HorizontalResizablePanel";
+import VerticalResizablePanel from "../common/VerticalResizablePanel";
+import QueryBuilderSidebar from "./QueryBuilderSidebar";
 
 interface EditorClientProps {
   schema: TableSchema[];
@@ -54,27 +50,21 @@ const EditorClient = memo(function EditorClient({
   const query = useQueryStore((state) => state.query);
   const selectedColumns = useQueryStore((state) => state.selectedColumns);
   const selectedTable = useQueryStore((state) => state.selectedTable);
-  const joinClauses = useQueryStore((state) => state.joinClauses);
-  const unionClauses = useQueryStore((state) => state.unionClauses);
-  const cteClauses = useQueryStore((state) => state.cteClauses);
-  const caseClause = useQueryStore((state) => state.caseClause);
   const showHistory = useUIStore((state) => state.showHistory);
   const setShowHistory = useUIStore((state) => state.setShowHistory);
-  const showMobileSidebar = useUIStore((state) => state.showMobileSidebar);
-  const setShowMobileSidebar = useUIStore(
-    (state) => state.setShowMobileSidebar
+  const isEditorFullscreen = useUIStore((state) => state.isEditorFullscreen);
+  const setIsEditorFullscreen = useUIStore(
+    (state) => state.setIsEditorFullscreen
   );
-  const toggleMobileSidebar = useUIStore((state) => state.toggleMobileSidebar);
+  const showQueryBuilder = useUIStore((state) => state.showQueryBuilder);
+  const setShowQueryBuilder = useUIStore((state) => state.setShowQueryBuilder);
   const queryError = useResultsStore((state) => state.queryError);
   const queryResult = useResultsStore((state) => state.queryResult);
   const setQueryResult = useResultsStore((state) => state.setQueryResult);
   const setQueryError = useResultsStore((state) => state.setQueryError);
   const addToHistory = useHistoryStore((state) => state.addToHistory);
-  const viewMode = useResultsStore((state) => state.viewMode);
   const setViewMode = useResultsStore((state) => state.setViewMode);
-  const currentPage = useResultsStore((state) => state.currentPage);
   const setCurrentPage = useResultsStore((state) => state.setCurrentPage);
-  const pageSize = useResultsStore((state) => state.pageSize);
   const setPageSize = useResultsStore((state) => state.setPageSize);
 
   const {
@@ -91,12 +81,8 @@ const EditorClient = memo(function EditorClient({
     handleHavingOperatorSelect,
     handleHavingValueSelect,
   } = useQueryActionsStore();
-  const joinHandlers = useJoinHandlers();
-  const unionHandlers = useUnionHandlers();
-  const cteHandlers = useCteHandlers();
-  const caseHandlers = useCaseHandlers();
 
-  const { tableNames, tableColumns, uniqueValues, table, tableDescription } =
+  const { tableNames, tableColumns, table, tableDescription } =
     useComputedValues(schema, selectedTable);
 
   const { exportToCsv, exportToJson, exportToMarkdown } = useExportFunctions(
@@ -154,6 +140,34 @@ const EditorClient = memo(function EditorClient({
     },
     [setQueryResult]
   );
+
+  const formatSqlHandlerRef = useCallback((handler: (() => void) | null) => {
+    if (handler) {
+      (
+        window as Window & { __formatSqlHandler?: () => void }
+      ).__formatSqlHandler = handler;
+    }
+  }, []);
+
+  const handleFormatSql = useCallback(() => {
+    const handler = (window as Window & { __formatSqlHandler?: () => void })
+      .__formatSqlHandler;
+    if (handler) {
+      handler();
+    }
+  }, []);
+
+  const handleToggleEditorFullscreen = useCallback(() => {
+    setIsEditorFullscreen(!isEditorFullscreen);
+  }, [isEditorFullscreen, setIsEditorFullscreen]);
+
+  const handleToggleHistory = useCallback(() => {
+    setShowHistory(!showHistory);
+  }, [showHistory, setShowHistory]);
+
+  const handleToggleQueryBuilder = useCallback(() => {
+    setShowQueryBuilder(!showQueryBuilder);
+  }, [showQueryBuilder, setShowQueryBuilder]);
 
   const logQueryResultAsJson = useCallback(() => {
     if (queryResult) {
@@ -241,16 +255,6 @@ const EditorClient = memo(function EditorClient({
     []
   );
 
-  const handleQueryChangeWithDrawerClose = useCallback(
-    (sql: string) => {
-      handleQueryChange(sql);
-      if (showMobileSidebar) {
-        setTimeout(() => setShowMobileSidebar(false), 300);
-      }
-    },
-    [handleQueryChange, showMobileSidebar, setShowMobileSidebar]
-  );
-
   const handleColumnSelectWrapper = (value: MultiValue<SelectOption>) => {
     handleColumnSelect(Array.isArray(value) ? value : []);
   };
@@ -309,10 +313,11 @@ const EditorClient = memo(function EditorClient({
     handleHavingValueSelect(value, conditionIndex);
   };
 
-  if (!schema || schema.length === 0) {
-    if (metadataLoading && !error) {
-      return <EditorSkeleton />;
-    }
+  if (metadataLoading) {
+    return <EditorSkeleton />;
+  }
+
+  if (!metadataLoading && (!schema || schema.length === 0)) {
     return (
       <div className="flex flex-col bg-gradient-to-br from-[#0a0a0f] via-[#1a1a2e] to-[#16213e] text-white min-h-screen">
         <ToastContainer
@@ -338,6 +343,9 @@ const EditorClient = memo(function EditorClient({
             hasDatabase={false}
             onTemplateSelect={handleTemplateSelect}
             onTemplateResult={handleTemplateResult}
+            schema={[]}
+            metadataLoading={false}
+            isMySQL={false}
           />
         </div>
         <div className="flex-1 flex">
@@ -356,28 +364,6 @@ const EditorClient = memo(function EditorClient({
     );
   }
 
-  const sectionProps = {
-    schema,
-    error,
-    isMySQL,
-    metadataLoading,
-    dialect,
-    selectedTable,
-    tableNames,
-    tableColumns,
-    uniqueValues,
-    joinClauses,
-    unionClauses,
-    cteClauses,
-    caseClause,
-    operatorOptions,
-    logicalOperatorOptions,
-    ...joinHandlers,
-    ...unionHandlers,
-    ...cteHandlers,
-    ...caseHandlers,
-  };
-
   return (
     <div className="flex flex-col bg-gradient-to-br from-[#0a0a0f] via-[#1a1a2e] to-[#16213e] text-white h-screen font-sans">
       <ToastContainer
@@ -395,44 +381,56 @@ const EditorClient = memo(function EditorClient({
       <div className="flex-shrink-0 border-b border-purple-500/20 bg-gradient-to-r from-[#1a1a2e]/80 to-[#16213e]/80 backdrop-blur-sm px-4 py-3 shadow-[0_4px_20px_rgba(139,92,246,0.1)] relative z-[100000]">
         <EditorControls
           showHistory={showHistory}
-          onToggleHistory={() => setShowHistory(!showHistory)}
-          onToggleMobileSidebar={toggleMobileSidebar}
+          onToggleHistory={handleToggleHistory}
+          onToggleMobileSidebar={handleToggleQueryBuilder}
           loading={metadataLoading}
           runQuery={runQuery}
           query={query}
           onTemplateSelect={handleTemplateSelect}
           onTemplateResult={handleTemplateResult}
+          schema={schema}
+          metadataLoading={metadataLoading}
+          isMySQL={isMySQL}
+          onFormatSql={handleFormatSql}
+          isEditorFullscreen={isEditorFullscreen}
+          onToggleEditorFullscreen={handleToggleEditorFullscreen}
         />
       </div>
-      <div className="flex flex-1 w-full min-w-0 overflow-hidden">
-        <div
-          className={`hidden lg:block lg:w-80 xl:w-96 border-r border-purple-500/20 bg-gradient-to-br from-[#0f0f23] to-[#1a1a2e] overflow-y-auto relative z-0 ${
-            showHistory ? "hidden" : ""
-          }`}
-        >
-          <div className="p-4 pb-8">
-            <QueryBuilderSections
-              {...sectionProps}
-              handleQueryChangeWithDrawerClose={handleQueryChange}
-            />
-          </div>
+      <div className="flex-1 w-full min-w-0 overflow-hidden flex relative">
+        <div className="hidden lg:block w-80 flex-shrink-0 border-r border-purple-500/20">
+          <QueryBuilderSidebar
+            schema={schema}
+            metadataLoading={metadataLoading}
+            isMySQL={isMySQL}
+          />
         </div>
-        <MobileQueryBuilderDrawer
-          {...sectionProps}
-          handleQueryChangeWithDrawerClose={handleQueryChangeWithDrawerClose}
-        />
-        <div className="flex-1 h-full w-full overflow-hidden">
-          <ResizablePanel
-            defaultLeftWidth={45}
-            minLeftWidth={25}
-            minRightWidth={30}
-            leftPanel={
+        {showQueryBuilder && (
+          <>
+            <div
+              className="lg:hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-[99999]"
+              onClick={() => setShowQueryBuilder(false)}
+            />
+            <div className="lg:hidden fixed left-0 top-0 bottom-0 w-80 bg-gradient-to-br from-[#0f0f23] to-[#1a1a2e] border-r border-purple-500/20 z-[100000] overflow-y-auto">
+              <QueryBuilderSidebar
+                schema={schema}
+                metadataLoading={metadataLoading}
+                isMySQL={isMySQL}
+              />
+            </div>
+          </>
+        )}
+        <div className="flex-1 min-w-0 overflow-hidden">
+          <VerticalResizablePanel
+            defaultTopHeight={50}
+            minTopHeight={30}
+            minBottomHeight={30}
+            localStorageKey="editor-results-vertical-split"
+            topPanel={
               <div className="p-2 h-full flex flex-col">
                 <div className="flex-1 rounded-lg border border-purple-500/20 bg-gradient-to-br from-[#0f0f23] to-[#1a1a2e] shadow-[0_0_20px_rgba(139,92,246,0.15)] overflow-hidden">
                   <CodeMirrorEditor
                     selectedColumns={selectedColumns}
                     selectedTable={selectedTable}
-                    uniqueValues={uniqueValues}
                     query={query}
                     tableNames={tableNames}
                     tableColumns={tableColumns}
@@ -454,11 +452,13 @@ const EditorClient = memo(function EditorClient({
                     logQueryResultAsJson={logQueryResultAsJson}
                     exposeQueryResultsToConsole={exposeQueryResultsToConsole}
                     hasResults={!!queryResult}
+                    onFormatSqlHandlerReady={formatSqlHandlerRef}
+                    isFullscreen={isEditorFullscreen}
                   />
                 </div>
               </div>
             }
-            rightPanel={
+            bottomPanel={
               <div className="p-2 h-full flex flex-col">
                 <div className="flex-1 rounded-lg border border-purple-500/20 bg-gradient-to-br from-[#0f0f23] to-[#1a1a2e] shadow-[0_0_20px_rgba(139,92,246,0.15)] overflow-hidden">
                   <ResultsPane
@@ -485,7 +485,7 @@ const EditorClient = memo(function EditorClient({
       </div>
       <Sidebar
         isOpen={showHistory}
-        onToggle={() => setShowHistory(!showHistory)}
+        onToggle={handleToggleHistory}
         title="Query History"
       >
         <Suspense fallback={<LoadingSkeleton height="h-32" />}>

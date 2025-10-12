@@ -9,6 +9,7 @@ interface QueryTabsProps {
   onTabClick: (id: number) => void;
   onTabClose: (id: number) => void;
   onTabReorder: (newTabs: Tab[]) => void;
+  onAddTab: () => void;
 }
 
 export default function QueryTabs({
@@ -17,6 +18,7 @@ export default function QueryTabs({
   onTabClick,
   onTabClose,
   onTabReorder,
+  onAddTab,
 }: QueryTabsProps) {
   // Track which tab is currently being dragged
   const [dragId, setDragId] = useState<number | null>(null);
@@ -60,7 +62,7 @@ export default function QueryTabs({
   };
 
   return (
-    <div className="flex items-center overflow-x-auto bg-gradient-to-r from-[#0f0f23] via-[#1e1b4b] to-[#312e81] border-b border-purple-500/30">
+    <div className="flex items-center overflow-x-auto bg-gradient-to-r from-[#0f0f23] via-[#1e1b4b] to-[#312e81] border-b border-purple-500/30 scrollbar-hide">
       {queryTabs.map((tab) => (
         <div
           key={tab.id}
@@ -79,7 +81,9 @@ export default function QueryTabs({
             <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-cyan-400 via-purple-400 to-pink-400" />
           )}
           <span className="flex items-center gap-2">
-            <span className="text-xs font-mono tracking-wider">{tab.title}</span>
+            <span className="text-xs font-mono tracking-wider">
+              {tab.title}
+            </span>
             {tab.id !== 1 && (
               <button
                 onClick={(e) => {
@@ -95,6 +99,13 @@ export default function QueryTabs({
           </span>
         </div>
       ))}
+      <button
+        onClick={onAddTab}
+        className="flex items-center gap-2 px-4 py-2 text-cyan-300 hover:text-cyan-100 hover:bg-gradient-to-r hover:from-[#1e1b4b]/50 hover:to-[#312e81]/50 transition-all duration-300 whitespace-nowrap text-sm font-medium border-l border-purple-500/30"
+        title="New tab"
+      >
+        <span className="text-lg">+</span>
+      </button>
     </div>
   );
 }

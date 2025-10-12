@@ -14,7 +14,6 @@ interface HavingSelectProps {
   joinClauses: JoinClause[];
   isMySQL?: boolean;
   tableColumns: Record<string, string[]>;
-  uniqueValues: Record<string, SelectOption[]>;
   operatorOptions: SelectOption[];
 }
 
@@ -22,7 +21,6 @@ export default function HavingSelect({
   metadataLoading,
   isMySQL = false,
   tableColumns,
-  uniqueValues,
   operatorOptions,
 }: HavingSelectProps) {
   const selectedTable = useQueryStore((state) => state.selectedTable);
