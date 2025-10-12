@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { EditorView } from "@codemirror/view";
 import { EditorState, Compartment } from "@codemirror/state";
-import { Button } from "@/components/ui/button";
 import { useSqlCompletion } from "@/app/hooks/useSqlCompletion";
 import { useQueryTabs } from "@/app/hooks/useQueryTabs";
 import { needsQuotes } from "@/app/utils/sqlCompletion/needsQuotes";
@@ -19,8 +18,8 @@ import {
 } from "@/app/utils/queryParser";
 import { toast } from "react-toastify";
 import {
-  validateSqlForToast,
   getClientPermissionMode,
+  createSqlPermissionLinter,
 } from "@/app/utils/editor/sqlPermissionLinter";
 
 interface CodeMirrorEditorProps {
@@ -102,7 +101,6 @@ export default function CodeMirrorEditor({
   isFullscreen = false,
 }: CodeMirrorEditorProps) {
   const editorRef = useRef<EditorView | null>(null);
-  const containerRef = useRef<HTMLDivElement | null>(null);
   const editorMountRef = useRef<HTMLDivElement | null>(null);
   const languageCompartment = useRef(new Compartment());
   const linterCompartment = useRef(new Compartment());
@@ -176,9 +174,6 @@ export default function CodeMirrorEditor({
 
   useEffect(() => {
     if (editorRef.current && linterCompartment.current) {
-      const {
-        createSqlPermissionLinter,
-      } = require("@/app/utils/editor/sqlPermissionLinter");
       editorRef.current.dispatch({
         effects: linterCompartment.current.reconfigure(
           createSqlPermissionLinter(permissionMode)

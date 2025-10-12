@@ -15,7 +15,6 @@ import { createEditorTheme } from "./editorTheme";
 import { formatSqlQuery } from "./sqlFormatter";
 import {
   createSqlPermissionLinter,
-  getClientPermissionMode,
   validateSqlForToast,
   PermissionMode,
 } from "./sqlPermissionLinter";
