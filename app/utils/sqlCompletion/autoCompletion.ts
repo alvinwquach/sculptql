@@ -25,15 +25,13 @@ export class SQLAutoCompletion {
     tableNames: string[],
     tableColumns: TableColumn,
     stripQuotes: (s: string) => string,
-    needsQuotes: (id: string) => boolean,
-    uniqueValues: Record<string, { value: string; label: string }[]> = {}
+    needsQuotes: (id: string) => boolean
   ) {
     this.context = {
       tableNames,
       tableColumns,
       stripQuotes,
       needsQuotes,
-      uniqueValues,
     };
   }
 

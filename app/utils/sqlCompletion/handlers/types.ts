@@ -6,7 +6,6 @@ export interface CompletionContext {
   tableColumns: TableColumn;
   stripQuotes: (s: string) => string;
   needsQuotes: (id: string) => boolean;
-  uniqueValues: Record<string, { value: string; label: string }[]>;
 }
 
 export type CompletionHandler = (

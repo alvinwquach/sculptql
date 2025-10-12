@@ -1,11 +1,9 @@
-import { TableSchema, ApiTableSchema, SchemaContext } from "@/app/types/query";
+import { TableSchema, ApiTableSchema } from "@/app/types/query";
 
 interface SchemaCacheEntry {
   schema: TableSchema[];
   timestamp: number;
-  includeSampleData: boolean;
   apiSchema?: ApiTableSchema[];
-  schemaContext?: SchemaContext;
 }
 
 // Class for the schema cache manager
@@ -14,18 +12,18 @@ class SchemaCacheManager {
   private cache = new Map<string, SchemaCacheEntry>();
   // Private cache duration property
   // 5 minutes
-  private readonly CACHE_DURATION = 5 * 60 * 1000; 
+  private readonly CACHE_DURATION = 5 * 60 * 1000;
 
   // Private generate key method
-  private generateKey(tableSearch?: string, columnSearch?: string, includeSampleData?: boolean): string {
+  private generateKey(tableSearch?: string, columnSearch?: string): string {
     // Return the schema key
-    return `schema-${tableSearch || ''}-${columnSearch || ''}-${includeSampleData || false}`;
+    return `schema-${tableSearch || ""}-${columnSearch || ""}`;
   }
 
   // Get method for the schema cache
-  get(tableSearch?: string, columnSearch?: string, includeSampleData?: boolean): TableSchema[] | null {
+  get(tableSearch?: string, columnSearch?: string): TableSchema[] | null {
     // Generate the key
-    const key = this.generateKey(tableSearch, columnSearch, includeSampleData);
+    const key = this.generateKey(tableSearch, columnSearch);
     // Get the entry from the cache
     const entry = this.cache.get(key);
     // If the entry is not found, return null
@@ -40,12 +38,7 @@ class SchemaCacheManager {
       return null;
     }
 
-    // If we need sample data but cached version doesn't have it, return null
-    if (includeSampleData && !entry.includeSampleData) {
-      return null;
-    }
-
-    // If we don't need sample data but cached version has it, we can still use it
+    // Return the cached schema
     return entry.schema;
   }
 
@@ -53,16 +46,14 @@ class SchemaCacheManager {
   set(
     schema: TableSchema[],
     tableSearch?: string,
-    columnSearch?: string,
-    includeSampleData: boolean = false
+    columnSearch?: string
   ): void {
     // Generate the key
-    const key = this.generateKey(tableSearch, columnSearch, includeSampleData);
+    const key = this.generateKey(tableSearch, columnSearch);
     // Set the entry in the cache
     this.cache.set(key, {
       schema,
       timestamp: Date.now(),
-      includeSampleData,
     });
   }
 
@@ -94,21 +85,18 @@ class SchemaCacheManager {
   }
 
   // Find a compatible schema cache entry
-  findCompatible(tableSearch?: string, columnSearch?: string, includeSampleData?: boolean): TableSchema[] | null {
-    const compatibleEntries = this.getAllCachedSchemas().filter(({ entry }) => {
-      // If we need sample data, the cached version must also have it
-      if (includeSampleData && !entry.includeSampleData) {
-        // Return false
-        return false;
-      }
-      // Return true
-      return true;
-    });
+  findCompatible(
+    tableSearch?: string,
+    columnSearch?: string
+  ): TableSchema[] | null {
+    const compatibleEntries = this.getAllCachedSchemas();
 
     // If the compatible entries length is greater than 0
     if (compatibleEntries.length > 0) {
       // Return the most recent compatible entry
-      const mostRecent = compatibleEntries.sort((a, b) => b.entry.timestamp - a.entry.timestamp)[0];
+      const mostRecent = compatibleEntries.sort(
+        (a, b) => b.entry.timestamp - a.entry.timestamp
+      )[0];
       // Return the most recent compatible entry
       return mostRecent.entry.schema;
     }
@@ -121,7 +109,10 @@ class SchemaCacheManager {
 export const schemaCache = new SchemaCacheManager();
 
 // Function to check if schemas are compatible
-export function areSchemasCompatible(schema1: TableSchema[], schema2: TableSchema[]): boolean {
+export function areSchemasCompatible(
+  schema1: TableSchema[],
+  schema2: TableSchema[]
+): boolean {
   // If the schema1 length is not equal to the schema2 length, return false
   if (schema1.length !== schema2.length) {
     return false;
@@ -142,9 +133,12 @@ export function areSchemasCompatible(schema1: TableSchema[], schema2: TableSchem
     for (let j = 0; j < table1.columns.length; j++) {
       const col1 = table1.columns[j];
       const col2 = table2.columns[j];
-      // If the col1 column name is not equal to the col2 column name 
+      // If the col1 column name is not equal to the col2 column name
       // or the col1 data type is not equal to the col2 data type, return false
-      if (col1.column_name !== col2.column_name || col1.data_type !== col2.data_type) {
+      if (
+        col1.column_name !== col2.column_name ||
+        col1.data_type !== col2.data_type
+      ) {
         return false;
       }
     }
@@ -153,81 +147,41 @@ export function areSchemasCompatible(schema1: TableSchema[], schema2: TableSchem
   return true;
 }
 
-
 /**
  * Convert internal TableSchema format to API format for GraphQL communication
  */
- export function transformToApiSchema(schema: TableSchema[]): ApiTableSchema[] {
-   return schema.map((table) => ({
-     table_name: table.table_name,
-     columns: table.columns.map((col) => ({
-       column_name: col.column_name,
-       data_type: col.data_type,
-       is_nullable: col.is_nullable,
-       is_primary_key: col.is_primary_key ?? false,
-     })),
-     primary_keys: table.primary_keys,
-     foreign_keys: table.foreign_keys.map((fk) => ({
-       column_name: fk.column_name,
-       referenced_table: fk.referenced_table,
-       referenced_column: fk.referenced_column,
-       constraint_name: fk.constraint_name,
-     })),
-   }));
- }
- /**
-  * Convert TableSchema to AI-optimized SchemaContext format
-  */
- export function transformToSchemaContext(
-   schema: TableSchema[]
- ): SchemaContext {
-   return {
-     tables: schema.map((table) => ({
-       name: table.table_name,
-       columns: table.columns.map((col) => ({
-         name: col.column_name,
-         type: col.data_type,
-         nullable: col.is_nullable === "YES",
-         primaryKey: col.is_primary_key ?? false,
-       })),
-       relationships: table.foreign_keys.map((fk) => ({
-         fromColumn: fk.column_name,
-         toTable: fk.referenced_table,
-         toColumn: fk.referenced_column,
-       })),
-     })),
-   };
- }
+export function transformToApiSchema(schema: TableSchema[]): ApiTableSchema[] {
+  return schema.map((table) => ({
+    table_name: table.table_name,
+    columns: table.columns.map((col) => ({
+      column_name: col.column_name,
+      data_type: col.data_type,
+      is_nullable: col.is_nullable,
+      is_primary_key: col.is_primary_key ?? false,
+    })),
+    primary_keys: table.primary_keys,
+    foreign_keys: table.foreign_keys.map((fk) => ({
+      column_name: fk.column_name,
+      referenced_table: fk.referenced_table,
+      referenced_column: fk.referenced_column,
+      constraint_name: fk.constraint_name,
+    })),
+  }));
+}
 
- /**
-  * Get cached API schema or transform and cache it
-  */
+/**
+ * Get cached API schema or transform and cache it
+ */
 
- export function getCachedApiSchema(
-   schema: TableSchema[],
-   cache: SchemaCacheManager
- ): ApiTableSchema[] {
-   const cacheKey = "api-schema";
-   const cached = cache.get(cacheKey) as SchemaCacheEntry | null;
+export function getCachedApiSchema(
+  schema: TableSchema[],
+  cache: SchemaCacheManager
+): ApiTableSchema[] {
+  const cacheKey = "api-schema";
+  const cached = cache.get(cacheKey) as SchemaCacheEntry | null;
 
-   if (!cached?.apiSchema) {
-   }
+  if (!cached?.apiSchema) {
+  }
 
-   return cached?.apiSchema || transformToApiSchema(schema);
- }
-
- /**
-  * Get cached schema context or transform and cache it
-  */
- export function getCachedSchemaContext(
-   schema: TableSchema[],
-   cache: SchemaCacheManager
- ): SchemaContext {
-   const cacheKey = "schema-context";
-   const cached = cache.get(cacheKey) as SchemaCacheEntry | null;
-
-   if (!cached?.schemaContext) {
-   }
-
-   return cached?.schemaContext || transformToSchemaContext(schema);
- }
+  return cached?.apiSchema || transformToApiSchema(schema);
+}

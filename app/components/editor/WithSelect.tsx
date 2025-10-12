@@ -15,7 +15,6 @@ interface WithSelectProps {
   tableNames: string[];
   tableColumns: TableColumn;
   cteClauses: CteClause[];
-  uniqueValues: Record<string, SelectOption[]>;
   operatorOptions: SelectOption[];
   logicalOperatorOptions: SelectOption[];
   onCteAliasChange: (cteIndex: number, alias: string | null) => void;
@@ -62,7 +61,6 @@ export default function WithSelect({
   tableNames,
   tableColumns,
   cteClauses,
-  uniqueValues,
   operatorOptions,
   logicalOperatorOptions,
   onCteAliasChange,
@@ -261,9 +259,7 @@ export default function WithSelect({
         <div className="flex flex-col gap-1">
           <label className="text-xs text-pink-300/80 font-mono">Value</label>
           <CreatableSelect
-            options={
-              uniqueValues[`cte${cteIndex}Condition${conditionIndex + 1}`] || []
-            }
+            options={[]}
             value={condition.value}
             onChange={(value) =>
               onCteValueSelect(cteIndex, conditionIndex, value, false)
@@ -287,10 +283,7 @@ export default function WithSelect({
           <div className="flex flex-col gap-1">
             <label className="text-xs text-pink-300/80 font-mono">Value 2</label>
             <CreatableSelect
-              options={
-                uniqueValues[`cte${cteIndex}Condition${conditionIndex + 1}`] ||
-                []
-              }
+              options={[]}
               value={condition.value2}
               onChange={(value) =>
                 onCteValueSelect(cteIndex, conditionIndex, value, true)

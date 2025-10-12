@@ -16,10 +16,7 @@ export default function EditorWithProvider({
   error: initialError,
   isMySQL = false,
 }: EditorWithProviderProps = {}) {
-  const { schema, loading, error } = useUnifiedSchema({
-    // Include sample data
-    includeSampleData: true,
-  });
+  const { schema, loading, error } = useUnifiedSchema();
 
   return (
     <EditorClient

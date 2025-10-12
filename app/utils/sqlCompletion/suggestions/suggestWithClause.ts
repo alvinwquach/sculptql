@@ -21,7 +21,6 @@ export const suggestWithClause = (
   tableColumns: TableColumn,
   stripQuotes: (s: string) => string,
   needsQuotes: (id: string) => boolean,
-  uniqueValues: Record<string, SelectOption[]> = {},
   onWhereColumnSelect?: (
     value: SingleValue<SelectOption>,
     conditionIndex: number
@@ -183,7 +182,6 @@ export const suggestWithClause = (
           pos,
           word,
           tableColumns,
-          uniqueValues,
           stripQuotes,
           needsQuotes,
           ast,
@@ -429,7 +427,6 @@ export const suggestWithClause = (
         pos,
         word,
         tableColumns,
-        uniqueValues,
         stripQuotes,
         needsQuotes,
         ast,

@@ -15,8 +15,11 @@ import {
   ShieldCheck,
   ChevronDown,
   LucideIcon,
+  Maximize2,
+  Minimize2,
+  Wand2,
 } from "lucide-react";
-import { QueryTemplate, QueryResult } from "@/app/types/query";
+import { QueryTemplate, QueryResult, TableSchema } from "@/app/types/query";
 import dynamic from "next/dynamic";
 import {
   getClientPermissionMode,
@@ -102,6 +105,12 @@ interface EditorControlsProps {
   hasDatabase?: boolean;
   onTemplateSelect?: (template: QueryTemplate) => void;
   onTemplateResult?: (result: QueryResult) => void;
+  schema?: TableSchema[];
+  metadataLoading?: boolean;
+  isMySQL?: boolean;
+  onFormatSql?: () => void;
+  isEditorFullscreen?: boolean;
+  onToggleEditorFullscreen?: () => void;
 }
 
 const EditorControls = memo(function EditorControls({
@@ -114,6 +123,12 @@ const EditorControls = memo(function EditorControls({
   hasDatabase = true,
   onTemplateSelect,
   onTemplateResult,
+  schema = [],
+  metadataLoading = false,
+  isMySQL = false,
+  onFormatSql,
+  isEditorFullscreen = false,
+  onToggleEditorFullscreen,
 }: EditorControlsProps) {
   const [executingTemplate, setExecutingTemplate] =
     useState<QueryTemplate | null>(null);
@@ -212,7 +227,7 @@ const EditorControls = memo(function EditorControls({
               variant="ghost"
               size="sm"
               onClick={onToggleMobileSidebar}
-              className="sm:hidden p-2.5 rounded-xl bg-purple-500/10 text-purple-300 hover:text-white hover:bg-purple-500/30 transition-all duration-200 border border-purple-500/30 hover:border-purple-400 hover:shadow-lg hover:shadow-purple-500/50"
+              className="lg:hidden p-2.5 rounded-xl bg-purple-500/10 text-purple-300 hover:text-white hover:bg-purple-500/30 transition-all duration-200 border border-purple-500/30 hover:border-purple-400 hover:shadow-lg hover:shadow-purple-500/50"
               aria-label="Toggle query builder"
             >
               <Menu className="w-5 h-5" />
@@ -310,6 +325,70 @@ const EditorControls = memo(function EditorControls({
               onSelectTemplate={handleTemplateSelect}
               onExecuteTemplate={handleExecuteTemplate}
             />
+            {onFormatSql && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={onFormatSql}
+                    disabled={loading}
+                    className="flex items-center gap-2 px-2 sm:px-3 py-2 rounded-xl bg-emerald-500/10 text-emerald-300 hover:text-white hover:bg-emerald-500/30 transition-all duration-200 border border-emerald-500/30 hover:border-emerald-400 hover:shadow-lg hover:shadow-emerald-500/50 text-xs font-semibold disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-emerald-500/10"
+                    aria-label="Format SQL"
+                  >
+                    <Wand2 className="w-3.5 h-3.5" />
+                    <span className="hidden lg:inline">Format</span>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent
+                  side="bottom"
+                  sideOffset={8}
+                  className="bg-slate-900 border-emerald-500/50 text-emerald-200 shadow-lg shadow-emerald-500/20 z-[100]"
+                >
+                  Format SQL (
+                  {navigator.platform.includes("Mac")
+                    ? "⌘+Shift+F"
+                    : "Ctrl+Shift+F"}
+                  )
+                </TooltipContent>
+              </Tooltip>
+            )}
+            {onToggleEditorFullscreen && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={onToggleEditorFullscreen}
+                    disabled={loading}
+                    className="flex items-center gap-2 px-2 sm:px-3 py-2 rounded-xl bg-pink-500/10 text-pink-300 hover:text-white hover:bg-pink-500/30 transition-all duration-200 border border-pink-500/30 hover:border-pink-400 hover:shadow-lg hover:shadow-pink-500/50 text-xs font-semibold disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-pink-500/10"
+                    aria-label={
+                      isEditorFullscreen
+                        ? "Exit editor fullscreen"
+                        : "Fullscreen editor"
+                    }
+                  >
+                    {isEditorFullscreen ? (
+                      <Minimize2 className="w-3.5 h-3.5" />
+                    ) : (
+                      <Maximize2 className="w-3.5 h-3.5" />
+                    )}
+                    <span className="hidden lg:inline">
+                      {isEditorFullscreen ? "Exit" : "Fullscreen"}
+                    </span>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent
+                  side="bottom"
+                  sideOffset={8}
+                  className="bg-slate-900 border-pink-500/50 text-pink-200 shadow-lg shadow-pink-500/20 z-[100]"
+                >
+                  {isEditorFullscreen
+                    ? "Exit editor fullscreen"
+                    : "Fullscreen editor"}
+                </TooltipContent>
+              </Tooltip>
+            )}
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button

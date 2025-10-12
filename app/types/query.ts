@@ -98,7 +98,6 @@ export interface ColumnSchema {
   is_primary_key: boolean | undefined;
   is_indexed: boolean | string;
   index_names?: string[];
-  uniqueValues?: string[];
 }
 
 // Interface for the foreign key schema
@@ -107,16 +106,6 @@ export interface ForeignKeySchema {
   referenced_table: string;
   referenced_column: string;
   constraint_name: string;
-}
-
-// Interface for the table schema
-export interface TableSchema {
-  table_name: string;
-  table_catalog: string;
-  table_schema: string;
-  table_type: string;
-  comment: string | null;
-  values?: Record<string, string | number | null>[];
 }
 
 // Interface for the table description
@@ -255,12 +244,6 @@ export interface JoinClause {
   joinType?: SelectOption | null;
 }
 
-// Interface for the unique values
-export interface UniqueValues {
-  condition1: SelectOption[];
-  condition2: SelectOption[];
-}
-
 // Interface for the option type
 export type OptionType = {
   value: string;
@@ -293,7 +276,6 @@ export interface QueryState {
   orderByClause: OrderByClause;
   groupByColumns: SelectOption[];
   limit: SelectOption | null;
-  uniqueValues: Record<string, SelectOption[]>;
   fetchError: string | null;
   queryError: string | null;
   joinClauses: JoinClause[];
@@ -318,14 +300,6 @@ export interface CaseCondition {
 // Interface for the when clause
 export interface WhenClause {
   conditions: CaseCondition[];
-  result: SelectOption | null;
-}
-
-// Interface for the case condition
-export interface CaseCondition {
-  column: SelectOption | null;
-  operator: SelectOption | null;
-  value: SelectOption | null;
   result: SelectOption | null;
 }
 
@@ -356,7 +330,7 @@ export interface CteClause {
 // Interface for the column type
 export type ColumnType = string | SelectOption;
 
-// Interface for the table schema
+// Interface for the table schema (consolidated - removed duplicate)
 export interface TableSchema {
   table_catalog: string;
   table_schema: string;
@@ -365,12 +339,7 @@ export interface TableSchema {
   comment: string | null;
   columns: ColumnSchema[];
   primary_keys: string[];
-  foreign_keys: {
-    column_name: string;
-    referenced_table: string;
-    referenced_column: string;
-    constraint_name: string;
-  }[];
+  foreign_keys: ForeignKeySchema[];
 }
 
 // Interface for the foreign key
@@ -413,7 +382,6 @@ export interface Table {
   columns: Column[];
   primary_keys: string[];
   foreign_keys: ForeignKey[];
-  values: Record<string, unknown>[];
 }
 
 // Interface for the database
@@ -465,19 +433,24 @@ export interface TemplateExecutionRequest {
   parameterValues: Record<string, string | number | boolean>;
 }
 
-export interface SchemaContext {
-  tables: Array<{
-    name: string;
-    columns: Array<{
-      name: string;
-      type: string;
-      nullable: boolean;
-      primaryKey: boolean;
-    }>;
-    relationships: Array<{
-      fromColumn: string;
-      toTable: string;
-      toColumn: string;
-    }>;
-  }>;
+// Interface for a relationship between tables
+export interface TableRelationship {
+  fromColumn: string;
+  toTable: string;
+  toColumn: string;
+}
+
+// Interface for a column in the schema context
+export interface SchemaContextColumn {
+  name: string;
+  type: string;
+  nullable: boolean;
+  primaryKey: boolean;
+}
+
+// Interface for a table in the schema context
+export interface SchemaContextTable {
+  name: string;
+  columns: SchemaContextColumn[];
+  relationships: TableRelationship[];
 }

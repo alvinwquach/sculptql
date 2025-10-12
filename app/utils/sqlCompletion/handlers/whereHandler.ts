@@ -1,6 +1,6 @@
 import { CompletionResult } from "@codemirror/autocomplete";
 import { CompletionContext } from "./types";
-import { getAvailableColumns, getSelectedTable } from "./helpers";
+import { getAvailableColumns } from "./helpers";
 
 export function getWhereCompletion(
   currentWord: string,
@@ -15,43 +15,6 @@ export function getWhereCompletion(
   );
   // If the after operator match is true
   if (afterOperatorMatch) {
-    // Set the column to the column
-    const column = context.stripQuotes(afterOperatorMatch[2]);
-    // Set the selected table to the selected table
-    const selectedTable = getSelectedTable(textBeforeCursor);
-    // If the selected table is true
-    if (selectedTable) {
-      // Set the value key to the value key
-      const valueKey = `${context.stripQuotes(selectedTable)}.${column}`;
-      // Set the unique value options to the unique value options
-      const uniqueValueOptions = context.uniqueValues[valueKey] || [];
-      // If the unique value options length is greater than 0
-      if (uniqueValueOptions.length > 0) {
-        // Return the options
-        return {
-          from: word ? word.from : pos,
-          options: uniqueValueOptions.map((opt) => {
-            let applyValue = opt.value;
-
-            if (!applyValue.startsWith("'") && !applyValue.startsWith('"')) {
-              if (isNaN(Number(applyValue))) {
-                applyValue = `'${applyValue}'`;
-              }
-            }
-
-            return {
-              label: opt.label,
-              type: "value",
-              apply: `${applyValue} `,
-              detail: "Unique value",
-            };
-          }),
-          filter: true,
-          validFor: /^["'\w]*$/,
-        };
-      }
-    }
-
     return {
       from: word ? word.from : pos,
       options: [

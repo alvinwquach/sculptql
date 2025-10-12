@@ -1229,79 +1229,6 @@ class SqlQueries {
     return { query: "", params: [] };
   }
 
-  // Function to get the sample data query
-  static getSampleDataQuery(
-    dialect: SupportedDialect,
-    tableName: string,
-    limit?: number
-  ): { query: string; params: (string | number)[] } {
-    // If the dialect is mysql
-    if (dialect === "mysql") {
-      // Set the query to the mysql sample data query
-      let query = `SELECT * FROM \`${tableName}\``;
-      // Set the params to an empty array
-      const params: (string | number)[] = [];
-      // If the limit is a number
-      if (typeof limit === "number") {
-        // Append the limit to the query
-        query += ` LIMIT ?`;
-        // Append the limit to the params
-        params.push(limit);
-      }
-      // Return the query and the params
-      return { query, params };
-    } else if (dialect === "mssql") {
-      // Set the query to the mssql sample data query
-      const query = `SELECT TOP ${limit || 100} * FROM [${tableName}]`;
-      // Set the params to an empty array
-      const params: (string | number)[] = [];
-      // Return the query and the params
-      return { query, params };
-    } else if (dialect === "sqlite") {
-      // Set the query to the sqlite sample data query
-      let query = `SELECT * FROM "${tableName}"`;
-      // Set the params to an empty array
-      const params: (string | number)[] = [];
-      // If the limit is a number
-      if (typeof limit === "number") {
-        // Append the limit to the query
-        query += ` LIMIT ?`;
-        // Append the limit to the params
-        params.push(limit);
-      }
-      // Return the query and the params
-      return { query, params };
-    } else if (dialect === "oracle") {
-      // Set the query to the oracle sample data query
-      let query = `SELECT * FROM ${tableName}`;
-      // Set the params to an empty array
-      const params: (string | number)[] = [];
-      // If the limit is a number
-      if (typeof limit === "number") {
-        // Append the limit to the query
-        query += ` WHERE ROWNUM <= :1`;
-        // Append the limit to the params
-        params.push(limit);
-      }
-      // Return the query and the params
-      return { query, params };
-    } else {
-      // Set the query to the postgres sample data query
-      let query = `SELECT * FROM public.${tableName}`;
-      // Set the params to an empty array
-      const params: (string | number)[] = [];
-      // If the limit is a number
-      if (typeof limit === "number") {
-        // Append the limit to the query
-        query += ` LIMIT $1`;
-        // Append the limit to the params
-        params.push(limit);
-      }
-      // Return the query and the params
-      return { query, params };
-    }
-  }
-
   // Function to get the explain query
   static getExplainQuery(
     dialect: SupportedDialect,
@@ -1332,7 +1259,6 @@ interface SchemaArgs {
   tableSearch?: string;
   columnSearch?: string;
   limit?: number;
-  includeSampleData?: boolean;
 }
 
 // Define the type definitions
@@ -1353,7 +1279,7 @@ const typeDefs = /* GraphQL */ `
     constraint_name: String!
   }
 
-  # Table metadata + sample values
+  # Table metadata
   type Table {
     table_catalog: String!
     table_schema: String!
@@ -1363,7 +1289,6 @@ const typeDefs = /* GraphQL */ `
     columns: [Column!]!
     primary_keys: [String!]!
     foreign_keys: [ForeignKey!]!
-    values(limit: Int): [JSON!]!
   }
 
   # Query execution result
@@ -1431,7 +1356,6 @@ const typeDefs = /* GraphQL */ `
       tableSearch: String
       columnSearch: String
       limit: Int
-      includeSampleData: Boolean = false
     ): [Table!]!
     schemaVersion: SchemaVersion!
     dialect: String!
@@ -1526,8 +1450,6 @@ const resolvers = {
       {
         tableSearch = "",
         columnSearch = "",
-        limit,
-        includeSampleData = false,
       }: SchemaArgs
     ): Promise<Table[]> => {
       try {
@@ -1539,8 +1461,8 @@ const resolvers = {
         );
         // Get the cached result from the cache
         const cachedResult = apiSchemaCache.get(cacheKey);
-        // If the cached result is not null and the include sample data is false,
-        if (cachedResult && !includeSampleData) {
+        // If the cached result is not null, return it
+        if (cachedResult) {
           // Log the schema loaded from the cache
           console.log("Schema loaded from cache");
           // Return the cached result
@@ -1681,39 +1603,6 @@ const resolvers = {
                 }
               }
 
-              // Process sample data if needed
-              const sampleDataPromises = includeSampleData
-                ? tableNames.map(async (tableName) => {
-                    const { query: sampleQuery, params: sampleParams } =
-                      SqlQueries.getSampleDataQuery(dialect, tableName, limit);
-                    console.log(`Fetching sample data for table: ${tableName}`);
-                    console.log(`Sample query: ${sampleQuery}`);
-                    const sampleResult = await executeQueryWithCache<
-                      Record<string, unknown>
-                    >(
-                      adapter,
-                      sampleQuery,
-                      sampleParams,
-                      queryResultCache.generateKey(sampleQuery, sampleParams),
-                      60000
-                    );
-                    console.log(
-                      `Sample data for ${tableName}:`,
-                      sampleResult.rows.length,
-                      "rows"
-                    );
-                    return { tableName, values: sampleResult.rows };
-                  })
-                : tableNames.map((tableName) => ({ tableName, values: [] }));
-
-              const sampleDataResults = await Promise.all(sampleDataPromises);
-              const sampleDataMap = new Map(
-                sampleDataResults.map((result) => [
-                  result.tableName,
-                  result.values,
-                ])
-              );
-
               // Build final schema
               for (const table of normalizedTables) {
                 const tableData = tableMetadata.get(table.table_name);
@@ -1724,7 +1613,6 @@ const resolvers = {
                   continue;
                 }
 
-                const tableValues = sampleDataMap.get(table.table_name) || [];
                 const tableResult: Table = {
                   table_catalog: table.table_catalog,
                   table_schema: table.table_schema,
@@ -1734,17 +1622,7 @@ const resolvers = {
                   columns: tableData.columns,
                   primary_keys: tableData.primaryKeys,
                   foreign_keys: tableData.foreignKeys,
-                  values: tableValues,
                 };
-
-                console.log(
-                  `Table ${table.table_name} sample data:`,
-                  tableValues.length,
-                  "rows"
-                );
-                if (tableValues.length > 0) {
-                  console.log(`Sample row:`, tableValues[0]);
-                }
 
                 schema.push(tableResult);
                 console.log(
@@ -1782,9 +1660,6 @@ const resolvers = {
                     dialect,
                     table_name
                   ),
-                  sampleDataQuery: includeSampleData
-                    ? SqlQueries.getSampleDataQuery(dialect, table_name, limit)
-                    : null,
                 };
               });
 
@@ -1805,7 +1680,6 @@ const resolvers = {
                     columnsQuery,
                     primaryKeyQuery,
                     foreignKeyQuery,
-                    sampleDataQuery,
                   }) => {
                     try {
                       // Log the processing table
@@ -1816,7 +1690,6 @@ const resolvers = {
                         columnsResult,
                         primaryKeyResult,
                         foreignKeyResult,
-                        valuesResult,
                       ] = await Promise.all([
                         executeQueryWithCache<{
                           column_name: string;
@@ -1855,19 +1728,6 @@ const resolvers = {
                           300000,
                           { queryCount, cacheHits }
                         ),
-                        sampleDataQuery
-                          ? executeQueryWithCache<Record<string, unknown>>(
-                              batchAdapter,
-                              sampleDataQuery.query,
-                              sampleDataQuery.params,
-                              queryResultCache.generateKey(
-                                sampleDataQuery.query,
-                                sampleDataQuery.params
-                              ),
-                              60000,
-                              { queryCount, cacheHits }
-                            )
-                          : Promise.resolve({ rows: [] }),
                       ]);
                       // If the column search is not null and the columns result rows length is 0,
                       if (columnSearch && columnsResult.rows.length === 0) {
@@ -1878,10 +1738,6 @@ const resolvers = {
                       const primaryKeys = primaryKeyResult.rows.map(
                         (r) => r.column_name
                       );
-                      // Get the values from the values result rows
-                      // and the include sample data is true
-                      // or an empty array if the include sample data is false
-                      const values = includeSampleData ? valuesResult.rows : [];
                       // Get the columns from the columns result rows
                       // and the primary keys includes the column name
                       const columns: Column[] = columnsResult.rows.map(
@@ -1901,7 +1757,6 @@ const resolvers = {
                         primary_keys: primaryKeys,
                         foreign_keys:
                           foreignKeyResult.rows as unknown as ForeignKey[],
-                        values,
                       };
                       // Log the successfully processed table
                       console.log(
@@ -1938,11 +1793,8 @@ const resolvers = {
               await batchConnectionPool.releaseAll();
             }
           }
-          // Cache the result (only if not including sample data)
-          if (!includeSampleData) {
-            // Set the schema to the cache
-            apiSchemaCache.set(cacheKey, schema);
-          }
+          // Cache the result
+          apiSchemaCache.set(cacheKey, schema);
           // End the timing
           console.timeEnd(timingId);
 

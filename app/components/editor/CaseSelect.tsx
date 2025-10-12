@@ -19,7 +19,6 @@ interface CaseSelectorProps {
   selectedTable: SelectOption | null;
   tableColumns: TableColumn;
   caseClause: CaseClause;
-  uniqueValues: Record<string, SelectOption[]>;
   joinClauses: JoinClause[];
   operatorOptions: SelectOption[];
   onCaseColumnSelect: (
@@ -49,7 +48,6 @@ export default function CaseSelector({
   selectedTable,
   tableColumns,
   caseClause,
-  uniqueValues,
   joinClauses,
   operatorOptions,
   onCaseColumnSelect,
@@ -99,19 +97,9 @@ export default function CaseSelector({
 
   // Create the result options
   const resultOptions = useMemo<SelectOption[]>(() => {
-    // Create the all values
-    const allValues = Object.values(uniqueValues).flat();
-    // Create the unique results
-    const uniqueResults = Array.from(
-      new Set(allValues.map((opt) => opt.value))
-    ).map((value) => ({
-      // Create the result options
-      value,
-      label: value,
-    }));
-    // Return the unique results
-    return uniqueResults;
-  }, [uniqueValues]);
+    // Return empty array
+    return [];
+  }, []);
 
   // Handle the alias change
   const handleAliasChange = useCallback(
@@ -203,7 +191,7 @@ export default function CaseSelector({
                 Value
               </Label>
               <Select
-                options={uniqueValues[`caseCondition${index + 1}`] || []}
+                options={[]}
                 value={condition.value}
                 onChange={(newValue) => onCaseValueSelect(newValue, index)}
                 placeholder="Compare value"

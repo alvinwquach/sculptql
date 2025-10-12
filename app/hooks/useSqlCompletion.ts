@@ -64,7 +64,6 @@ export const useSqlCompletion = (
   tableNames: string[],
   tableColumns: TableColumn,
   selectedColumns: SelectOption[],
-  uniqueValues: Record<string, SelectOption[]>,
   stripQuotes: (s: string) => string,
   needsQuotes: (id: string) => boolean,
   callbacks: SqlCompletionCallbacks
@@ -96,10 +95,9 @@ export const useSqlCompletion = (
         tableNames,
         tableColumns,
         stripQuotes,
-        needsQuotes,
-        uniqueValues
+        needsQuotes
       ),
-    [tableNames, tableColumns, uniqueValues]
+    [tableNames, tableColumns]
   );
 
   // Set the sql completion to the sql completion
@@ -175,7 +173,6 @@ export const useSqlCompletion = (
           tableColumns,
           stripQuotes,
           needsQuotes,
-          uniqueValues,
           callbacksRef.current.onWhereColumnSelect,
           callbacksRef.current.onOperatorSelect,
           callbacksRef.current.onValueSelect,
@@ -235,7 +232,6 @@ export const useSqlCompletion = (
           pos,
           word,
           tableColumns,
-          uniqueValues,
           stripQuotes,
           needsQuotes,
           ast,
@@ -289,7 +285,6 @@ export const useSqlCompletion = (
       tableNames,
       tableColumns,
       selectedColumns,
-      uniqueValues,
       stripQuotes,
       needsQuotes,
     ]
