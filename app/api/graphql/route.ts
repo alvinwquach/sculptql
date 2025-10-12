@@ -35,6 +35,8 @@ import {
 import {
   validateSqlPermission,
   getPermissionMode,
+  setPermissionMode,
+  PermissionMode,
 } from "@/app/utils/sqlPermissionValidator";
 
 // Interface for the schema cache entry
@@ -1352,11 +1354,7 @@ const typeDefs = /* GraphQL */ `
 
   # Root query type
   type Query {
-    schema(
-      tableSearch: String
-      columnSearch: String
-      limit: Int
-    ): [Table!]!
+    schema(tableSearch: String, columnSearch: String, limit: Int): [Table!]!
     schemaVersion: SchemaVersion!
     dialect: String!
     templates: [QueryTemplate!]!
@@ -1437,6 +1435,7 @@ const typeDefs = /* GraphQL */ `
     deleteTemplate(id: String!): Boolean!
     saveQueryData(input: QueryDataInput!): Boolean!
     clearQueryData: Boolean!
+    updatePermissionMode(mode: String!): Boolean!
   }
 `;
 
@@ -1447,10 +1446,7 @@ const resolvers = {
     },
     schema: async (
       _: unknown,
-      {
-        tableSearch = "",
-        columnSearch = "",
-      }: SchemaArgs
+      { tableSearch = "", columnSearch = "" }: SchemaArgs
     ): Promise<Table[]> => {
       try {
         // Generate the cache key
@@ -1935,7 +1931,13 @@ const resolvers = {
       }
 
       const permissionMode = getPermissionMode();
+
       const permissionCheck = validateSqlPermission(query, permissionMode);
+      console.log(`[runQuery] Permission check result:`, {
+        allowed: permissionCheck.allowed,
+        operations: permissionCheck.operations,
+        error: permissionCheck.error,
+      });
 
       if (!permissionCheck.allowed) {
         console.warn(`🚫 Query blocked: ${permissionCheck.error}`);
@@ -1949,6 +1951,8 @@ const resolvers = {
           totalTime: 0,
         };
       }
+
+      console.log(`✅ Query allowed in ${permissionMode} mode`);
 
       // Get the database adapter
       const adapter = await getDatabaseAdapter();
@@ -2098,7 +2102,10 @@ const resolvers = {
         console.log("Parameter order:", parsed.parameterOrder);
 
         const permissionMode = getPermissionMode();
-        const permissionCheck = validateSqlPermission(parsed.query, permissionMode);
+        const permissionCheck = validateSqlPermission(
+          parsed.query,
+          permissionMode
+        );
 
         if (!permissionCheck.allowed) {
           console.warn(`🚫 Template query blocked: ${permissionCheck.error}`);
@@ -2211,6 +2218,33 @@ const resolvers = {
     clearQueryData: async () => {
       await clearQueryData();
       return true;
+    },
+    updatePermissionMode: async (
+      _: unknown,
+      { mode }: { mode: string }
+    ): Promise<boolean> => {
+      try {
+        const validModes: PermissionMode[] = [
+          "read-only",
+          "read-write",
+          "full",
+        ];
+        if (!validModes.includes(mode as PermissionMode)) {
+          console.error(`Invalid permission mode: ${mode}`);
+          return false;
+        }
+
+        const success = setPermissionMode(mode as PermissionMode);
+        if (success) {
+          console.log(`✅ Permission mode updated to: ${mode}`);
+        } else {
+          console.error(`❌ Failed to update permission mode to: ${mode}`);
+        }
+        return success;
+      } catch (error) {
+        console.error("Error updating permission mode:", error);
+        return false;
+      }
     },
   },
 };

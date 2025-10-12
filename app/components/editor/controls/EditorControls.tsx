@@ -27,6 +27,8 @@ import {
   PermissionMode,
 } from "@/app/utils/editor/sqlPermissionLinter";
 import { toast } from "react-toastify";
+import { useMutation } from "@apollo/client/react";
+import { UPDATE_PERMISSION_MODE } from "@/app/graphql/mutations/updatePermissionMode";
 
 interface ModeConfig {
   label: string;
@@ -138,6 +140,11 @@ const EditorControls = memo(function EditorControls({
   );
   const [showModeDropdown, setShowModeDropdown] = useState(false);
 
+  const [updatePermissionModeMutation] = useMutation<
+    { updatePermissionMode: boolean },
+    { mode: string }
+  >(UPDATE_PERMISSION_MODE);
+
   const handleDropdownToggle = () => {
     setShowModeDropdown(!showModeDropdown);
   };
@@ -184,7 +191,7 @@ const EditorControls = memo(function EditorControls({
 
   const currentModeConfig = modeConfig[permissionMode];
 
-  const handleModeSwitch = (newMode: PermissionMode) => {
+  const handleModeSwitch = async (newMode: PermissionMode) => {
     setClientPermissionMode(newMode);
     setPermissionMode(newMode);
     setShowModeDropdown(false);
@@ -195,10 +202,29 @@ const EditorControls = memo(function EditorControls({
       full: "Full Access",
     };
 
-    toast.success(`Switched to ${modeLabels[newMode]} mode`, {
-      position: "top-right",
-      autoClose: 3000,
-    });
+    try {
+      const result = await updatePermissionModeMutation({
+        variables: { mode: newMode },
+      });
+
+      if (result.data?.updatePermissionMode) {
+        toast.success(`Switched to ${modeLabels[newMode]} mode`, {
+          position: "top-right",
+          autoClose: 3000,
+        });
+      } else {
+        throw new Error("Failed to update permission mode on server");
+      }
+    } catch (error) {
+      console.error("Error updating permission mode:", error);
+      toast.error(
+        `Failed to update permission mode on server. Client-side mode set to ${modeLabels[newMode]}.`,
+        {
+          position: "top-right",
+          autoClose: 5000,
+        }
+      );
+    }
   };
 
   const handleTemplateSelect = (template: QueryTemplate) => {

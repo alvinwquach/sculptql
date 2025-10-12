@@ -17,10 +17,12 @@ import {
   createSqlPermissionLinter,
   getClientPermissionMode,
   validateSqlForToast,
+  PermissionMode,
 } from "./sqlPermissionLinter";
 
 interface EditorExtensionsConfig {
   languageCompartment: Compartment;
+  linterCompartment: Compartment;
   isMac: boolean;
   sqlCompletion: CompletionSource;
   updateListener: ReturnType<typeof EditorView.updateListener.of>;
@@ -30,10 +32,12 @@ interface EditorExtensionsConfig {
   onExposeConsole?: () => void;
   hasResults?: boolean;
   onPermissionViolation?: (message: string) => void;
+  permissionMode: PermissionMode;
 }
 
 export function getEditorExtensions({
   languageCompartment,
+  linterCompartment,
   isMac,
   sqlCompletion,
   updateListener,
@@ -43,9 +47,8 @@ export function getEditorExtensions({
   onExposeConsole,
   hasResults = false,
   onPermissionViolation,
+  permissionMode,
 }: EditorExtensionsConfig) {
-  // Get the permission mode for SQL validation
-  const permissionMode = getClientPermissionMode();
 
   // Transaction filter to block forbidden SQL operations
   const sqlPermissionFilter = EditorState.transactionFilter.of(
@@ -139,7 +142,7 @@ export function getEditorExtensions({
     createEditorTheme(),
     syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
     EditorView.lineWrapping,
-    createSqlPermissionLinter(permissionMode),
+    linterCompartment.of(createSqlPermissionLinter(permissionMode)),
     updateListener,
   ];
 }

@@ -33,6 +33,10 @@ import CodeMirrorEditor from "./CodeMirrorEditor";
 import HorizontalResizablePanel from "../common/HorizontalResizablePanel";
 import VerticalResizablePanel from "../common/VerticalResizablePanel";
 import QueryBuilderSidebar from "./QueryBuilderSidebar";
+import {
+  getClientPermissionMode,
+  validateSqlForToast,
+} from "@/app/utils/editor/sqlPermissionLinter";
 
 interface EditorClientProps {
   schema: TableSchema[];
@@ -106,6 +110,16 @@ const EditorClient = memo(function EditorClient({
         toast.error("Please enter a query");
         return;
       }
+
+      const permissionMode = getClientPermissionMode();
+      const validation = validateSqlForToast(query, permissionMode);
+
+      if (!validation.allowed) {
+        toast.error(validation.message || "Query not allowed");
+        setQueryError(validation.message || "Query not allowed in current permission mode");
+        return;
+      }
+
       try {
         setQueryError(null);
         const { data } = await runQueryMutation({

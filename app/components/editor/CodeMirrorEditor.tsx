@@ -105,10 +105,14 @@ export default function CodeMirrorEditor({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const editorMountRef = useRef<HTMLDivElement | null>(null);
   const languageCompartment = useRef(new Compartment());
+  const linterCompartment = useRef(new Compartment());
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const isTabSwitchingRef = useRef(false);
   const validationTimerRef = useRef<NodeJS.Timeout | null>(null);
   const lastShownErrorRef = useRef<string | null>(null);
+  const [permissionMode, setPermissionMode] = useState(
+    getClientPermissionMode()
+  );
 
   const {
     queryTabs,
@@ -158,6 +162,30 @@ export default function CodeMirrorEditor({
       }
     };
   }, [handleFormatSQL, onFormatSqlHandlerReady]);
+
+  useEffect(() => {
+    const handleModeChange = () => {
+      const newMode = getClientPermissionMode();
+      setPermissionMode(newMode);
+    };
+
+    window.addEventListener("permissionModeChanged", handleModeChange);
+    return () =>
+      window.removeEventListener("permissionModeChanged", handleModeChange);
+  }, []);
+
+  useEffect(() => {
+    if (editorRef.current && linterCompartment.current) {
+      const {
+        createSqlPermissionLinter,
+      } = require("@/app/utils/editor/sqlPermissionLinter");
+      editorRef.current.dispatch({
+        effects: linterCompartment.current.reconfigure(
+          createSqlPermissionLinter(permissionMode)
+        ),
+      });
+    }
+  }, [permissionMode]);
 
   const sqlCompletion = useSqlCompletion(
     tableNames,
@@ -383,6 +411,7 @@ export default function CodeMirrorEditor({
 
     const extensions = getEditorExtensions({
       languageCompartment: languageCompartment.current,
+      linterCompartment: linterCompartment.current,
       isMac,
       sqlCompletion,
       updateListener,
@@ -394,6 +423,7 @@ export default function CodeMirrorEditor({
         queryCallbacksRef.current.exposeQueryResultsToConsole?.(),
       hasResults,
       onPermissionViolation: handlePermissionViolation,
+      permissionMode,
     });
 
     const state = EditorState.create({
@@ -423,6 +453,7 @@ export default function CodeMirrorEditor({
     updateListener,
     hasResults,
     handlePermissionViolation,
+    permissionMode,
   ]);
 
   return (
