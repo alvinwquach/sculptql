@@ -1270,18 +1270,18 @@ interface SchemaArgs {
 const typeDefs = /* GraphQL */ `
   # Column metadata
   type Column {
-    column_name: String!
-    data_type: String!
-    is_nullable: String!
+    column_name: String
+    data_type: String
+    is_nullable: String
     is_primary_key: Boolean!
   }
 
   # Foreign key metadata
   type ForeignKey {
-    column_name: String!
-    referenced_table: String!
-    referenced_column: String!
-    constraint_name: String!
+    column_name: String
+    referenced_table: String
+    referenced_column: String
+    constraint_name: String
   }
 
   # Table metadata
@@ -1564,6 +1564,11 @@ const resolvers = {
               >();
 
               for (const row of combinedResult.rows) {
+                // Skip rows with null column_name to prevent GraphQL errors
+                if (!row.column_name) {
+                  continue;
+                }
+
                 if (!tableMetadata.has(row.table_name)) {
                   tableMetadata.set(row.table_name, {
                     columns: [],
@@ -1587,8 +1592,9 @@ const resolvers = {
                   tableData.primaryKeys.push(row.column_name);
                 }
 
-                // Add foreign key
+                // Add foreign key (ensure all required fields are present)
                 if (
+                  row.column_name &&
                   row.referenced_table &&
                   row.referenced_column &&
                   row.constraint_name
@@ -1739,12 +1745,13 @@ const resolvers = {
                       );
                       // Get the columns from the columns result rows
                       // and the primary keys includes the column name
-                      const columns: Column[] = columnsResult.rows.map(
-                        (col) => ({
+                      // Filter out any columns with null column_name to prevent GraphQL errors
+                      const columns: Column[] = columnsResult.rows
+                        .filter((col) => col.column_name != null)
+                        .map((col) => ({
                           ...col,
                           is_primary_key: primaryKeys.includes(col.column_name),
-                        })
-                      );
+                        }));
                       // Get the table result
                       const tableResult: Table = {
                         table_catalog: table.table_catalog,
