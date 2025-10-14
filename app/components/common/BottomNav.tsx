@@ -3,9 +3,11 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Home, Code2, Table } from "lucide-react";
+import { useEffect, useState } from "react";
+import { isCliMode } from "@/app/actions/cliMode";
 
 // Create the nav items
-const navItems = [
+const allNavItems = [
   { href: "/", label: "Home", icon: Home },
   { href: "/editor", label: "Editor", icon: Code2 },
   { href: "/schema", label: "Schema", icon: Table },
@@ -14,6 +16,17 @@ const navItems = [
 export default function BottomNav() {
   // Get the pathname from the use pathname hook
   const pathname = usePathname();
+  const [cliMode, setCliMode] = useState(false);
+
+  useEffect(() => {
+    // Check if running in CLI mode (via npx sculptql)
+    isCliMode().then(setCliMode);
+  }, []);
+
+  // Filter out home page when in CLI mode
+  const navItems = cliMode
+    ? allNavItems.filter(item => item.href !== "/")
+    : allNavItems;
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 bg-gradient-to-r from-[#0f0f23] via-[#1e1b4b] to-[#312e81] border-t border-purple-500/30 shadow-[0_0_25px_rgba(139,92,246,0.2)]">
