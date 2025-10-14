@@ -10,7 +10,7 @@ import chalk from "chalk";
 import { config as dotenvConfig } from "dotenv";
 import { Command } from "commander";
 import openUrl from "open";
-import { createServer } from "http";
+import { createServer, Server } from "http";
 import next from "next";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
@@ -247,7 +247,7 @@ async function main() {
   // Use development mode only if no standalone build exists AND not in production env
   const dev = !hasStandaloneBuild && process.env.NODE_ENV !== "production";
 
-  let server: any;
+  let server: Server | { close: () => void };
 
   if (dev) {
     const app = next({
@@ -257,26 +257,22 @@ async function main() {
     const handle = app.getRequestHandler();
 
     await app.prepare();
-    server = createServer((req, res) => {
+    const devServer: Server = createServer((req, res) => {
       handle(req, res);
     });
 
-    server.listen(serverPort, () => {
+    devServer.listen(serverPort, () => {
       console.log(
         chalk.green(
           `> Server listening at http://localhost:${serverPort} as development`
         )
       );
     });
+
+    server = devServer;
   } else {
-    // Use the standalone server (path already defined above)
     process.env.PORT = serverPort.toString();
     process.env.HOSTNAME = "0.0.0.0";
-
-    const { default: standaloneServer } = await import(
-      join(standaloneDir, "server.js")
-    );
-
     console.log(
       chalk.green(
         `> Server listening at http://localhost:${serverPort} as production`

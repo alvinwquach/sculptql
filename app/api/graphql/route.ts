@@ -876,13 +876,16 @@ class SqlQueries {
     if (dialect === "mysql") {
       // Set the query to the mysql columns query
       let query = `
-        SELECT column_name, data_type, is_nullable
+        SELECT
+          COLUMN_NAME as column_name,
+          DATA_TYPE as data_type,
+          IS_NULLABLE as is_nullable
         FROM information_schema.columns
         WHERE table_schema = DATABASE() AND table_name = ?
       `;
       // If the column search is not null
       if (columnSearch) {
-        query += ` AND (column_name LIKE ? OR data_type LIKE ?)`;
+        query += ` AND (COLUMN_NAME LIKE ? OR DATA_TYPE LIKE ?)`;
         // Append the column search to the query
         params.push(`%${columnSearch}%`, `%${columnSearch}%`);
       }
@@ -981,9 +984,9 @@ class SqlQueries {
       // Set the query to the mysql primary keys query
       return {
         query: `
-          SELECT column_name
+          SELECT COLUMN_NAME as column_name
           FROM information_schema.key_column_usage
-          WHERE table_schema = DATABASE() 
+          WHERE table_schema = DATABASE()
             AND table_name = ?
             AND constraint_name = 'PRIMARY'
           ORDER BY ordinal_position
@@ -1058,15 +1061,15 @@ class SqlQueries {
       // Set the query to the mysql foreign keys query
       return {
         query: `
-          SELECT 
-            kcu.column_name,
-            kcu.referenced_table_name as referenced_table,
-            kcu.referenced_column_name as referenced_column,
-            kcu.constraint_name
+          SELECT
+            kcu.COLUMN_NAME as column_name,
+            kcu.REFERENCED_TABLE_NAME as referenced_table,
+            kcu.REFERENCED_COLUMN_NAME as referenced_column,
+            kcu.CONSTRAINT_NAME as constraint_name
           FROM information_schema.key_column_usage kcu
           WHERE kcu.table_schema = DATABASE()
             AND kcu.table_name = ?
-            AND kcu.referenced_table_name IS NOT NULL
+            AND kcu.REFERENCED_TABLE_NAME IS NOT NULL
         `,
         // Append the table name to the params
         params: [tableName],
