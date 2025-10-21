@@ -271,15 +271,27 @@ async function main() {
 
     server = devServer;
   } else {
-    process.env.PORT = serverPort.toString();
-    process.env.HOSTNAME = "0.0.0.0";
-    console.log(
-      chalk.green(
-        `> Server listening at http://localhost:${serverPort} as production`
-      )
-    );
+    // Production mode - run the app using next start
+    const app = next({
+      dev: false,
+      dir: join(__dirname, ".."),
+    });
+    const handle = app.getRequestHandler();
 
-    server = { close: () => {} };
+    await app.prepare();
+    const prodServer: Server = createServer((req, res) => {
+      handle(req, res);
+    });
+
+    prodServer.listen(serverPort, () => {
+      console.log(
+        chalk.green(
+          `> Server listening at http://localhost:${serverPort} as production`
+        )
+      );
+    });
+
+    server = prodServer;
   }
 
   const webUrl = `http://localhost:${serverPort}/editor`;
