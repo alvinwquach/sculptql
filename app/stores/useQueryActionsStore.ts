@@ -149,8 +149,17 @@ const generateQueryFromState = (): string => {
       ? '*'
       : selectedColumns
           .map((col) => {
-            const colValue = col.aggregate ? col.value : col.value;
-            return col.alias ? `${colValue} AS '${col.alias}'` : colValue;
+            // Extract the actual column expression from col.label (e.g., "SUM(id)", "AVG(price)", or just "id")
+            // The label contains the display value which is what should be in the SQL
+            let colExpression = col.label;
+
+            // If the label contains "All Columns", use the actual value
+            if (col.label === 'All Columns (*)') {
+              colExpression = '*';
+            }
+
+            // Apply alias if provided
+            return col.alias ? `${colExpression} AS '${col.alias}'` : colExpression;
           })
           .join(', ');
 
@@ -331,7 +340,17 @@ export const useQueryActionsStore = create<QueryActionsState>(() => ({
 
   handleQueryChange: (newQuery: string) => {
     useUIStore.getState().setIsManualEdit(true);
-    useQueryStore.getState().setQuery(newQuery);
+    const queryStore = useQueryStore.getState();
+    queryStore.setQuery(newQuery);
+
+    // Clear visual builder state to prevent it from regenerating the query
+    queryStore.setSelectedTable(null);
+    queryStore.setSelectedColumns([]);
+    queryStore.setWhereClause({
+      conditions: [
+        { column: null, operator: null, value: null, value2: null },
+      ],
+    });
   },
 
   handleTableSelect: (value: SelectOption | null) => {

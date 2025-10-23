@@ -296,25 +296,34 @@ export default function ColumnSelect({
         className="min-w-0 w-full"
       />
       {selectedColumns.length > 0 && selectedColumns[0].value !== "*" && (
-        <div className="mt-3 p-3 rounded-xl bg-gradient-to-br from-[#0f0f23] to-[#1e1b4b] border border-purple-500/30">
-          <div className="flex items-center gap-2 mb-3">
-            <div className="w-1.5 h-1.5 bg-pink-400 rounded-full shadow-[0_0_6px_rgba(244,114,182,0.6)]"></div>
-            <Label className="text-xs font-semibold text-pink-400 uppercase tracking-wider">
-              Column Aliases (Optional)
+        <div className="mt-4 p-4 rounded-xl bg-gradient-to-br from-slate-900/60 to-purple-950/40 border border-purple-500/20 backdrop-blur-sm shadow-lg">
+          <div className="flex items-center gap-2.5 mb-4">
+            <div className="flex items-center justify-center w-5 h-5 rounded-md bg-gradient-to-br from-pink-500/20 to-purple-500/20 border border-pink-400/30">
+              <div className="w-1.5 h-1.5 bg-pink-400 rounded-full shadow-[0_0_8px_rgba(244,114,182,0.8)]"></div>
+            </div>
+            <Label className="text-[11px] font-semibold bg-gradient-to-r from-pink-400 to-purple-400 bg-clip-text text-transparent uppercase tracking-[0.1em] select-none">
+              Column Aliases
             </Label>
+            <span className="text-[10px] text-slate-500 font-medium uppercase tracking-wide">
+              Optional
+            </span>
           </div>
-          <div className="flex flex-col gap-2">
-            {selectedColumns.map((col) => (
-              <div key={col.value} className="flex items-center gap-2 group">
-                <Label className="text-xs text-slate-400 min-w-[120px] font-mono group-hover:text-purple-300 transition-colors">
-                  {col.label}:
+          <div className="flex flex-col gap-3">
+            {selectedColumns.map((col, index) => (
+              <div
+                key={col.value}
+                className="flex flex-col gap-2 group"
+                style={{ animationDelay: `${index * 50}ms` }}
+              >
+                <Label className="text-xs text-slate-400 font-mono font-medium group-hover:text-purple-300 transition-colors duration-200 select-none">
+                  {col.label}
                 </Label>
                 <input
                   type="text"
                   value={col.alias || ""}
                   onChange={(e) => handleAliasChange(col.value, e.target.value)}
-                  placeholder="Enter alias (e.g., 'Title')"
-                  className="flex-1 px-3 py-1.5 text-xs bg-[#0f0f23] border border-purple-500/30 rounded-lg text-white placeholder-slate-500 font-mono transition-all duration-200 focus:outline-none focus:border-purple-500 focus:shadow-[0_0_15px_rgba(139,92,246,0.3)]"
+                  placeholder={`Enter alias name...`}
+                  className="w-full px-4 py-2.5 text-sm bg-slate-900/80 border border-slate-700/50 rounded-lg text-slate-100 placeholder-slate-500 font-mono transition-all duration-200 focus:outline-none focus:bg-slate-900 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 hover:border-slate-600"
                 />
               </div>
             ))}

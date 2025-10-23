@@ -239,14 +239,21 @@ async function main() {
       : chalk.red;
   console.log(modeColor(`🔒 ${modeDescriptions[mode]}`));
 
-  // In production, check if the standalone build exists
+  // Check if we have a production build or should use dev mode
   const standaloneDir = join(__dirname, "..", ".next", "standalone");
-  const hasStandaloneBuild = existsSync(standaloneDir);
+  const standaloneServerPath = join(standaloneDir, "server.js");
+  const hasStandaloneBuild = existsSync(standaloneServerPath);
+
+  // Also check for regular .next build
+  const nextBuildId = join(__dirname, "..", ".next", "BUILD_ID");
+  const hasRegularBuild = existsSync(nextBuildId);
 
   let server: Server;
 
   if (hasStandaloneBuild) {
-    // In production, use the standalone build
+    // Production mode with standalone build
+    console.log(chalk.cyan("Starting in production mode (standalone)"));
+
     // Set all database environment variables for the standalone server
     process.env.PORT = serverPort.toString();
     process.env.HOSTNAME = "0.0.0.0";
@@ -259,7 +266,8 @@ async function main() {
     if (db_file) {
       process.env.DB_FILE = db_file;
     }
-    // Change to standalone directory 
+
+    // Change to standalone directory
     const originalDir = process.cwd();
     process.chdir(standaloneDir);
 
@@ -287,8 +295,32 @@ async function main() {
 
     // Create a server object to cleanup
     server = { close: () => {} } as Server;
+  } else if (hasRegularBuild) {
+    // Production mode with regular build
+    console.log(chalk.cyan("Starting in production mode"));
+
+    const app = next({
+      dev: false,
+      dir: join(__dirname, ".."),
+    });
+    const handle = app.getRequestHandler();
+
+    await app.prepare();
+    server = createServer((req, res) => {
+      handle(req, res);
+    });
+
+    server.listen(serverPort, () => {
+      console.log(
+        chalk.green(
+          `> Server listening at http://localhost:${serverPort} as production`
+        )
+      );
+    });
   } else {
-    // In development, use next dev server
+    // Development mode
+    console.log(chalk.cyan("Starting in development mode"));
+
     const app = next({
       dev: true,
       dir: join(__dirname, ".."),

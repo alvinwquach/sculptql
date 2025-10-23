@@ -156,11 +156,11 @@ const nextConfig: NextConfig = {
     dangerouslyAllowSVG: true,
     contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;",
   },
-  
+
   poweredByHeader: false,
   reactStrictMode: true,
-  
-  output: process.env.NODE_ENV === 'production' ? 'standalone' : undefined,
+
+  // output: 'standalone',
 };
 
 export default nextConfig;

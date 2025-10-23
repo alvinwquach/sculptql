@@ -115,49 +115,48 @@ export const useSqlCompletion = (
       const currentWord = word?.text || "";
       // Set the pos to the pos
       const pos = context.pos;
-      // Set the doc text to the doc text
+      // Set the doc text to the doc text - only get what we need
       const docText = context.state.sliceDoc(0, context.pos);
 
+      // Fast path: Use enhanced completion first (it's optimized)
       try {
-        // Set the enhanced result to the enhanced result
         const enhancedResult = enhancedCompletion.getCompletion(
           docText,
           currentWord,
           pos,
           word
         );
-        // If the enhanced result is true, 
-        // return the enhanced result
         if (enhancedResult) {
           return enhancedResult;
         }
       } catch (error) {
-        console.warn(
-          "Enhanced completion failed, falling back to legacy completion:",
-          error
-        );
+        // Silent fail, continue to fallback
       }
+
+      // Only parse AST if we absolutely need it (for complex queries)
+      // Skip AST parsing for simple/short queries to improve performance
+      if (docText.trim().length < 10) {
+        // For very short queries, skip expensive AST parsing
+        return null;
+      }
+
       // Set the ast to the ast
-      let ast: Select | Select[] | null;
-      // Try to parse the ast
+      let ast: Select | Select[] | null = null;
+      // Try to parse the ast only when necessary
       try {
-        // If the doc text is less than 5, set the ast to null
-        if (docText.trim().length < 5) {
-          ast = null; 
+        const dialect =
+          (typeof window !== "undefined" &&
+            (window as { DB_DIALECT?: string }).DB_DIALECT) ||
+          "postgresql";
+        const parsedAst = parser.astify(docText, { database: dialect });
+        if (Array.isArray(parsedAst)) {
+          const selectNodes = parsedAst.filter(isSelectNode);
+          ast = selectNodes.length > 0 ? selectNodes : null;
         } else {
-          const dialect =
-            (typeof window !== "undefined" &&
-              (window as { DB_DIALECT?: string }).DB_DIALECT) ||
-            "postgresql";
-          const parsedAst = parser.astify(docText, { database: dialect });
-          if (Array.isArray(parsedAst)) {
-            const selectNodes = parsedAst.filter(isSelectNode);
-            ast = selectNodes.length > 0 ? selectNodes : null;
-          } else {
-            ast = isSelectNode(parsedAst) ? parsedAst : null;
-          }
+          ast = isSelectNode(parsedAst) ? parsedAst : null;
         }
       } catch {
+        // AST parsing failed, continue without it
         ast = null;
       }
 

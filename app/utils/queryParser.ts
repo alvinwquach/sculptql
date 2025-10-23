@@ -189,14 +189,16 @@ export class EnhancedQueryParser {
         }
 
         // Handle aliased columns (e.g., "column AS alias" or "column alias")
-        const aliasMatch = part.match(/^(.+?)\s+(?:AS\s+)?([a-zA-Z_][a-zA-Z0-9_]*)$/i);
+        const aliasMatch = part.match(/^(.+?)\s+(?:AS\s+)?['"]?([a-zA-Z_][a-zA-Z0-9_]*)['"]?$/i);
         if (aliasMatch) {
           const [, column, alias] = aliasMatch;
           const cleanColumn = column.replace(/['"]/g, '').trim();
+          const cleanAlias = alias.replace(/['"]/g, '').trim();
           columns.push({
-            value: part,
-            label: `${cleanColumn} AS ${alias}`,
+            value: cleanColumn,
+            label: cleanColumn,
             column: cleanColumn,
+            alias: cleanAlias,
           });
           continue;
         }
