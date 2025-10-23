@@ -142,7 +142,6 @@ if (missingFields.length > 0) {
 }
 
 async function main() {
-  // Set mode as environment variable for API access
   process.env.DB_MODE = mode;
 
   console.log("Connecting with environment variables:", {
@@ -240,16 +239,56 @@ async function main() {
       : chalk.red;
   console.log(modeColor(`🔒 ${modeDescriptions[mode]}`));
 
-  // Check if standalone build exists - if it does, use production mode
+  // In production, check if the standalone build exists
   const standaloneDir = join(__dirname, "..", ".next", "standalone");
   const hasStandaloneBuild = existsSync(standaloneDir);
 
-  // Use development mode only if no standalone build exists AND not in production env
-  const dev = !hasStandaloneBuild && process.env.NODE_ENV !== "production";
+  let server: Server;
 
-  let server: Server | { close: () => void };
+  if (hasStandaloneBuild) {
+    // In production, use the standalone build
+    // Set all database environment variables for the standalone server
+    process.env.PORT = serverPort.toString();
+    process.env.HOSTNAME = "0.0.0.0";
+    process.env.DB_DIALECT = dialect;
+    process.env.DB_HOST = host;
+    process.env.DB_PORT = port?.toString();
+    process.env.DB_DATABASE = database;
+    process.env.DB_USER = user;
+    process.env.DB_PASSWORD = password;
+    if (db_file) {
+      process.env.DB_FILE = db_file;
+    }
+    // Change to standalone directory 
+    const originalDir = process.cwd();
+    process.chdir(standaloneDir);
 
-  if (dev) {
+    // Import the standalone server dynamically
+    const { startServer } = await import("next/dist/server/lib/start-server.js");
+
+    console.log(
+      chalk.green(
+        `> Server listening at http://localhost:${serverPort} as production`
+      )
+    );
+
+    // Start the server
+    startServer({
+      dir: standaloneDir,
+      isDev: false,
+      hostname: "0.0.0.0",
+      port: serverPort,
+      allowRetry: false,
+    }).catch((err) => {
+      console.error(chalk.red("❌ Failed to start server:"), err);
+      process.chdir(originalDir);
+      process.exit(1);
+    });
+
+    // Create a server object to cleanup
+    server = { close: () => {} } as Server;
+  } else {
+    // In development, use next dev server
     const app = next({
       dev: true,
       dir: join(__dirname, ".."),
@@ -257,41 +296,17 @@ async function main() {
     const handle = app.getRequestHandler();
 
     await app.prepare();
-    const devServer: Server = createServer((req, res) => {
+    server = createServer((req, res) => {
       handle(req, res);
     });
 
-    devServer.listen(serverPort, () => {
+    server.listen(serverPort, () => {
       console.log(
         chalk.green(
           `> Server listening at http://localhost:${serverPort} as development`
         )
       );
     });
-
-    server = devServer;
-  } else {
-    // Production mode - run the app using next start
-    const app = next({
-      dev: false,
-      dir: join(__dirname, ".."),
-    });
-    const handle = app.getRequestHandler();
-
-    await app.prepare();
-    const prodServer: Server = createServer((req, res) => {
-      handle(req, res);
-    });
-
-    prodServer.listen(serverPort, () => {
-      console.log(
-        chalk.green(
-          `> Server listening at http://localhost:${serverPort} as production`
-        )
-      );
-    });
-
-    server = prodServer;
   }
 
   const webUrl = `http://localhost:${serverPort}/editor`;
