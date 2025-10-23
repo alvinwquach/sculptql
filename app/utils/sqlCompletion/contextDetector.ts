@@ -9,12 +9,23 @@ interface Rule {
   context: SQLContext;
 }
 
+// Cache commonly used regex patterns
+const FROM_PATTERN = /\bFROM\s+[\w"']+/i;
+const GROUP_BY_PATTERN = /\bGROUP\s+BY\b/i;
+
 export function getCompletionContext(textBeforeCursor: string): SQLContext {
-  // Set the has from to the has from
-  const hasFrom = /\bFROM\s+[\w"']+/i.test(textBeforeCursor);
-  // Set the has group by to the has group by
-  const hasGroupBy = /\bGROUP\s+BY\b/i.test(textBeforeCursor);
-  // Set the rules to the rules
+  // Early return for empty input
+  if (!textBeforeCursor || textBeforeCursor.length < 3) {
+    return { type: "keyword" };
+  }
+
+  let hasFrom: boolean | null = null;
+  let hasGroupBy: boolean | null = null;
+
+  const getHasFrom = () => hasFrom ?? (hasFrom = FROM_PATTERN.test(textBeforeCursor));
+  const getHasGroupBy = () => hasGroupBy ?? (hasGroupBy = GROUP_BY_PATTERN.test(textBeforeCursor));
+
+  // Set the rules to the rules - ordered by most common first for early exit
   const rules: Rule[] = [
     {
       name: "with",
@@ -44,14 +55,14 @@ export function getCompletionContext(textBeforeCursor: string): SQLContext {
     {
       name: "select_star_no_from",
       test: (text) =>
-        /\bSELECT\s+(DISTINCT\s+)?\*\s*$/i.test(text) && !hasFrom,
+        /\bSELECT\s+(DISTINCT\s+)?\*\s*$/i.test(text) && !getHasFrom(),
       context: { type: "need_from", needFrom: true },
     },
     {
       name: "select_columns_no_from",
       test: (text) =>
         /\bSELECT\s+(DISTINCT\s+)?[\w"'(),\s]+\s+$/i.test(text) &&
-        !hasFrom &&
+        !getHasFrom() &&
         !/\bSELECT\s+(DISTINCT\s+)?$/i.test(text) &&
         !/,\s*$/i.test(text),
       context: { type: "need_from", needFrom: true },
@@ -60,13 +71,13 @@ export function getCompletionContext(textBeforeCursor: string): SQLContext {
       name: "in_select",
       test: (text) =>
         /\bSELECT\s*(DISTINCT\s*)?$/i.test(text) ||
-        (/\bSELECT\s+(DISTINCT\s+)?[\w"'(),\s]*$/i.test(text) && !hasFrom),
+        (/\bSELECT\s+(DISTINCT\s+)?[\w"'(),\s]*$/i.test(text) && !getHasFrom()),
       context: { type: "select", inSelect: true },
     },
     {
       name: "join_clause",
       test: (text) =>
-        hasFrom &&
+        getHasFrom() &&
         /\b(?:INNER|LEFT|RIGHT|CROSS)\s+JOIN\b/i.test(text) &&
         !/\b(WHERE|GROUP\s+BY|HAVING|ORDER\s+BY|LIMIT|UNION)\b/i.test(
           text.split(/\b(?:INNER|LEFT|RIGHT|CROSS)\s+JOIN\b/i).pop() || ""
@@ -76,7 +87,7 @@ export function getCompletionContext(textBeforeCursor: string): SQLContext {
     {
       name: "having_clause",
       test: (text) =>
-        hasGroupBy &&
+        getHasGroupBy() &&
         /\bHAVING\b/i.test(text) &&
         !/\b(ORDER\s+BY|LIMIT|UNION)\b/i.test(
           text.split(/\bHAVING\b/i)[1] || ""
@@ -86,7 +97,7 @@ export function getCompletionContext(textBeforeCursor: string): SQLContext {
     {
       name: "group_by_clause",
       test: (text) =>
-        hasFrom &&
+        getHasFrom() &&
         /\bGROUP\s+BY\b/i.test(text) &&
         !/\b(HAVING|ORDER\s+BY|LIMIT|UNION)\b/i.test(
           text.split(/\bGROUP\s+BY\b/i)[1] || ""
@@ -103,7 +114,7 @@ export function getCompletionContext(textBeforeCursor: string): SQLContext {
     {
       name: "order_by_clause",
       test: (text) =>
-        hasFrom &&
+        getHasFrom() &&
         /\bORDER\s+BY\b/i.test(text) &&
         !/\b(LIMIT|UNION)\b/i.test(
           text.split(/\bORDER\s+BY\b/i)[1] || ""
@@ -113,7 +124,7 @@ export function getCompletionContext(textBeforeCursor: string): SQLContext {
     {
       name: "where_clause",
       test: (text) =>
-        hasFrom &&
+        getHasFrom() &&
         /\bWHERE\b/i.test(text) &&
         !/\b(GROUP\s+BY|HAVING|ORDER\s+BY|LIMIT|UNION)\b/i.test(
           text.split(/\bWHERE\b/i)[1] || ""

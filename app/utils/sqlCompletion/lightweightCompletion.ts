@@ -13,7 +13,7 @@ export function createLightweightSqlCompletion(
   
   // Enhanced SQL keywords with better categorization
   const sqlKeywords = [
-      // Basic SQL keywords
+      // Basic SQL keywords - most common first
       { keyword: 'select', type: 'keyword', category: 'query' },
       { keyword: 'from', type: 'keyword', category: 'query' },
       { keyword: 'where', type: 'keyword', category: 'clause' },
@@ -22,6 +22,26 @@ export function createLightweightSqlCompletion(
       { keyword: 'having', type: 'keyword', category: 'clause' },
       { keyword: 'limit', type: 'keyword', category: 'clause' },
       { keyword: 'offset', type: 'keyword', category: 'clause' },
+      { keyword: 'as', type: 'keyword', category: 'clause' },
+
+      // DML keywords
+      { keyword: 'insert', type: 'keyword', category: 'query' },
+      { keyword: 'update', type: 'keyword', category: 'query' },
+      { keyword: 'delete', type: 'keyword', category: 'query' },
+      { keyword: 'values', type: 'keyword', category: 'query' },
+      { keyword: 'set', type: 'keyword', category: 'query' },
+
+      // DDL keywords
+      { keyword: 'create', type: 'keyword', category: 'ddl' },
+      { keyword: 'alter', type: 'keyword', category: 'ddl' },
+      { keyword: 'drop', type: 'keyword', category: 'ddl' },
+      { keyword: 'truncate', type: 'keyword', category: 'ddl' },
+      { keyword: 'table', type: 'keyword', category: 'ddl' },
+      { keyword: 'view', type: 'keyword', category: 'ddl' },
+      { keyword: 'index', type: 'keyword', category: 'ddl' },
+
+      // CTE keywords
+      { keyword: 'with', type: 'keyword', category: 'query' },
       
       // Join keywords
       { keyword: 'inner join', type: 'keyword', category: 'join' },
@@ -101,71 +121,77 @@ export function createLightweightSqlCompletion(
     
     // Return the sql completion function
     return function sqlCompletion(context: CompletionContext): CompletionResult | null {
-      const word = context.matchBefore(/\w*/);
-      // If the word is not found or the from and to are the same, return null
-      if (!word || word.from == word.to) {
-        return null;
-      }
-      
-      // Get the current word and convert to lowercase
-      const currentWord = word.text.toLowerCase();
-      
+      const word = context.matchBefore(/\w+/);
+
+      // If explicitly invoked (Ctrl+Space) and no word, show all completions
+      const isExplicit = context.explicit;
+
+      // Get the current word and convert to lowercase (empty string if no word)
+      const currentWord = word ? word.text.toLowerCase() : "";
+      const from = word ? word.from : context.pos;
+      const to = word ? word.to : context.pos;
+
       // Get the text before cursor and convert to lowercase
       const beforeCursor = context.state.sliceDoc(0, context.pos).toLowerCase();
-      
+
       // Set the suggestions to an empty array
       let suggestions: { label: string; type: string; info?: string; boost?: number }[] = [];
-      
-      // Fast keyword matching using startsWith for better performance
-      // Limit to first 10 matches for instant response
-      let matchCount = 0;
+
+      // Show ALL matching keywords instantly 
       for (const [keyword, data] of keywordMap) {
-        if (matchCount >= 10) break; // Limit for performance
-        if (keyword.startsWith(currentWord)) {
+        // If explicit invocation or word matches, show the keyword
+        if (isExplicit || keyword.startsWith(currentWord)) {
           suggestions.push({
             label: keyword.toUpperCase(),
             type: data.type,
             info: `SQL ${data.type}: ${keyword}`,
-            boost: currentWord === keyword ? 10 : data.boost
+            boost: currentWord === keyword ? 10 : (keyword === currentWord ? 9 : data.boost)
           });
-          matchCount++;
         }
       }
 
-    // Add table names when appropriate - optimized with startsWith
-    if (beforeCursor.includes('from') || beforeCursor.includes('join') || beforeCursor.includes('update') || beforeCursor.includes('delete')) {
-      let tableMatchCount = 0;
+    // Show tables after FROM, JOIN, UPDATE, DELETE, or if query looks incomplete
+    const shouldShowTables =
+      beforeCursor.includes('from') ||
+      beforeCursor.includes('join') ||
+      beforeCursor.includes('update') ||
+      beforeCursor.includes('delete') ||
+      // Show tables if SELECT without FROM
+      (beforeCursor.includes('select') && !beforeCursor.includes('from')); 
+
+    if (shouldShowTables) {
       for (const tableName of tableNames) {
-        if (tableMatchCount >= 5) break; // Limit for performance
         const lowerTableName = tableName.toLowerCase();
-        if (lowerTableName.startsWith(currentWord)) {
+        if (isExplicit || lowerTableName.startsWith(currentWord)) {
           suggestions.push({
             label: tableName,
             type: 'table',
             info: `Table: ${tableName}`,
-            boost: currentWord === lowerTableName ? 10 : 5
+            boost: currentWord === lowerTableName ? 10 : 6
           });
-          tableMatchCount++;
         }
       }
     }
 
-    // Add column names when appropriate - optimized with startsWith
-    if (beforeCursor.includes('select') || beforeCursor.includes('where') || beforeCursor.includes('order by') || beforeCursor.includes('group by') || beforeCursor.includes('having')) {
-      let columnMatchCount = 0;
+    // Show columns after SELECT, WHERE, ORDER BY, GROUP BY, HAVING
+    const shouldShowColumns =
+      beforeCursor.includes('select') ||
+      beforeCursor.includes('where') ||
+      beforeCursor.includes('order') ||
+      beforeCursor.includes('group') ||
+      beforeCursor.includes('having');
+
+    if (shouldShowColumns) {
       for (const [tableName, columns] of Object.entries(tableColumns)) {
-        if (columnMatchCount >= 8) break; // Limit for performance
         for (const col of columns) {
-          if (columnMatchCount >= 8) break; // Limit for performance
           const lowerCol = col.toLowerCase();
-          if (lowerCol.startsWith(currentWord)) {
+          if (isExplicit || lowerCol.startsWith(currentWord)) {
             suggestions.push({
               label: col,
               type: 'column',
               info: `Column: ${tableName}.${col}`,
-              boost: currentWord === lowerCol ? 10 : 5
+              boost: currentWord === lowerCol ? 10 : 4
             });
-            columnMatchCount++;
           }
         }
       }
@@ -183,13 +209,13 @@ export function createLightweightSqlCompletion(
     
     // Early return if no suggestions
     if (suggestions.length === 0) return null;
-    
-    // Limit the suggestions to 15 for better performance
-    suggestions = suggestions.slice(0, 15);
+
+    // Limit the suggestions to 100
+    suggestions = suggestions.slice(0, 100);
 
     return {
-      from: word.from,
-      to: word.to,
+      from: from,
+      to: to,
       options: suggestions.map(suggestion => ({
         label: suggestion.label,
         type: suggestion.type,

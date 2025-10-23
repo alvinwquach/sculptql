@@ -256,15 +256,26 @@ class BatchConnectionPool {
   }
 
   async releaseAll(): Promise<void> {
-    const allAdapters = [...this.adapters, ...this.availableAdapters];
-    await Promise.all(
-      allAdapters.map((adapter) => {
-        adapter.release();
-        return Promise.resolve();
-      })
+    // Only release adapters that are currently in use (not in availableAdapters)
+    const adaptersToRelease = this.adapters.filter(
+      (adapter) => !this.availableAdapters.includes(adapter)
     );
-    this.adapters = [];
-    this.availableAdapters = [];
+
+    try {
+      await Promise.all(
+        adaptersToRelease.map((adapter) => {
+          try {
+            adapter.release();
+          } catch (error) {
+            console.error("Error releasing adapter:", error);
+          }
+          return Promise.resolve();
+        })
+      );
+    } finally {
+      this.adapters = [];
+      this.availableAdapters = [];
+    }
   }
 }
 
@@ -352,28 +363,52 @@ interface DatabaseAdapter {
 // PostgreSQL adapter
 class PostgresAdapter implements DatabaseAdapter {
   // Constructor for the postgres adapter
-  constructor(private client: import("pg").PoolClient) {}
+  constructor(private client: import("pg").PoolClient) {
+    // Handle client errors to prevent uncaught exceptions
+    this.client.on('error', (err) => {
+      console.error('[pg client error]', err);
+      // Don't throw - the query will fail and handle the error
+    });
+  }
   // Query method for the postgres adapter
   async query<T = unknown>(
     text: string,
     params?: (string | number | boolean)[]
   ) {
-    // Query the client and the text and the params
-    const result = await this.client.query(text, params);
-    // Return the result
-    return {
-      rows: result.rows as T[],
-      rowCount: result.rowCount ?? undefined,
-      fields:
-        result.fields?.map((field: FieldDef) => ({ name: field.name })) || [],
-    };
+    try {
+      // Query the client and the text and the params
+      const result = await this.client.query(text, params);
+      // Return the result
+      return {
+        rows: result.rows as T[],
+        rowCount: result.rowCount ?? undefined,
+        fields:
+          result.fields?.map((field: FieldDef) => ({ name: field.name })) || [],
+      };
+    } catch (error) {
+      console.error('[pg query error]', error);
+      throw error;
+    }
   }
   // Release method for the postgres adapter
   release() {
-    // Release the client
-    this.client.release();
-    // Release the connection from the manager
-    connectionManager.releaseConnection();
+    try {
+      // Remove error listener before releasing
+      this.client.removeAllListeners('error');
+      // Release the client
+      this.client.release();
+    } catch (error) {
+      console.error('[pg release error]', error);
+      // Try to release anyway even if there was an error
+      try {
+        this.client.release(true); // Release with error flag
+      } catch (e) {
+        console.error('[pg force release error]', e);
+      }
+    } finally {
+      // Always release the connection from the manager
+      connectionManager.releaseConnection();
+    }
   }
 }
 
@@ -612,24 +647,33 @@ async function createDatabasePool(): Promise<DatabasePool> {
       stmtCacheSize: 30,
     });
   } else {
-    return new PgPool({
+    // Supabase direct connection configuration (port 5432)
+    const pgPool = new PgPool({
       host: process.env.DB_HOST,
       port: Number(process.env.DB_PORT) || 5432,
       database: process.env.DB_DATABASE,
       user: process.env.DB_USER,
       password: process.env.DB_PASSWORD,
       ssl: { rejectUnauthorized: false },
-      max: commonPoolSettings.max,
-      min: commonPoolSettings.min,
-      idleTimeoutMillis: commonPoolSettings.idleTimeoutMillis,
-      connectionTimeoutMillis: 10000, // Increased for better reliability
-      query_timeout: 60000, // Increased to 60 seconds for schema operations
-      statement_timeout: 60000, // Increased to 60 seconds for schema operations
+      max: 20, // Higher limit for direct connection
+      min: 2, // Maintain a few idle connections
+      idleTimeoutMillis: 30000, // 30 seconds
+      connectionTimeoutMillis: 10000, // 10 seconds to acquire connection
+      query_timeout: 60000, // 60 seconds for queries
+      statement_timeout: 60000, // 60 seconds for statements
       application_name: "sculptql-api",
-      keepAlive: true,
+      keepAlive: true, // Enable keepalive for direct connection
       keepAliveInitialDelayMillis: 10000,
-      allowExitOnIdle: true,
+      allowExitOnIdle: false,
     });
+
+    // Handle pool errors gracefully to prevent uncaught exceptions
+    pgPool.on('error', (err) => {
+      console.error('[pg pool error]', err);
+      // Don't throw - just log it to prevent uncaught exceptions
+    });
+
+    return pgPool;
   }
 }
 
@@ -1518,8 +1562,10 @@ const resolvers = {
           console.log(`Found ${normalizedTables.length} tables`);
           // Set the schema to an empty array
           const schema: Table[] = [];
-          // Use optimized combined query for PostgreSQL
-          if (dialect === "postgres") {
+          // Use optimized combined query for PostgreSQL only if table count is reasonable
+          // For large schemas (>50 tables), use individual batched queries to avoid timeouts
+          const useCombinedQuery = dialect === "postgres" && normalizedTables.length <= 50;
+          if (useCombinedQuery) {
             const tableNames = normalizedTables.map(
               (table) => table.table_name
             );
@@ -1531,7 +1577,7 @@ const resolvers = {
               );
 
             if (combinedQuery) {
-              console.log("Using optimized combined query for all tables");
+              console.log(`Using optimized combined query for ${normalizedTables.length} tables`);
 
               // Execute the single combined query
               const combinedResult = await executeQueryWithCache<{

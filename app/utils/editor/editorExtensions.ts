@@ -50,6 +50,7 @@ export function getEditorExtensions({
 }: EditorExtensionsConfig) {
 
   // Transaction filter to block forbidden SQL operations
+  let lastBlockedText = "";
   const sqlPermissionFilter = EditorState.transactionFilter.of(
     (transaction) => {
       // Only check if there are document changes and we're not in full mode
@@ -65,7 +66,10 @@ export function getEditorExtensions({
 
       // If not allowed, block the transaction and show a notification
       if (!validation.allowed && validation.message) {
-        if (onPermissionViolation) {
+        // Only call the violation handler if this is a new blocked text
+        // This prevents infinite loops when the same violation is triggered repeatedly
+        if (onPermissionViolation && newText !== lastBlockedText) {
+          lastBlockedText = newText;
           onPermissionViolation(validation.message);
         }
         // Block the transaction
@@ -135,7 +139,9 @@ export function getEditorExtensions({
       activateOnTyping: true,
       defaultKeymap: true,
       closeOnBlur: true,
-      activateOnTypingDelay: 75,
+      activateOnTypingDelay: 0, 
+      maxRenderedOptions: 100,
+      interactionDelay: 75, 
     }),
     drawSelection(),
     createEditorTheme(),
